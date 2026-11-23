@@ -73,6 +73,9 @@ func (c *client) Close() error {
 	return c.closeErr
 }
 
+// voiceLanguage is a two or three letter lowercase language code, never free text.
+var voiceLanguage = regexp.MustCompile(`^[a-z]{2,3}$`)
+
 func allowlisted(event string) bool {
 	switch event {
 	case "course_replan_quoted", "course_replan_proposed", "course_replan_confirmed", "course_replan_discarded", "course_replan_failed":
@@ -112,7 +115,9 @@ func allowlisted(event string) bool {
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled",
-		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created":
+		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created",
+		"voice_transcription_succeeded", "voice_transcription_failed",
+		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used":
 		return true
 	default:
 		return false
@@ -638,6 +643,22 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				enum("seconds_in_mode", "lt_10", "10_30", "30_120", "120_600", "gt_600")
 			}
 		}
+	case "voice_transcription_succeeded", "voice_transcription_failed",
+		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used":
+		// Closed enums, a model id and flags only: never audio, a transcript or any text the Learner said.
+		closed := func(key string, allowed ...string) {
+			if v, ok := input[key].(string); ok && slices.Contains(allowed, v) {
+				out[key] = v
+			}
+		}
+		closed("purpose", "tutor", "note")
+		closed("duration_bucket", "lt_2s", "2_5s", "5_15s", "15_30s")
+		closed("error_class", "voice_unavailable", "voice_failed", "voice_timeout", "voice_cost_ceiling", "voice_invalid", "voice_over_policy")
+		if v, ok := input["language"].(string); ok && (v == "" || voiceLanguage.MatchString(v)) {
+			out["language"] = v
+		}
+		boolean("fallback_used", "empty")
+		ids("served_model", "model")
 	case "lesson_anchored_note_created":
 		// Identifiers, a closed enum and a flag; never the note text or the region contents.
 		ids("course_id", "lesson_id")

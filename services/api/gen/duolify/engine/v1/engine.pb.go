@@ -131,7 +131,185 @@ func (x CourseInstruction_Scope) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CourseInstruction_Scope.Descriptor instead.
 func (CourseInstruction_Scope) EnumDescriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{31, 0}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{33, 0}
+}
+
+type TranscribeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Raw recording bytes, at most 1 MiB. Never logged, stored, hashed, queued or sent to analytics.
+	Audio []byte `protobuf:"bytes,1,opt,name=audio,proto3" json:"audio,omitempty"`
+	// Container the API identified from the bytes: `webm` (WebM/Opus) or `m4a` (MP4/AAC).
+	Container string `protobuf:"bytes,2,opt,name=container,proto3" json:"container,omitempty"`
+	// Recording length the API already validated (500 to 30000 ms).
+	DurationMs uint32 `protobuf:"varint,3,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	// `tutor` or `note`; for logs and metrics only.
+	Purpose string `protobuf:"bytes,4,opt,name=purpose,proto3" json:"purpose,omitempty"`
+	// Optional ISO 639-1 hint; empty lets the model detect the language.
+	LanguageHint  string `protobuf:"bytes,5,opt,name=language_hint,json=languageHint,proto3" json:"language_hint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TranscribeRequest) Reset() {
+	*x = TranscribeRequest{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TranscribeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TranscribeRequest) ProtoMessage() {}
+
+func (x *TranscribeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TranscribeRequest.ProtoReflect.Descriptor instead.
+func (*TranscribeRequest) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *TranscribeRequest) GetAudio() []byte {
+	if x != nil {
+		return x.Audio
+	}
+	return nil
+}
+
+func (x *TranscribeRequest) GetContainer() string {
+	if x != nil {
+		return x.Container
+	}
+	return ""
+}
+
+func (x *TranscribeRequest) GetDurationMs() uint32 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *TranscribeRequest) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
+	}
+	return ""
+}
+
+func (x *TranscribeRequest) GetLanguageHint() string {
+	if x != nil {
+		return x.LanguageHint
+	}
+	return ""
+}
+
+type TranscribeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Transcript; empty when nothing intelligible was said. Never logged.
+	Text string `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	// Detected language (ISO 639-1) when the model reports one, else empty.
+	Language string `protobuf:"bytes,2,opt,name=language,proto3" json:"language,omitempty"`
+	// Audio length the provider billed, in milliseconds (the request's length when unreported).
+	DurationMs uint32 `protobuf:"varint,3,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	// Model that served the request and whether it was the fallback.
+	Model        string `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	FallbackUsed bool   `protobuf:"varint,5,opt,name=fallback_used,json=fallbackUsed,proto3" json:"fallback_used,omitempty"`
+	LatencyMs    uint32 `protobuf:"varint,6,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
+	// Provider-reported cost in nanodollars (USD x 1e9); zero when unreported.
+	CostNanos     uint64 `protobuf:"varint,7,opt,name=cost_nanos,json=costNanos,proto3" json:"cost_nanos,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TranscribeResponse) Reset() {
+	*x = TranscribeResponse{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TranscribeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TranscribeResponse) ProtoMessage() {}
+
+func (x *TranscribeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TranscribeResponse.ProtoReflect.Descriptor instead.
+func (*TranscribeResponse) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *TranscribeResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *TranscribeResponse) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
+}
+
+func (x *TranscribeResponse) GetDurationMs() uint32 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *TranscribeResponse) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *TranscribeResponse) GetFallbackUsed() bool {
+	if x != nil {
+		return x.FallbackUsed
+	}
+	return false
+}
+
+func (x *TranscribeResponse) GetLatencyMs() uint32 {
+	if x != nil {
+		return x.LatencyMs
+	}
+	return 0
+}
+
+func (x *TranscribeResponse) GetCostNanos() uint64 {
+	if x != nil {
+		return x.CostNanos
+	}
+	return 0
 }
 
 type SynthesizeNarrationRequest struct {
@@ -156,7 +334,7 @@ type SynthesizeNarrationRequest struct {
 
 func (x *SynthesizeNarrationRequest) Reset() {
 	*x = SynthesizeNarrationRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[0]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -168,7 +346,7 @@ func (x *SynthesizeNarrationRequest) String() string {
 func (*SynthesizeNarrationRequest) ProtoMessage() {}
 
 func (x *SynthesizeNarrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[0]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -181,7 +359,7 @@ func (x *SynthesizeNarrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SynthesizeNarrationRequest.ProtoReflect.Descriptor instead.
 func (*SynthesizeNarrationRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{0}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SynthesizeNarrationRequest) GetSlideId() string {
@@ -252,7 +430,7 @@ type NarrationAlignment struct {
 
 func (x *NarrationAlignment) Reset() {
 	*x = NarrationAlignment{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[1]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +442,7 @@ func (x *NarrationAlignment) String() string {
 func (*NarrationAlignment) ProtoMessage() {}
 
 func (x *NarrationAlignment) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[1]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +455,7 @@ func (x *NarrationAlignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NarrationAlignment.ProtoReflect.Descriptor instead.
 func (*NarrationAlignment) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{1}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *NarrationAlignment) GetCharacters() []string {
@@ -328,7 +506,7 @@ type SynthesizeNarrationResponse struct {
 
 func (x *SynthesizeNarrationResponse) Reset() {
 	*x = SynthesizeNarrationResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[2]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -340,7 +518,7 @@ func (x *SynthesizeNarrationResponse) String() string {
 func (*SynthesizeNarrationResponse) ProtoMessage() {}
 
 func (x *SynthesizeNarrationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[2]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -353,7 +531,7 @@ func (x *SynthesizeNarrationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SynthesizeNarrationResponse.ProtoReflect.Descriptor instead.
 func (*SynthesizeNarrationResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{2}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SynthesizeNarrationResponse) GetAudio() []byte {
@@ -471,7 +649,7 @@ type MapCharacterRequest struct {
 
 func (x *MapCharacterRequest) Reset() {
 	*x = MapCharacterRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[3]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -483,7 +661,7 @@ func (x *MapCharacterRequest) String() string {
 func (*MapCharacterRequest) ProtoMessage() {}
 
 func (x *MapCharacterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[3]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -496,7 +674,7 @@ func (x *MapCharacterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MapCharacterRequest.ProtoReflect.Descriptor instead.
 func (*MapCharacterRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{3}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MapCharacterRequest) GetPrompt() string {
@@ -523,7 +701,7 @@ type MapCharacterResponse struct {
 
 func (x *MapCharacterResponse) Reset() {
 	*x = MapCharacterResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[4]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -535,7 +713,7 @@ func (x *MapCharacterResponse) String() string {
 func (*MapCharacterResponse) ProtoMessage() {}
 
 func (x *MapCharacterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[4]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -548,7 +726,7 @@ func (x *MapCharacterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MapCharacterResponse.ProtoReflect.Descriptor instead.
 func (*MapCharacterResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{4}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *MapCharacterResponse) GetSpecJson() string {
@@ -580,7 +758,7 @@ type ScreenCharacterRequest struct {
 
 func (x *ScreenCharacterRequest) Reset() {
 	*x = ScreenCharacterRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[5]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -592,7 +770,7 @@ func (x *ScreenCharacterRequest) String() string {
 func (*ScreenCharacterRequest) ProtoMessage() {}
 
 func (x *ScreenCharacterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[5]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -605,7 +783,7 @@ func (x *ScreenCharacterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenCharacterRequest.ProtoReflect.Descriptor instead.
 func (*ScreenCharacterRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{5}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ScreenCharacterRequest) GetSpecJson() string {
@@ -657,7 +835,7 @@ type ScreenCharacterResponse struct {
 
 func (x *ScreenCharacterResponse) Reset() {
 	*x = ScreenCharacterResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[6]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -669,7 +847,7 @@ func (x *ScreenCharacterResponse) String() string {
 func (*ScreenCharacterResponse) ProtoMessage() {}
 
 func (x *ScreenCharacterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[6]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -682,7 +860,7 @@ func (x *ScreenCharacterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenCharacterResponse.ProtoReflect.Descriptor instead.
 func (*ScreenCharacterResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{6}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ScreenCharacterResponse) GetApproved() bool {
@@ -732,7 +910,7 @@ type ScreenCourseRequest struct {
 
 func (x *ScreenCourseRequest) Reset() {
 	*x = ScreenCourseRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[7]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -744,7 +922,7 @@ func (x *ScreenCourseRequest) String() string {
 func (*ScreenCourseRequest) ProtoMessage() {}
 
 func (x *ScreenCourseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[7]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -757,7 +935,7 @@ func (x *ScreenCourseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenCourseRequest.ProtoReflect.Descriptor instead.
 func (*ScreenCourseRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{7}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ScreenCourseRequest) GetSampleJson() string {
@@ -796,7 +974,7 @@ type ScreenCourseResponse struct {
 
 func (x *ScreenCourseResponse) Reset() {
 	*x = ScreenCourseResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[8]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -808,7 +986,7 @@ func (x *ScreenCourseResponse) String() string {
 func (*ScreenCourseResponse) ProtoMessage() {}
 
 func (x *ScreenCourseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[8]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -821,7 +999,7 @@ func (x *ScreenCourseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenCourseResponse.ProtoReflect.Descriptor instead.
 func (*ScreenCourseResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{8}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ScreenCourseResponse) GetVerdict() string {
@@ -863,7 +1041,7 @@ type ScreenReviewRequest struct {
 
 func (x *ScreenReviewRequest) Reset() {
 	*x = ScreenReviewRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[9]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -875,7 +1053,7 @@ func (x *ScreenReviewRequest) String() string {
 func (*ScreenReviewRequest) ProtoMessage() {}
 
 func (x *ScreenReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[9]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -888,7 +1066,7 @@ func (x *ScreenReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenReviewRequest.ProtoReflect.Descriptor instead.
 func (*ScreenReviewRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{9}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ScreenReviewRequest) GetText() string {
@@ -919,7 +1097,7 @@ type ScreenReviewResponse struct {
 
 func (x *ScreenReviewResponse) Reset() {
 	*x = ScreenReviewResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[10]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -931,7 +1109,7 @@ func (x *ScreenReviewResponse) String() string {
 func (*ScreenReviewResponse) ProtoMessage() {}
 
 func (x *ScreenReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[10]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -944,7 +1122,7 @@ func (x *ScreenReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenReviewResponse.ProtoReflect.Descriptor instead.
 func (*ScreenReviewResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{10}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ScreenReviewResponse) GetVerdict() string {
@@ -983,7 +1161,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[11]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -995,7 +1173,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[11]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1008,7 +1186,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{11}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{13}
 }
 
 type HealthResponse struct {
@@ -1021,7 +1199,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[12]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1033,7 +1211,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[12]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1046,7 +1224,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{12}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *HealthResponse) GetVersion() string {
@@ -1091,7 +1269,7 @@ type Usage struct {
 
 func (x *Usage) Reset() {
 	*x = Usage{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[13]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1103,7 +1281,7 @@ func (x *Usage) String() string {
 func (*Usage) ProtoMessage() {}
 
 func (x *Usage) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[13]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1116,7 +1294,7 @@ func (x *Usage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Usage.ProtoReflect.Descriptor instead.
 func (*Usage) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{13}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Usage) GetProvider() string {
@@ -1264,7 +1442,7 @@ type UsageLimits struct {
 
 func (x *UsageLimits) Reset() {
 	*x = UsageLimits{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[14]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1276,7 +1454,7 @@ func (x *UsageLimits) String() string {
 func (*UsageLimits) ProtoMessage() {}
 
 func (x *UsageLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[14]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1289,7 +1467,7 @@ func (x *UsageLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageLimits.ProtoReflect.Descriptor instead.
 func (*UsageLimits) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{14}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UsageLimits) GetInputTokens() uint32 {
@@ -1423,7 +1601,7 @@ type LearnerProfile struct {
 
 func (x *LearnerProfile) Reset() {
 	*x = LearnerProfile{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[15]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1435,7 +1613,7 @@ func (x *LearnerProfile) String() string {
 func (*LearnerProfile) ProtoMessage() {}
 
 func (x *LearnerProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[15]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1448,7 +1626,7 @@ func (x *LearnerProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LearnerProfile.ProtoReflect.Descriptor instead.
 func (*LearnerProfile) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{15}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *LearnerProfile) GetLearnerId() string {
@@ -1539,7 +1717,7 @@ type LessonRef struct {
 
 func (x *LessonRef) Reset() {
 	*x = LessonRef{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[16]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1551,7 +1729,7 @@ func (x *LessonRef) String() string {
 func (*LessonRef) ProtoMessage() {}
 
 func (x *LessonRef) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[16]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1564,7 +1742,7 @@ func (x *LessonRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LessonRef.ProtoReflect.Descriptor instead.
 func (*LessonRef) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{16}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *LessonRef) GetLessonId() string {
@@ -1599,7 +1777,7 @@ type Unit struct {
 
 func (x *Unit) Reset() {
 	*x = Unit{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[17]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1611,7 +1789,7 @@ func (x *Unit) String() string {
 func (*Unit) ProtoMessage() {}
 
 func (x *Unit) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[17]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1624,7 +1802,7 @@ func (x *Unit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Unit.ProtoReflect.Descriptor instead.
 func (*Unit) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{17}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Unit) GetUnitId() string {
@@ -1660,7 +1838,7 @@ type CourseOutline struct {
 
 func (x *CourseOutline) Reset() {
 	*x = CourseOutline{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[18]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1672,7 +1850,7 @@ func (x *CourseOutline) String() string {
 func (*CourseOutline) ProtoMessage() {}
 
 func (x *CourseOutline) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[18]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1685,7 +1863,7 @@ func (x *CourseOutline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CourseOutline.ProtoReflect.Descriptor instead.
 func (*CourseOutline) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{18}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CourseOutline) GetCourseId() string {
@@ -1734,7 +1912,7 @@ type Slide struct {
 
 func (x *Slide) Reset() {
 	*x = Slide{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[19]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1746,7 +1924,7 @@ func (x *Slide) String() string {
 func (*Slide) ProtoMessage() {}
 
 func (x *Slide) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[19]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1759,7 +1937,7 @@ func (x *Slide) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Slide.ProtoReflect.Descriptor instead.
 func (*Slide) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{19}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Slide) GetSlideId() string {
@@ -1829,7 +2007,7 @@ type SlideRegion struct {
 
 func (x *SlideRegion) Reset() {
 	*x = SlideRegion{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[20]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1841,7 +2019,7 @@ func (x *SlideRegion) String() string {
 func (*SlideRegion) ProtoMessage() {}
 
 func (x *SlideRegion) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[20]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1854,7 +2032,7 @@ func (x *SlideRegion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SlideRegion.ProtoReflect.Descriptor instead.
 func (*SlideRegion) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{20}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SlideRegion) GetRegionId() string {
@@ -1905,7 +2083,7 @@ type RegionBox struct {
 
 func (x *RegionBox) Reset() {
 	*x = RegionBox{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[21]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1917,7 +2095,7 @@ func (x *RegionBox) String() string {
 func (*RegionBox) ProtoMessage() {}
 
 func (x *RegionBox) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[21]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1930,7 +2108,7 @@ func (x *RegionBox) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegionBox.ProtoReflect.Descriptor instead.
 func (*RegionBox) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{21}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *RegionBox) GetX() float64 {
@@ -1972,7 +2150,7 @@ type RegionWindow struct {
 
 func (x *RegionWindow) Reset() {
 	*x = RegionWindow{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[22]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1984,7 +2162,7 @@ func (x *RegionWindow) String() string {
 func (*RegionWindow) ProtoMessage() {}
 
 func (x *RegionWindow) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[22]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1997,7 +2175,7 @@ func (x *RegionWindow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegionWindow.ProtoReflect.Descriptor instead.
 func (*RegionWindow) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{22}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RegionWindow) GetStartMs() uint32 {
@@ -2028,7 +2206,7 @@ type CharacterSegment struct {
 
 func (x *CharacterSegment) Reset() {
 	*x = CharacterSegment{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[23]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2040,7 +2218,7 @@ func (x *CharacterSegment) String() string {
 func (*CharacterSegment) ProtoMessage() {}
 
 func (x *CharacterSegment) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[23]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2053,7 +2231,7 @@ func (x *CharacterSegment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CharacterSegment.ProtoReflect.Descriptor instead.
 func (*CharacterSegment) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{23}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *CharacterSegment) GetSpeakerKey() string {
@@ -2106,7 +2284,7 @@ type Question struct {
 
 func (x *Question) Reset() {
 	*x = Question{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[24]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2118,7 +2296,7 @@ func (x *Question) String() string {
 func (*Question) ProtoMessage() {}
 
 func (x *Question) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[24]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2131,7 +2309,7 @@ func (x *Question) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Question.ProtoReflect.Descriptor instead.
 func (*Question) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{24}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Question) GetQuestionId() string {
@@ -2193,7 +2371,7 @@ type TopicVariants struct {
 
 func (x *TopicVariants) Reset() {
 	*x = TopicVariants{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[25]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2205,7 +2383,7 @@ func (x *TopicVariants) String() string {
 func (*TopicVariants) ProtoMessage() {}
 
 func (x *TopicVariants) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[25]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2218,7 +2396,7 @@ func (x *TopicVariants) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopicVariants.ProtoReflect.Descriptor instead.
 func (*TopicVariants) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{25}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *TopicVariants) GetTopicId() string {
@@ -2248,7 +2426,7 @@ type Lesson struct {
 
 func (x *Lesson) Reset() {
 	*x = Lesson{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[26]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2260,7 +2438,7 @@ func (x *Lesson) String() string {
 func (*Lesson) ProtoMessage() {}
 
 func (x *Lesson) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[26]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2273,7 +2451,7 @@ func (x *Lesson) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Lesson.ProtoReflect.Descriptor instead.
 func (*Lesson) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{26}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Lesson) GetAppliedInstructionIds() []string {
@@ -2325,7 +2503,7 @@ type PreviewCourseRequest struct {
 
 func (x *PreviewCourseRequest) Reset() {
 	*x = PreviewCourseRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[27]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2337,7 +2515,7 @@ func (x *PreviewCourseRequest) String() string {
 func (*PreviewCourseRequest) ProtoMessage() {}
 
 func (x *PreviewCourseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[27]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2350,7 +2528,7 @@ func (x *PreviewCourseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewCourseRequest.ProtoReflect.Descriptor instead.
 func (*PreviewCourseRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{27}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PreviewCourseRequest) GetTopic() string {
@@ -2408,7 +2586,7 @@ type PreviewCourseResponse struct {
 
 func (x *PreviewCourseResponse) Reset() {
 	*x = PreviewCourseResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[28]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2420,7 +2598,7 @@ func (x *PreviewCourseResponse) String() string {
 func (*PreviewCourseResponse) ProtoMessage() {}
 
 func (x *PreviewCourseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[28]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2433,7 +2611,7 @@ func (x *PreviewCourseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewCourseResponse.ProtoReflect.Descriptor instead.
 func (*PreviewCourseResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{28}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PreviewCourseResponse) GetSampleOutline() *CourseOutline {
@@ -2486,7 +2664,7 @@ type GenerateCourseOutlineRequest struct {
 
 func (x *GenerateCourseOutlineRequest) Reset() {
 	*x = GenerateCourseOutlineRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[29]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2498,7 +2676,7 @@ func (x *GenerateCourseOutlineRequest) String() string {
 func (*GenerateCourseOutlineRequest) ProtoMessage() {}
 
 func (x *GenerateCourseOutlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[29]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2511,7 +2689,7 @@ func (x *GenerateCourseOutlineRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateCourseOutlineRequest.ProtoReflect.Descriptor instead.
 func (*GenerateCourseOutlineRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{29}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GenerateCourseOutlineRequest) GetTopic() string {
@@ -2576,7 +2754,7 @@ type GenerateCourseOutlineResponse struct {
 
 func (x *GenerateCourseOutlineResponse) Reset() {
 	*x = GenerateCourseOutlineResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[30]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2588,7 +2766,7 @@ func (x *GenerateCourseOutlineResponse) String() string {
 func (*GenerateCourseOutlineResponse) ProtoMessage() {}
 
 func (x *GenerateCourseOutlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[30]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2601,7 +2779,7 @@ func (x *GenerateCourseOutlineResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateCourseOutlineResponse.ProtoReflect.Descriptor instead.
 func (*GenerateCourseOutlineResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{30}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *GenerateCourseOutlineResponse) GetOutline() *CourseOutline {
@@ -2652,7 +2830,7 @@ type CourseInstruction struct {
 
 func (x *CourseInstruction) Reset() {
 	*x = CourseInstruction{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[31]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2664,7 +2842,7 @@ func (x *CourseInstruction) String() string {
 func (*CourseInstruction) ProtoMessage() {}
 
 func (x *CourseInstruction) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[31]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2677,7 +2855,7 @@ func (x *CourseInstruction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CourseInstruction.ProtoReflect.Descriptor instead.
 func (*CourseInstruction) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{31}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CourseInstruction) GetId() string {
@@ -2725,7 +2903,7 @@ type ScreenInstructionRequest struct {
 
 func (x *ScreenInstructionRequest) Reset() {
 	*x = ScreenInstructionRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[32]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2737,7 +2915,7 @@ func (x *ScreenInstructionRequest) String() string {
 func (*ScreenInstructionRequest) ProtoMessage() {}
 
 func (x *ScreenInstructionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[32]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2750,7 +2928,7 @@ func (x *ScreenInstructionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenInstructionRequest.ProtoReflect.Descriptor instead.
 func (*ScreenInstructionRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{32}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ScreenInstructionRequest) GetText() string {
@@ -2779,7 +2957,7 @@ type ScreenInstructionResponse struct {
 
 func (x *ScreenInstructionResponse) Reset() {
 	*x = ScreenInstructionResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[33]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2791,7 +2969,7 @@ func (x *ScreenInstructionResponse) String() string {
 func (*ScreenInstructionResponse) ProtoMessage() {}
 
 func (x *ScreenInstructionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[33]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2804,7 +2982,7 @@ func (x *ScreenInstructionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScreenInstructionResponse.ProtoReflect.Descriptor instead.
 func (*ScreenInstructionResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{33}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ScreenInstructionResponse) GetAllowed() bool {
@@ -2848,7 +3026,7 @@ type ReplanOutlineRequest struct {
 
 func (x *ReplanOutlineRequest) Reset() {
 	*x = ReplanOutlineRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[34]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2860,7 +3038,7 @@ func (x *ReplanOutlineRequest) String() string {
 func (*ReplanOutlineRequest) ProtoMessage() {}
 
 func (x *ReplanOutlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[34]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2873,7 +3051,7 @@ func (x *ReplanOutlineRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplanOutlineRequest.ProtoReflect.Descriptor instead.
 func (*ReplanOutlineRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{34}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ReplanOutlineRequest) GetOutline() *CourseOutline {
@@ -2922,7 +3100,7 @@ type ReplanOutlineResponse struct {
 
 func (x *ReplanOutlineResponse) Reset() {
 	*x = ReplanOutlineResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[35]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2934,7 +3112,7 @@ func (x *ReplanOutlineResponse) String() string {
 func (*ReplanOutlineResponse) ProtoMessage() {}
 
 func (x *ReplanOutlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[35]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2947,7 +3125,7 @@ func (x *ReplanOutlineResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplanOutlineResponse.ProtoReflect.Descriptor instead.
 func (*ReplanOutlineResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{35}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ReplanOutlineResponse) GetOutline() *CourseOutline {
@@ -2988,7 +3166,7 @@ type GenerateLessonRequest struct {
 
 func (x *GenerateLessonRequest) Reset() {
 	*x = GenerateLessonRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[36]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3000,7 +3178,7 @@ func (x *GenerateLessonRequest) String() string {
 func (*GenerateLessonRequest) ProtoMessage() {}
 
 func (x *GenerateLessonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[36]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3013,7 +3191,7 @@ func (x *GenerateLessonRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateLessonRequest.ProtoReflect.Descriptor instead.
 func (*GenerateLessonRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{36}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *GenerateLessonRequest) GetOutline() *CourseOutline {
@@ -3082,7 +3260,7 @@ type GenerateLessonEvent struct {
 
 func (x *GenerateLessonEvent) Reset() {
 	*x = GenerateLessonEvent{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[37]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3094,7 +3272,7 @@ func (x *GenerateLessonEvent) String() string {
 func (*GenerateLessonEvent) ProtoMessage() {}
 
 func (x *GenerateLessonEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[37]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3107,7 +3285,7 @@ func (x *GenerateLessonEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateLessonEvent.ProtoReflect.Descriptor instead.
 func (*GenerateLessonEvent) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{37}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GenerateLessonEvent) GetEvent() isGenerateLessonEvent_Event {
@@ -3225,7 +3403,7 @@ type GenerateRetryVariantsRequest struct {
 
 func (x *GenerateRetryVariantsRequest) Reset() {
 	*x = GenerateRetryVariantsRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[38]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3237,7 +3415,7 @@ func (x *GenerateRetryVariantsRequest) String() string {
 func (*GenerateRetryVariantsRequest) ProtoMessage() {}
 
 func (x *GenerateRetryVariantsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[38]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3250,7 +3428,7 @@ func (x *GenerateRetryVariantsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateRetryVariantsRequest.ProtoReflect.Descriptor instead.
 func (*GenerateRetryVariantsRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{38}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GenerateRetryVariantsRequest) GetInstructions() []*CourseInstruction {
@@ -3307,7 +3485,7 @@ type GenerateRetryVariantsResponse struct {
 
 func (x *GenerateRetryVariantsResponse) Reset() {
 	*x = GenerateRetryVariantsResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[39]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3319,7 +3497,7 @@ func (x *GenerateRetryVariantsResponse) String() string {
 func (*GenerateRetryVariantsResponse) ProtoMessage() {}
 
 func (x *GenerateRetryVariantsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[39]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3332,7 +3510,7 @@ func (x *GenerateRetryVariantsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateRetryVariantsResponse.ProtoReflect.Descriptor instead.
 func (*GenerateRetryVariantsResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{39}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GenerateRetryVariantsResponse) GetVariants() []*Question {
@@ -3373,7 +3551,7 @@ type ChatMessage struct {
 
 func (x *ChatMessage) Reset() {
 	*x = ChatMessage{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[40]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3385,7 +3563,7 @@ func (x *ChatMessage) String() string {
 func (*ChatMessage) ProtoMessage() {}
 
 func (x *ChatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[40]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3398,7 +3576,7 @@ func (x *ChatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
 func (*ChatMessage) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{40}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ChatMessage) GetRole() string {
@@ -3437,7 +3615,7 @@ type ChatRequest struct {
 
 func (x *ChatRequest) Reset() {
 	*x = ChatRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[41]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3449,7 +3627,7 @@ func (x *ChatRequest) String() string {
 func (*ChatRequest) ProtoMessage() {}
 
 func (x *ChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[41]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3462,7 +3640,7 @@ func (x *ChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatRequest.ProtoReflect.Descriptor instead.
 func (*ChatRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{41}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ChatRequest) GetOutline() *CourseOutline {
@@ -3550,7 +3728,7 @@ type RegionQuestion struct {
 
 func (x *RegionQuestion) Reset() {
 	*x = RegionQuestion{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[42]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3562,7 +3740,7 @@ func (x *RegionQuestion) String() string {
 func (*RegionQuestion) ProtoMessage() {}
 
 func (x *RegionQuestion) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[42]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3575,7 +3753,7 @@ func (x *RegionQuestion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegionQuestion.ProtoReflect.Descriptor instead.
 func (*RegionQuestion) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{42}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *RegionQuestion) GetSlideIndex() uint32 {
@@ -3633,7 +3811,7 @@ type QuestionRegion struct {
 
 func (x *QuestionRegion) Reset() {
 	*x = QuestionRegion{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[43]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3645,7 +3823,7 @@ func (x *QuestionRegion) String() string {
 func (*QuestionRegion) ProtoMessage() {}
 
 func (x *QuestionRegion) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[43]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3658,7 +3836,7 @@ func (x *QuestionRegion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestionRegion.ProtoReflect.Descriptor instead.
 func (*QuestionRegion) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{43}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *QuestionRegion) GetRegionId() string {
@@ -3700,7 +3878,7 @@ type SourceExcerpt struct {
 
 func (x *SourceExcerpt) Reset() {
 	*x = SourceExcerpt{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[44]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3712,7 +3890,7 @@ func (x *SourceExcerpt) String() string {
 func (*SourceExcerpt) ProtoMessage() {}
 
 func (x *SourceExcerpt) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[44]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3725,7 +3903,7 @@ func (x *SourceExcerpt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SourceExcerpt.ProtoReflect.Descriptor instead.
 func (*SourceExcerpt) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{44}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *SourceExcerpt) GetLessonId() string {
@@ -3762,7 +3940,7 @@ type ChatStreamError struct {
 
 func (x *ChatStreamError) Reset() {
 	*x = ChatStreamError{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[45]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3774,7 +3952,7 @@ func (x *ChatStreamError) String() string {
 func (*ChatStreamError) ProtoMessage() {}
 
 func (x *ChatStreamError) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[45]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3787,7 +3965,7 @@ func (x *ChatStreamError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatStreamError.ProtoReflect.Descriptor instead.
 func (*ChatStreamError) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{45}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ChatStreamError) GetCode() string {
@@ -3820,7 +3998,7 @@ type ChatEvent struct {
 
 func (x *ChatEvent) Reset() {
 	*x = ChatEvent{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[46]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3832,7 +4010,7 @@ func (x *ChatEvent) String() string {
 func (*ChatEvent) ProtoMessage() {}
 
 func (x *ChatEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[46]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3845,7 +4023,7 @@ func (x *ChatEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatEvent.ProtoReflect.Descriptor instead.
 func (*ChatEvent) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{46}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ChatEvent) GetEvent() isChatEvent_Event {
@@ -3947,7 +4125,7 @@ type EnrichNoteRequest struct {
 
 func (x *EnrichNoteRequest) Reset() {
 	*x = EnrichNoteRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[47]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3959,7 +4137,7 @@ func (x *EnrichNoteRequest) String() string {
 func (*EnrichNoteRequest) ProtoMessage() {}
 
 func (x *EnrichNoteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[47]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3972,7 +4150,7 @@ func (x *EnrichNoteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrichNoteRequest.ProtoReflect.Descriptor instead.
 func (*EnrichNoteRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{47}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *EnrichNoteRequest) GetNote() string {
@@ -4024,7 +4202,7 @@ type EnrichNoteResponse struct {
 
 func (x *EnrichNoteResponse) Reset() {
 	*x = EnrichNoteResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[48]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4036,7 +4214,7 @@ func (x *EnrichNoteResponse) String() string {
 func (*EnrichNoteResponse) ProtoMessage() {}
 
 func (x *EnrichNoteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[48]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4049,7 +4227,7 @@ func (x *EnrichNoteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnrichNoteResponse.ProtoReflect.Descriptor instead.
 func (*EnrichNoteResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{48}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *EnrichNoteResponse) GetSummary() string {
@@ -4104,7 +4282,7 @@ type QuickReply struct {
 
 func (x *QuickReply) Reset() {
 	*x = QuickReply{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[49]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4116,7 +4294,7 @@ func (x *QuickReply) String() string {
 func (*QuickReply) ProtoMessage() {}
 
 func (x *QuickReply) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[49]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4129,7 +4307,7 @@ func (x *QuickReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuickReply.ProtoReflect.Descriptor instead.
 func (*QuickReply) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{49}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *QuickReply) GetId() string {
@@ -4156,7 +4334,7 @@ type SetupChatMessage struct {
 
 func (x *SetupChatMessage) Reset() {
 	*x = SetupChatMessage{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[50]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4168,7 +4346,7 @@ func (x *SetupChatMessage) String() string {
 func (*SetupChatMessage) ProtoMessage() {}
 
 func (x *SetupChatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[50]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4181,7 +4359,7 @@ func (x *SetupChatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetupChatMessage.ProtoReflect.Descriptor instead.
 func (*SetupChatMessage) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{50}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *SetupChatMessage) GetRole() string {
@@ -4212,7 +4390,7 @@ type SetupChatRequest struct {
 
 func (x *SetupChatRequest) Reset() {
 	*x = SetupChatRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[51]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4224,7 +4402,7 @@ func (x *SetupChatRequest) String() string {
 func (*SetupChatRequest) ProtoMessage() {}
 
 func (x *SetupChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[51]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4237,7 +4415,7 @@ func (x *SetupChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetupChatRequest.ProtoReflect.Descriptor instead.
 func (*SetupChatRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{51}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *SetupChatRequest) GetProfile() *LearnerProfile {
@@ -4297,7 +4475,7 @@ type SetupChatResponse struct {
 
 func (x *SetupChatResponse) Reset() {
 	*x = SetupChatResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[52]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4309,7 +4487,7 @@ func (x *SetupChatResponse) String() string {
 func (*SetupChatResponse) ProtoMessage() {}
 
 func (x *SetupChatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[52]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4322,7 +4500,7 @@ func (x *SetupChatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetupChatResponse.ProtoReflect.Descriptor instead.
 func (*SetupChatResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{52}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *SetupChatResponse) GetMessage() string {
@@ -4392,7 +4570,7 @@ type CourseBrief struct {
 
 func (x *CourseBrief) Reset() {
 	*x = CourseBrief{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[53]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4404,7 +4582,7 @@ func (x *CourseBrief) String() string {
 func (*CourseBrief) ProtoMessage() {}
 
 func (x *CourseBrief) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[53]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4417,7 +4595,7 @@ func (x *CourseBrief) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CourseBrief.ProtoReflect.Descriptor instead.
 func (*CourseBrief) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{53}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *CourseBrief) GetTopic() string {
@@ -4499,7 +4677,7 @@ type CourseBriefLimits struct {
 
 func (x *CourseBriefLimits) Reset() {
 	*x = CourseBriefLimits{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[54]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4511,7 +4689,7 @@ func (x *CourseBriefLimits) String() string {
 func (*CourseBriefLimits) ProtoMessage() {}
 
 func (x *CourseBriefLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[54]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4524,7 +4702,7 @@ func (x *CourseBriefLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CourseBriefLimits.ProtoReflect.Descriptor instead.
 func (*CourseBriefLimits) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{54}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *CourseBriefLimits) GetInputTokens() uint32 {
@@ -4590,7 +4768,7 @@ type CourseBriefChatRequest struct {
 
 func (x *CourseBriefChatRequest) Reset() {
 	*x = CourseBriefChatRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[55]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4602,7 +4780,7 @@ func (x *CourseBriefChatRequest) String() string {
 func (*CourseBriefChatRequest) ProtoMessage() {}
 
 func (x *CourseBriefChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[55]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4615,7 +4793,7 @@ func (x *CourseBriefChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CourseBriefChatRequest.ProtoReflect.Descriptor instead.
 func (*CourseBriefChatRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{55}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *CourseBriefChatRequest) GetBrief() *CourseBrief {
@@ -4675,7 +4853,7 @@ type BriefAttempt struct {
 
 func (x *BriefAttempt) Reset() {
 	*x = BriefAttempt{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[56]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4687,7 +4865,7 @@ func (x *BriefAttempt) String() string {
 func (*BriefAttempt) ProtoMessage() {}
 
 func (x *BriefAttempt) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[56]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4700,7 +4878,7 @@ func (x *BriefAttempt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BriefAttempt.ProtoReflect.Descriptor instead.
 func (*BriefAttempt) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{56}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *BriefAttempt) GetUsage() *Usage {
@@ -4754,7 +4932,7 @@ type CourseBriefChatResponse struct {
 
 func (x *CourseBriefChatResponse) Reset() {
 	*x = CourseBriefChatResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[57]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4766,7 +4944,7 @@ func (x *CourseBriefChatResponse) String() string {
 func (*CourseBriefChatResponse) ProtoMessage() {}
 
 func (x *CourseBriefChatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[57]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4779,7 +4957,7 @@ func (x *CourseBriefChatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CourseBriefChatResponse.ProtoReflect.Descriptor instead.
 func (*CourseBriefChatResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{57}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *CourseBriefChatResponse) GetBrief() *CourseBrief {
@@ -4853,7 +5031,7 @@ type OutlineOperation struct {
 
 func (x *OutlineOperation) Reset() {
 	*x = OutlineOperation{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[58]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4865,7 +5043,7 @@ func (x *OutlineOperation) String() string {
 func (*OutlineOperation) ProtoMessage() {}
 
 func (x *OutlineOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[58]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4878,7 +5056,7 @@ func (x *OutlineOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutlineOperation.ProtoReflect.Descriptor instead.
 func (*OutlineOperation) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{58}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *OutlineOperation) GetKind() string {
@@ -4937,7 +5115,7 @@ type OutlineChatChangeRequest struct {
 
 func (x *OutlineChatChangeRequest) Reset() {
 	*x = OutlineChatChangeRequest{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[59]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4949,7 +5127,7 @@ func (x *OutlineChatChangeRequest) String() string {
 func (*OutlineChatChangeRequest) ProtoMessage() {}
 
 func (x *OutlineChatChangeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[59]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4962,7 +5140,7 @@ func (x *OutlineChatChangeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutlineChatChangeRequest.ProtoReflect.Descriptor instead.
 func (*OutlineChatChangeRequest) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{59}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *OutlineChatChangeRequest) GetProposalId() string {
@@ -5018,7 +5196,7 @@ type OutlineChatChangeResponse struct {
 
 func (x *OutlineChatChangeResponse) Reset() {
 	*x = OutlineChatChangeResponse{}
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[60]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5030,7 +5208,7 @@ func (x *OutlineChatChangeResponse) String() string {
 func (*OutlineChatChangeResponse) ProtoMessage() {}
 
 func (x *OutlineChatChangeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_duolify_engine_v1_engine_proto_msgTypes[60]
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5043,7 +5221,7 @@ func (x *OutlineChatChangeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutlineChatChangeResponse.ProtoReflect.Descriptor instead.
 func (*OutlineChatChangeResponse) Descriptor() ([]byte, []int) {
-	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{60}
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *OutlineChatChangeResponse) GetOperations() []*OutlineOperation {
@@ -5071,7 +5249,25 @@ var File_duolify_engine_v1_engine_proto protoreflect.FileDescriptor
 
 const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\n" +
-	"\x1eduolify/engine/v1/engine.proto\x12\x11duolify.engine.v1\"\x9f\x02\n" +
+	"\x1eduolify/engine/v1/engine.proto\x12\x11duolify.engine.v1\"\xa7\x01\n" +
+	"\x11TranscribeRequest\x12\x14\n" +
+	"\x05audio\x18\x01 \x01(\fR\x05audio\x12\x1c\n" +
+	"\tcontainer\x18\x02 \x01(\tR\tcontainer\x12\x1f\n" +
+	"\vduration_ms\x18\x03 \x01(\rR\n" +
+	"durationMs\x12\x18\n" +
+	"\apurpose\x18\x04 \x01(\tR\apurpose\x12#\n" +
+	"\rlanguage_hint\x18\x05 \x01(\tR\flanguageHint\"\xde\x01\n" +
+	"\x12TranscribeResponse\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\x12\x1a\n" +
+	"\blanguage\x18\x02 \x01(\tR\blanguage\x12\x1f\n" +
+	"\vduration_ms\x18\x03 \x01(\rR\n" +
+	"durationMs\x12\x14\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12#\n" +
+	"\rfallback_used\x18\x05 \x01(\bR\ffallbackUsed\x12\x1d\n" +
+	"\n" +
+	"latency_ms\x18\x06 \x01(\rR\tlatencyMs\x12\x1d\n" +
+	"\n" +
+	"cost_nanos\x18\a \x01(\x04R\tcostNanos\"\x9f\x02\n" +
 	"\x1aSynthesizeNarrationRequest\x12\x19\n" +
 	"\bslide_id\x18\x01 \x01(\tR\aslideId\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1a\n" +
@@ -5516,7 +5712,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x13REGION_ROLE_DIAGRAM\x10\x04\x12\x14\n" +
 	"\x10REGION_ROLE_CODE\x10\x05\x12\x18\n" +
 	"\x14REGION_ROLE_QUESTION\x10\x06\x12\x17\n" +
-	"\x13REGION_ROLE_CAPTION\x10\a2\xcc\r\n" +
+	"\x13REGION_ROLE_CAPTION\x10\a2\xa7\x0e\n" +
 	"\rEngineService\x12n\n" +
 	"\x11ScreenInstruction\x12+.duolify.engine.v1.ScreenInstructionRequest\x1a,.duolify.engine.v1.ScreenInstructionResponse\x12b\n" +
 	"\rReplanOutline\x12'.duolify.engine.v1.ReplanOutlineRequest\x1a(.duolify.engine.v1.ReplanOutlineResponse\x12h\n" +
@@ -5535,7 +5731,9 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\tSetupChat\x12#.duolify.engine.v1.SetupChatRequest\x1a$.duolify.engine.v1.SetupChatResponse\x12h\n" +
 	"\x0fCourseBriefChat\x12).duolify.engine.v1.CourseBriefChatRequest\x1a*.duolify.engine.v1.CourseBriefChatResponse\x12n\n" +
 	"\x11OutlineChatChange\x12+.duolify.engine.v1.OutlineChatChangeRequest\x1a,.duolify.engine.v1.OutlineChatChangeResponse\x12t\n" +
-	"\x13SynthesizeNarration\x12-.duolify.engine.v1.SynthesizeNarrationRequest\x1a..duolify.engine.v1.SynthesizeNarrationResponseBMZKgithub.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1;enginev1b\x06proto3"
+	"\x13SynthesizeNarration\x12-.duolify.engine.v1.SynthesizeNarrationRequest\x1a..duolify.engine.v1.SynthesizeNarrationResponse\x12Y\n" +
+	"\n" +
+	"Transcribe\x12$.duolify.engine.v1.TranscribeRequest\x1a%.duolify.engine.v1.TranscribeResponseBMZKgithub.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1;enginev1b\x06proto3"
 
 var (
 	file_duolify_engine_v1_engine_proto_rawDescOnce sync.Once
@@ -5550,205 +5748,209 @@ func file_duolify_engine_v1_engine_proto_rawDescGZIP() []byte {
 }
 
 var file_duolify_engine_v1_engine_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_duolify_engine_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 61)
+var file_duolify_engine_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
 var file_duolify_engine_v1_engine_proto_goTypes = []any{
 	(RegionRole)(0),                       // 0: duolify.engine.v1.RegionRole
 	(CourseInstruction_Scope)(0),          // 1: duolify.engine.v1.CourseInstruction.Scope
-	(*SynthesizeNarrationRequest)(nil),    // 2: duolify.engine.v1.SynthesizeNarrationRequest
-	(*NarrationAlignment)(nil),            // 3: duolify.engine.v1.NarrationAlignment
-	(*SynthesizeNarrationResponse)(nil),   // 4: duolify.engine.v1.SynthesizeNarrationResponse
-	(*MapCharacterRequest)(nil),           // 5: duolify.engine.v1.MapCharacterRequest
-	(*MapCharacterResponse)(nil),          // 6: duolify.engine.v1.MapCharacterResponse
-	(*ScreenCharacterRequest)(nil),        // 7: duolify.engine.v1.ScreenCharacterRequest
-	(*ScreenCharacterResponse)(nil),       // 8: duolify.engine.v1.ScreenCharacterResponse
-	(*ScreenCourseRequest)(nil),           // 9: duolify.engine.v1.ScreenCourseRequest
-	(*ScreenCourseResponse)(nil),          // 10: duolify.engine.v1.ScreenCourseResponse
-	(*ScreenReviewRequest)(nil),           // 11: duolify.engine.v1.ScreenReviewRequest
-	(*ScreenReviewResponse)(nil),          // 12: duolify.engine.v1.ScreenReviewResponse
-	(*HealthRequest)(nil),                 // 13: duolify.engine.v1.HealthRequest
-	(*HealthResponse)(nil),                // 14: duolify.engine.v1.HealthResponse
-	(*Usage)(nil),                         // 15: duolify.engine.v1.Usage
-	(*UsageLimits)(nil),                   // 16: duolify.engine.v1.UsageLimits
-	(*LearnerProfile)(nil),                // 17: duolify.engine.v1.LearnerProfile
-	(*LessonRef)(nil),                     // 18: duolify.engine.v1.LessonRef
-	(*Unit)(nil),                          // 19: duolify.engine.v1.Unit
-	(*CourseOutline)(nil),                 // 20: duolify.engine.v1.CourseOutline
-	(*Slide)(nil),                         // 21: duolify.engine.v1.Slide
-	(*SlideRegion)(nil),                   // 22: duolify.engine.v1.SlideRegion
-	(*RegionBox)(nil),                     // 23: duolify.engine.v1.RegionBox
-	(*RegionWindow)(nil),                  // 24: duolify.engine.v1.RegionWindow
-	(*CharacterSegment)(nil),              // 25: duolify.engine.v1.CharacterSegment
-	(*Question)(nil),                      // 26: duolify.engine.v1.Question
-	(*TopicVariants)(nil),                 // 27: duolify.engine.v1.TopicVariants
-	(*Lesson)(nil),                        // 28: duolify.engine.v1.Lesson
-	(*PreviewCourseRequest)(nil),          // 29: duolify.engine.v1.PreviewCourseRequest
-	(*PreviewCourseResponse)(nil),         // 30: duolify.engine.v1.PreviewCourseResponse
-	(*GenerateCourseOutlineRequest)(nil),  // 31: duolify.engine.v1.GenerateCourseOutlineRequest
-	(*GenerateCourseOutlineResponse)(nil), // 32: duolify.engine.v1.GenerateCourseOutlineResponse
-	(*CourseInstruction)(nil),             // 33: duolify.engine.v1.CourseInstruction
-	(*ScreenInstructionRequest)(nil),      // 34: duolify.engine.v1.ScreenInstructionRequest
-	(*ScreenInstructionResponse)(nil),     // 35: duolify.engine.v1.ScreenInstructionResponse
-	(*ReplanOutlineRequest)(nil),          // 36: duolify.engine.v1.ReplanOutlineRequest
-	(*ReplanOutlineResponse)(nil),         // 37: duolify.engine.v1.ReplanOutlineResponse
-	(*GenerateLessonRequest)(nil),         // 38: duolify.engine.v1.GenerateLessonRequest
-	(*GenerateLessonEvent)(nil),           // 39: duolify.engine.v1.GenerateLessonEvent
-	(*GenerateRetryVariantsRequest)(nil),  // 40: duolify.engine.v1.GenerateRetryVariantsRequest
-	(*GenerateRetryVariantsResponse)(nil), // 41: duolify.engine.v1.GenerateRetryVariantsResponse
-	(*ChatMessage)(nil),                   // 42: duolify.engine.v1.ChatMessage
-	(*ChatRequest)(nil),                   // 43: duolify.engine.v1.ChatRequest
-	(*RegionQuestion)(nil),                // 44: duolify.engine.v1.RegionQuestion
-	(*QuestionRegion)(nil),                // 45: duolify.engine.v1.QuestionRegion
-	(*SourceExcerpt)(nil),                 // 46: duolify.engine.v1.SourceExcerpt
-	(*ChatStreamError)(nil),               // 47: duolify.engine.v1.ChatStreamError
-	(*ChatEvent)(nil),                     // 48: duolify.engine.v1.ChatEvent
-	(*EnrichNoteRequest)(nil),             // 49: duolify.engine.v1.EnrichNoteRequest
-	(*EnrichNoteResponse)(nil),            // 50: duolify.engine.v1.EnrichNoteResponse
-	(*QuickReply)(nil),                    // 51: duolify.engine.v1.QuickReply
-	(*SetupChatMessage)(nil),              // 52: duolify.engine.v1.SetupChatMessage
-	(*SetupChatRequest)(nil),              // 53: duolify.engine.v1.SetupChatRequest
-	(*SetupChatResponse)(nil),             // 54: duolify.engine.v1.SetupChatResponse
-	(*CourseBrief)(nil),                   // 55: duolify.engine.v1.CourseBrief
-	(*CourseBriefLimits)(nil),             // 56: duolify.engine.v1.CourseBriefLimits
-	(*CourseBriefChatRequest)(nil),        // 57: duolify.engine.v1.CourseBriefChatRequest
-	(*BriefAttempt)(nil),                  // 58: duolify.engine.v1.BriefAttempt
-	(*CourseBriefChatResponse)(nil),       // 59: duolify.engine.v1.CourseBriefChatResponse
-	(*OutlineOperation)(nil),              // 60: duolify.engine.v1.OutlineOperation
-	(*OutlineChatChangeRequest)(nil),      // 61: duolify.engine.v1.OutlineChatChangeRequest
-	(*OutlineChatChangeResponse)(nil),     // 62: duolify.engine.v1.OutlineChatChangeResponse
+	(*TranscribeRequest)(nil),             // 2: duolify.engine.v1.TranscribeRequest
+	(*TranscribeResponse)(nil),            // 3: duolify.engine.v1.TranscribeResponse
+	(*SynthesizeNarrationRequest)(nil),    // 4: duolify.engine.v1.SynthesizeNarrationRequest
+	(*NarrationAlignment)(nil),            // 5: duolify.engine.v1.NarrationAlignment
+	(*SynthesizeNarrationResponse)(nil),   // 6: duolify.engine.v1.SynthesizeNarrationResponse
+	(*MapCharacterRequest)(nil),           // 7: duolify.engine.v1.MapCharacterRequest
+	(*MapCharacterResponse)(nil),          // 8: duolify.engine.v1.MapCharacterResponse
+	(*ScreenCharacterRequest)(nil),        // 9: duolify.engine.v1.ScreenCharacterRequest
+	(*ScreenCharacterResponse)(nil),       // 10: duolify.engine.v1.ScreenCharacterResponse
+	(*ScreenCourseRequest)(nil),           // 11: duolify.engine.v1.ScreenCourseRequest
+	(*ScreenCourseResponse)(nil),          // 12: duolify.engine.v1.ScreenCourseResponse
+	(*ScreenReviewRequest)(nil),           // 13: duolify.engine.v1.ScreenReviewRequest
+	(*ScreenReviewResponse)(nil),          // 14: duolify.engine.v1.ScreenReviewResponse
+	(*HealthRequest)(nil),                 // 15: duolify.engine.v1.HealthRequest
+	(*HealthResponse)(nil),                // 16: duolify.engine.v1.HealthResponse
+	(*Usage)(nil),                         // 17: duolify.engine.v1.Usage
+	(*UsageLimits)(nil),                   // 18: duolify.engine.v1.UsageLimits
+	(*LearnerProfile)(nil),                // 19: duolify.engine.v1.LearnerProfile
+	(*LessonRef)(nil),                     // 20: duolify.engine.v1.LessonRef
+	(*Unit)(nil),                          // 21: duolify.engine.v1.Unit
+	(*CourseOutline)(nil),                 // 22: duolify.engine.v1.CourseOutline
+	(*Slide)(nil),                         // 23: duolify.engine.v1.Slide
+	(*SlideRegion)(nil),                   // 24: duolify.engine.v1.SlideRegion
+	(*RegionBox)(nil),                     // 25: duolify.engine.v1.RegionBox
+	(*RegionWindow)(nil),                  // 26: duolify.engine.v1.RegionWindow
+	(*CharacterSegment)(nil),              // 27: duolify.engine.v1.CharacterSegment
+	(*Question)(nil),                      // 28: duolify.engine.v1.Question
+	(*TopicVariants)(nil),                 // 29: duolify.engine.v1.TopicVariants
+	(*Lesson)(nil),                        // 30: duolify.engine.v1.Lesson
+	(*PreviewCourseRequest)(nil),          // 31: duolify.engine.v1.PreviewCourseRequest
+	(*PreviewCourseResponse)(nil),         // 32: duolify.engine.v1.PreviewCourseResponse
+	(*GenerateCourseOutlineRequest)(nil),  // 33: duolify.engine.v1.GenerateCourseOutlineRequest
+	(*GenerateCourseOutlineResponse)(nil), // 34: duolify.engine.v1.GenerateCourseOutlineResponse
+	(*CourseInstruction)(nil),             // 35: duolify.engine.v1.CourseInstruction
+	(*ScreenInstructionRequest)(nil),      // 36: duolify.engine.v1.ScreenInstructionRequest
+	(*ScreenInstructionResponse)(nil),     // 37: duolify.engine.v1.ScreenInstructionResponse
+	(*ReplanOutlineRequest)(nil),          // 38: duolify.engine.v1.ReplanOutlineRequest
+	(*ReplanOutlineResponse)(nil),         // 39: duolify.engine.v1.ReplanOutlineResponse
+	(*GenerateLessonRequest)(nil),         // 40: duolify.engine.v1.GenerateLessonRequest
+	(*GenerateLessonEvent)(nil),           // 41: duolify.engine.v1.GenerateLessonEvent
+	(*GenerateRetryVariantsRequest)(nil),  // 42: duolify.engine.v1.GenerateRetryVariantsRequest
+	(*GenerateRetryVariantsResponse)(nil), // 43: duolify.engine.v1.GenerateRetryVariantsResponse
+	(*ChatMessage)(nil),                   // 44: duolify.engine.v1.ChatMessage
+	(*ChatRequest)(nil),                   // 45: duolify.engine.v1.ChatRequest
+	(*RegionQuestion)(nil),                // 46: duolify.engine.v1.RegionQuestion
+	(*QuestionRegion)(nil),                // 47: duolify.engine.v1.QuestionRegion
+	(*SourceExcerpt)(nil),                 // 48: duolify.engine.v1.SourceExcerpt
+	(*ChatStreamError)(nil),               // 49: duolify.engine.v1.ChatStreamError
+	(*ChatEvent)(nil),                     // 50: duolify.engine.v1.ChatEvent
+	(*EnrichNoteRequest)(nil),             // 51: duolify.engine.v1.EnrichNoteRequest
+	(*EnrichNoteResponse)(nil),            // 52: duolify.engine.v1.EnrichNoteResponse
+	(*QuickReply)(nil),                    // 53: duolify.engine.v1.QuickReply
+	(*SetupChatMessage)(nil),              // 54: duolify.engine.v1.SetupChatMessage
+	(*SetupChatRequest)(nil),              // 55: duolify.engine.v1.SetupChatRequest
+	(*SetupChatResponse)(nil),             // 56: duolify.engine.v1.SetupChatResponse
+	(*CourseBrief)(nil),                   // 57: duolify.engine.v1.CourseBrief
+	(*CourseBriefLimits)(nil),             // 58: duolify.engine.v1.CourseBriefLimits
+	(*CourseBriefChatRequest)(nil),        // 59: duolify.engine.v1.CourseBriefChatRequest
+	(*BriefAttempt)(nil),                  // 60: duolify.engine.v1.BriefAttempt
+	(*CourseBriefChatResponse)(nil),       // 61: duolify.engine.v1.CourseBriefChatResponse
+	(*OutlineOperation)(nil),              // 62: duolify.engine.v1.OutlineOperation
+	(*OutlineChatChangeRequest)(nil),      // 63: duolify.engine.v1.OutlineChatChangeRequest
+	(*OutlineChatChangeResponse)(nil),     // 64: duolify.engine.v1.OutlineChatChangeResponse
 }
 var file_duolify_engine_v1_engine_proto_depIdxs = []int32{
-	16,  // 0: duolify.engine.v1.SynthesizeNarrationRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	3,   // 1: duolify.engine.v1.SynthesizeNarrationResponse.alignment:type_name -> duolify.engine.v1.NarrationAlignment
-	15,  // 2: duolify.engine.v1.SynthesizeNarrationResponse.usage:type_name -> duolify.engine.v1.Usage
-	16,  // 3: duolify.engine.v1.MapCharacterRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	15,  // 4: duolify.engine.v1.MapCharacterResponse.attempts:type_name -> duolify.engine.v1.Usage
-	16,  // 5: duolify.engine.v1.ScreenCharacterRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	15,  // 6: duolify.engine.v1.ScreenCharacterResponse.attempts:type_name -> duolify.engine.v1.Usage
-	16,  // 7: duolify.engine.v1.ScreenCourseRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	15,  // 8: duolify.engine.v1.ScreenCourseResponse.attempts:type_name -> duolify.engine.v1.Usage
-	16,  // 9: duolify.engine.v1.ScreenReviewRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	15,  // 10: duolify.engine.v1.ScreenReviewResponse.attempts:type_name -> duolify.engine.v1.Usage
-	18,  // 11: duolify.engine.v1.Unit.lessons:type_name -> duolify.engine.v1.LessonRef
-	19,  // 12: duolify.engine.v1.CourseOutline.units:type_name -> duolify.engine.v1.Unit
-	25,  // 13: duolify.engine.v1.Slide.segments:type_name -> duolify.engine.v1.CharacterSegment
-	22,  // 14: duolify.engine.v1.Slide.regions:type_name -> duolify.engine.v1.SlideRegion
-	23,  // 15: duolify.engine.v1.SlideRegion.box:type_name -> duolify.engine.v1.RegionBox
-	24,  // 16: duolify.engine.v1.SlideRegion.window:type_name -> duolify.engine.v1.RegionWindow
+	18,  // 0: duolify.engine.v1.SynthesizeNarrationRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	5,   // 1: duolify.engine.v1.SynthesizeNarrationResponse.alignment:type_name -> duolify.engine.v1.NarrationAlignment
+	17,  // 2: duolify.engine.v1.SynthesizeNarrationResponse.usage:type_name -> duolify.engine.v1.Usage
+	18,  // 3: duolify.engine.v1.MapCharacterRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	17,  // 4: duolify.engine.v1.MapCharacterResponse.attempts:type_name -> duolify.engine.v1.Usage
+	18,  // 5: duolify.engine.v1.ScreenCharacterRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	17,  // 6: duolify.engine.v1.ScreenCharacterResponse.attempts:type_name -> duolify.engine.v1.Usage
+	18,  // 7: duolify.engine.v1.ScreenCourseRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	17,  // 8: duolify.engine.v1.ScreenCourseResponse.attempts:type_name -> duolify.engine.v1.Usage
+	18,  // 9: duolify.engine.v1.ScreenReviewRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	17,  // 10: duolify.engine.v1.ScreenReviewResponse.attempts:type_name -> duolify.engine.v1.Usage
+	20,  // 11: duolify.engine.v1.Unit.lessons:type_name -> duolify.engine.v1.LessonRef
+	21,  // 12: duolify.engine.v1.CourseOutline.units:type_name -> duolify.engine.v1.Unit
+	27,  // 13: duolify.engine.v1.Slide.segments:type_name -> duolify.engine.v1.CharacterSegment
+	24,  // 14: duolify.engine.v1.Slide.regions:type_name -> duolify.engine.v1.SlideRegion
+	25,  // 15: duolify.engine.v1.SlideRegion.box:type_name -> duolify.engine.v1.RegionBox
+	26,  // 16: duolify.engine.v1.SlideRegion.window:type_name -> duolify.engine.v1.RegionWindow
 	0,   // 17: duolify.engine.v1.SlideRegion.role:type_name -> duolify.engine.v1.RegionRole
-	26,  // 18: duolify.engine.v1.TopicVariants.variants:type_name -> duolify.engine.v1.Question
-	18,  // 19: duolify.engine.v1.Lesson.ref:type_name -> duolify.engine.v1.LessonRef
-	21,  // 20: duolify.engine.v1.Lesson.slides:type_name -> duolify.engine.v1.Slide
-	26,  // 21: duolify.engine.v1.Lesson.test:type_name -> duolify.engine.v1.Question
-	27,  // 22: duolify.engine.v1.Lesson.variant_pool:type_name -> duolify.engine.v1.TopicVariants
-	17,  // 23: duolify.engine.v1.PreviewCourseRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	16,  // 24: duolify.engine.v1.PreviewCourseRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	55,  // 25: duolify.engine.v1.PreviewCourseRequest.brief:type_name -> duolify.engine.v1.CourseBrief
-	20,  // 26: duolify.engine.v1.PreviewCourseResponse.sample_outline:type_name -> duolify.engine.v1.CourseOutline
-	21,  // 27: duolify.engine.v1.PreviewCourseResponse.example_slides:type_name -> duolify.engine.v1.Slide
-	15,  // 28: duolify.engine.v1.PreviewCourseResponse.usage:type_name -> duolify.engine.v1.Usage
-	15,  // 29: duolify.engine.v1.PreviewCourseResponse.attempts:type_name -> duolify.engine.v1.Usage
-	17,  // 30: duolify.engine.v1.GenerateCourseOutlineRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	20,  // 31: duolify.engine.v1.GenerateCourseOutlineRequest.edited_outline:type_name -> duolify.engine.v1.CourseOutline
-	16,  // 32: duolify.engine.v1.GenerateCourseOutlineRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	55,  // 33: duolify.engine.v1.GenerateCourseOutlineRequest.brief:type_name -> duolify.engine.v1.CourseBrief
-	20,  // 34: duolify.engine.v1.GenerateCourseOutlineResponse.outline:type_name -> duolify.engine.v1.CourseOutline
-	15,  // 35: duolify.engine.v1.GenerateCourseOutlineResponse.usage:type_name -> duolify.engine.v1.Usage
-	15,  // 36: duolify.engine.v1.GenerateCourseOutlineResponse.attempts:type_name -> duolify.engine.v1.Usage
+	28,  // 18: duolify.engine.v1.TopicVariants.variants:type_name -> duolify.engine.v1.Question
+	20,  // 19: duolify.engine.v1.Lesson.ref:type_name -> duolify.engine.v1.LessonRef
+	23,  // 20: duolify.engine.v1.Lesson.slides:type_name -> duolify.engine.v1.Slide
+	28,  // 21: duolify.engine.v1.Lesson.test:type_name -> duolify.engine.v1.Question
+	29,  // 22: duolify.engine.v1.Lesson.variant_pool:type_name -> duolify.engine.v1.TopicVariants
+	19,  // 23: duolify.engine.v1.PreviewCourseRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	18,  // 24: duolify.engine.v1.PreviewCourseRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	57,  // 25: duolify.engine.v1.PreviewCourseRequest.brief:type_name -> duolify.engine.v1.CourseBrief
+	22,  // 26: duolify.engine.v1.PreviewCourseResponse.sample_outline:type_name -> duolify.engine.v1.CourseOutline
+	23,  // 27: duolify.engine.v1.PreviewCourseResponse.example_slides:type_name -> duolify.engine.v1.Slide
+	17,  // 28: duolify.engine.v1.PreviewCourseResponse.usage:type_name -> duolify.engine.v1.Usage
+	17,  // 29: duolify.engine.v1.PreviewCourseResponse.attempts:type_name -> duolify.engine.v1.Usage
+	19,  // 30: duolify.engine.v1.GenerateCourseOutlineRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	22,  // 31: duolify.engine.v1.GenerateCourseOutlineRequest.edited_outline:type_name -> duolify.engine.v1.CourseOutline
+	18,  // 32: duolify.engine.v1.GenerateCourseOutlineRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	57,  // 33: duolify.engine.v1.GenerateCourseOutlineRequest.brief:type_name -> duolify.engine.v1.CourseBrief
+	22,  // 34: duolify.engine.v1.GenerateCourseOutlineResponse.outline:type_name -> duolify.engine.v1.CourseOutline
+	17,  // 35: duolify.engine.v1.GenerateCourseOutlineResponse.usage:type_name -> duolify.engine.v1.Usage
+	17,  // 36: duolify.engine.v1.GenerateCourseOutlineResponse.attempts:type_name -> duolify.engine.v1.Usage
 	1,   // 37: duolify.engine.v1.CourseInstruction.scope:type_name -> duolify.engine.v1.CourseInstruction.Scope
-	15,  // 38: duolify.engine.v1.ScreenInstructionResponse.attempts:type_name -> duolify.engine.v1.Usage
-	20,  // 39: duolify.engine.v1.ReplanOutlineRequest.outline:type_name -> duolify.engine.v1.CourseOutline
-	33,  // 40: duolify.engine.v1.ReplanOutlineRequest.instructions:type_name -> duolify.engine.v1.CourseInstruction
-	17,  // 41: duolify.engine.v1.ReplanOutlineRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	16,  // 42: duolify.engine.v1.ReplanOutlineRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	20,  // 43: duolify.engine.v1.ReplanOutlineResponse.outline:type_name -> duolify.engine.v1.CourseOutline
-	15,  // 44: duolify.engine.v1.ReplanOutlineResponse.attempts:type_name -> duolify.engine.v1.Usage
-	20,  // 45: duolify.engine.v1.GenerateLessonRequest.outline:type_name -> duolify.engine.v1.CourseOutline
-	18,  // 46: duolify.engine.v1.GenerateLessonRequest.lesson:type_name -> duolify.engine.v1.LessonRef
-	17,  // 47: duolify.engine.v1.GenerateLessonRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	16,  // 48: duolify.engine.v1.GenerateLessonRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	33,  // 49: duolify.engine.v1.GenerateLessonRequest.instructions:type_name -> duolify.engine.v1.CourseInstruction
-	21,  // 50: duolify.engine.v1.GenerateLessonEvent.slide:type_name -> duolify.engine.v1.Slide
-	28,  // 51: duolify.engine.v1.GenerateLessonEvent.lesson:type_name -> duolify.engine.v1.Lesson
-	15,  // 52: duolify.engine.v1.GenerateLessonEvent.usage:type_name -> duolify.engine.v1.Usage
-	15,  // 53: duolify.engine.v1.GenerateLessonEvent.attempt:type_name -> duolify.engine.v1.Usage
-	33,  // 54: duolify.engine.v1.GenerateRetryVariantsRequest.instructions:type_name -> duolify.engine.v1.CourseInstruction
-	26,  // 55: duolify.engine.v1.GenerateRetryVariantsRequest.source:type_name -> duolify.engine.v1.Question
-	26,  // 56: duolify.engine.v1.GenerateRetryVariantsRequest.previous_variants:type_name -> duolify.engine.v1.Question
-	17,  // 57: duolify.engine.v1.GenerateRetryVariantsRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	16,  // 58: duolify.engine.v1.GenerateRetryVariantsRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	26,  // 59: duolify.engine.v1.GenerateRetryVariantsResponse.variants:type_name -> duolify.engine.v1.Question
-	15,  // 60: duolify.engine.v1.GenerateRetryVariantsResponse.usage:type_name -> duolify.engine.v1.Usage
-	15,  // 61: duolify.engine.v1.GenerateRetryVariantsResponse.attempts:type_name -> duolify.engine.v1.Usage
-	20,  // 62: duolify.engine.v1.ChatRequest.outline:type_name -> duolify.engine.v1.CourseOutline
-	28,  // 63: duolify.engine.v1.ChatRequest.current_lesson:type_name -> duolify.engine.v1.Lesson
-	17,  // 64: duolify.engine.v1.ChatRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	42,  // 65: duolify.engine.v1.ChatRequest.messages:type_name -> duolify.engine.v1.ChatMessage
-	16,  // 66: duolify.engine.v1.ChatRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	46,  // 67: duolify.engine.v1.ChatRequest.excerpts:type_name -> duolify.engine.v1.SourceExcerpt
-	44,  // 68: duolify.engine.v1.ChatRequest.region_question:type_name -> duolify.engine.v1.RegionQuestion
-	23,  // 69: duolify.engine.v1.RegionQuestion.rect:type_name -> duolify.engine.v1.RegionBox
-	45,  // 70: duolify.engine.v1.RegionQuestion.regions:type_name -> duolify.engine.v1.QuestionRegion
+	17,  // 38: duolify.engine.v1.ScreenInstructionResponse.attempts:type_name -> duolify.engine.v1.Usage
+	22,  // 39: duolify.engine.v1.ReplanOutlineRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	35,  // 40: duolify.engine.v1.ReplanOutlineRequest.instructions:type_name -> duolify.engine.v1.CourseInstruction
+	19,  // 41: duolify.engine.v1.ReplanOutlineRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	18,  // 42: duolify.engine.v1.ReplanOutlineRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	22,  // 43: duolify.engine.v1.ReplanOutlineResponse.outline:type_name -> duolify.engine.v1.CourseOutline
+	17,  // 44: duolify.engine.v1.ReplanOutlineResponse.attempts:type_name -> duolify.engine.v1.Usage
+	22,  // 45: duolify.engine.v1.GenerateLessonRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	20,  // 46: duolify.engine.v1.GenerateLessonRequest.lesson:type_name -> duolify.engine.v1.LessonRef
+	19,  // 47: duolify.engine.v1.GenerateLessonRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	18,  // 48: duolify.engine.v1.GenerateLessonRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	35,  // 49: duolify.engine.v1.GenerateLessonRequest.instructions:type_name -> duolify.engine.v1.CourseInstruction
+	23,  // 50: duolify.engine.v1.GenerateLessonEvent.slide:type_name -> duolify.engine.v1.Slide
+	30,  // 51: duolify.engine.v1.GenerateLessonEvent.lesson:type_name -> duolify.engine.v1.Lesson
+	17,  // 52: duolify.engine.v1.GenerateLessonEvent.usage:type_name -> duolify.engine.v1.Usage
+	17,  // 53: duolify.engine.v1.GenerateLessonEvent.attempt:type_name -> duolify.engine.v1.Usage
+	35,  // 54: duolify.engine.v1.GenerateRetryVariantsRequest.instructions:type_name -> duolify.engine.v1.CourseInstruction
+	28,  // 55: duolify.engine.v1.GenerateRetryVariantsRequest.source:type_name -> duolify.engine.v1.Question
+	28,  // 56: duolify.engine.v1.GenerateRetryVariantsRequest.previous_variants:type_name -> duolify.engine.v1.Question
+	19,  // 57: duolify.engine.v1.GenerateRetryVariantsRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	18,  // 58: duolify.engine.v1.GenerateRetryVariantsRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	28,  // 59: duolify.engine.v1.GenerateRetryVariantsResponse.variants:type_name -> duolify.engine.v1.Question
+	17,  // 60: duolify.engine.v1.GenerateRetryVariantsResponse.usage:type_name -> duolify.engine.v1.Usage
+	17,  // 61: duolify.engine.v1.GenerateRetryVariantsResponse.attempts:type_name -> duolify.engine.v1.Usage
+	22,  // 62: duolify.engine.v1.ChatRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	30,  // 63: duolify.engine.v1.ChatRequest.current_lesson:type_name -> duolify.engine.v1.Lesson
+	19,  // 64: duolify.engine.v1.ChatRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	44,  // 65: duolify.engine.v1.ChatRequest.messages:type_name -> duolify.engine.v1.ChatMessage
+	18,  // 66: duolify.engine.v1.ChatRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	48,  // 67: duolify.engine.v1.ChatRequest.excerpts:type_name -> duolify.engine.v1.SourceExcerpt
+	46,  // 68: duolify.engine.v1.ChatRequest.region_question:type_name -> duolify.engine.v1.RegionQuestion
+	25,  // 69: duolify.engine.v1.RegionQuestion.rect:type_name -> duolify.engine.v1.RegionBox
+	47,  // 70: duolify.engine.v1.RegionQuestion.regions:type_name -> duolify.engine.v1.QuestionRegion
 	0,   // 71: duolify.engine.v1.QuestionRegion.role:type_name -> duolify.engine.v1.RegionRole
-	15,  // 72: duolify.engine.v1.ChatEvent.usage:type_name -> duolify.engine.v1.Usage
-	15,  // 73: duolify.engine.v1.ChatEvent.attempt:type_name -> duolify.engine.v1.Usage
-	47,  // 74: duolify.engine.v1.ChatEvent.stream_error:type_name -> duolify.engine.v1.ChatStreamError
-	18,  // 75: duolify.engine.v1.EnrichNoteRequest.lesson:type_name -> duolify.engine.v1.LessonRef
-	17,  // 76: duolify.engine.v1.EnrichNoteRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	16,  // 77: duolify.engine.v1.EnrichNoteRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	18,  // 78: duolify.engine.v1.EnrichNoteRequest.allowed_lessons:type_name -> duolify.engine.v1.LessonRef
-	15,  // 79: duolify.engine.v1.EnrichNoteResponse.usage:type_name -> duolify.engine.v1.Usage
-	15,  // 80: duolify.engine.v1.EnrichNoteResponse.attempts:type_name -> duolify.engine.v1.Usage
-	17,  // 81: duolify.engine.v1.SetupChatRequest.profile:type_name -> duolify.engine.v1.LearnerProfile
-	52,  // 82: duolify.engine.v1.SetupChatRequest.messages:type_name -> duolify.engine.v1.SetupChatMessage
-	51,  // 83: duolify.engine.v1.SetupChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
-	17,  // 84: duolify.engine.v1.SetupChatResponse.updated_profile:type_name -> duolify.engine.v1.LearnerProfile
-	15,  // 85: duolify.engine.v1.SetupChatResponse.usage:type_name -> duolify.engine.v1.Usage
-	55,  // 86: duolify.engine.v1.CourseBriefChatRequest.brief:type_name -> duolify.engine.v1.CourseBrief
-	56,  // 87: duolify.engine.v1.CourseBriefChatRequest.limits:type_name -> duolify.engine.v1.CourseBriefLimits
-	15,  // 88: duolify.engine.v1.BriefAttempt.usage:type_name -> duolify.engine.v1.Usage
-	55,  // 89: duolify.engine.v1.CourseBriefChatResponse.brief:type_name -> duolify.engine.v1.CourseBrief
-	51,  // 90: duolify.engine.v1.CourseBriefChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
-	58,  // 91: duolify.engine.v1.CourseBriefChatResponse.attempts:type_name -> duolify.engine.v1.BriefAttempt
-	20,  // 92: duolify.engine.v1.OutlineChatChangeRequest.outline:type_name -> duolify.engine.v1.CourseOutline
-	16,  // 93: duolify.engine.v1.OutlineChatChangeRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	60,  // 94: duolify.engine.v1.OutlineChatChangeResponse.operations:type_name -> duolify.engine.v1.OutlineOperation
-	15,  // 95: duolify.engine.v1.OutlineChatChangeResponse.attempts:type_name -> duolify.engine.v1.Usage
-	34,  // 96: duolify.engine.v1.EngineService.ScreenInstruction:input_type -> duolify.engine.v1.ScreenInstructionRequest
-	36,  // 97: duolify.engine.v1.EngineService.ReplanOutline:input_type -> duolify.engine.v1.ReplanOutlineRequest
-	7,   // 98: duolify.engine.v1.EngineService.ScreenCharacter:input_type -> duolify.engine.v1.ScreenCharacterRequest
-	5,   // 99: duolify.engine.v1.EngineService.MapCharacter:input_type -> duolify.engine.v1.MapCharacterRequest
-	9,   // 100: duolify.engine.v1.EngineService.ScreenCourse:input_type -> duolify.engine.v1.ScreenCourseRequest
-	11,  // 101: duolify.engine.v1.EngineService.ScreenReview:input_type -> duolify.engine.v1.ScreenReviewRequest
-	13,  // 102: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
-	29,  // 103: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
-	31,  // 104: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
-	38,  // 105: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
-	40,  // 106: duolify.engine.v1.EngineService.GenerateRetryVariants:input_type -> duolify.engine.v1.GenerateRetryVariantsRequest
-	43,  // 107: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
-	49,  // 108: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
-	53,  // 109: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
-	57,  // 110: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
-	61,  // 111: duolify.engine.v1.EngineService.OutlineChatChange:input_type -> duolify.engine.v1.OutlineChatChangeRequest
-	2,   // 112: duolify.engine.v1.EngineService.SynthesizeNarration:input_type -> duolify.engine.v1.SynthesizeNarrationRequest
-	35,  // 113: duolify.engine.v1.EngineService.ScreenInstruction:output_type -> duolify.engine.v1.ScreenInstructionResponse
-	37,  // 114: duolify.engine.v1.EngineService.ReplanOutline:output_type -> duolify.engine.v1.ReplanOutlineResponse
-	8,   // 115: duolify.engine.v1.EngineService.ScreenCharacter:output_type -> duolify.engine.v1.ScreenCharacterResponse
-	6,   // 116: duolify.engine.v1.EngineService.MapCharacter:output_type -> duolify.engine.v1.MapCharacterResponse
-	10,  // 117: duolify.engine.v1.EngineService.ScreenCourse:output_type -> duolify.engine.v1.ScreenCourseResponse
-	12,  // 118: duolify.engine.v1.EngineService.ScreenReview:output_type -> duolify.engine.v1.ScreenReviewResponse
-	14,  // 119: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
-	30,  // 120: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
-	32,  // 121: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
-	39,  // 122: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
-	41,  // 123: duolify.engine.v1.EngineService.GenerateRetryVariants:output_type -> duolify.engine.v1.GenerateRetryVariantsResponse
-	48,  // 124: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
-	50,  // 125: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
-	54,  // 126: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
-	59,  // 127: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
-	62,  // 128: duolify.engine.v1.EngineService.OutlineChatChange:output_type -> duolify.engine.v1.OutlineChatChangeResponse
-	4,   // 129: duolify.engine.v1.EngineService.SynthesizeNarration:output_type -> duolify.engine.v1.SynthesizeNarrationResponse
-	113, // [113:130] is the sub-list for method output_type
-	96,  // [96:113] is the sub-list for method input_type
+	17,  // 72: duolify.engine.v1.ChatEvent.usage:type_name -> duolify.engine.v1.Usage
+	17,  // 73: duolify.engine.v1.ChatEvent.attempt:type_name -> duolify.engine.v1.Usage
+	49,  // 74: duolify.engine.v1.ChatEvent.stream_error:type_name -> duolify.engine.v1.ChatStreamError
+	20,  // 75: duolify.engine.v1.EnrichNoteRequest.lesson:type_name -> duolify.engine.v1.LessonRef
+	19,  // 76: duolify.engine.v1.EnrichNoteRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	18,  // 77: duolify.engine.v1.EnrichNoteRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	20,  // 78: duolify.engine.v1.EnrichNoteRequest.allowed_lessons:type_name -> duolify.engine.v1.LessonRef
+	17,  // 79: duolify.engine.v1.EnrichNoteResponse.usage:type_name -> duolify.engine.v1.Usage
+	17,  // 80: duolify.engine.v1.EnrichNoteResponse.attempts:type_name -> duolify.engine.v1.Usage
+	19,  // 81: duolify.engine.v1.SetupChatRequest.profile:type_name -> duolify.engine.v1.LearnerProfile
+	54,  // 82: duolify.engine.v1.SetupChatRequest.messages:type_name -> duolify.engine.v1.SetupChatMessage
+	53,  // 83: duolify.engine.v1.SetupChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
+	19,  // 84: duolify.engine.v1.SetupChatResponse.updated_profile:type_name -> duolify.engine.v1.LearnerProfile
+	17,  // 85: duolify.engine.v1.SetupChatResponse.usage:type_name -> duolify.engine.v1.Usage
+	57,  // 86: duolify.engine.v1.CourseBriefChatRequest.brief:type_name -> duolify.engine.v1.CourseBrief
+	58,  // 87: duolify.engine.v1.CourseBriefChatRequest.limits:type_name -> duolify.engine.v1.CourseBriefLimits
+	17,  // 88: duolify.engine.v1.BriefAttempt.usage:type_name -> duolify.engine.v1.Usage
+	57,  // 89: duolify.engine.v1.CourseBriefChatResponse.brief:type_name -> duolify.engine.v1.CourseBrief
+	53,  // 90: duolify.engine.v1.CourseBriefChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
+	60,  // 91: duolify.engine.v1.CourseBriefChatResponse.attempts:type_name -> duolify.engine.v1.BriefAttempt
+	22,  // 92: duolify.engine.v1.OutlineChatChangeRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	18,  // 93: duolify.engine.v1.OutlineChatChangeRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	62,  // 94: duolify.engine.v1.OutlineChatChangeResponse.operations:type_name -> duolify.engine.v1.OutlineOperation
+	17,  // 95: duolify.engine.v1.OutlineChatChangeResponse.attempts:type_name -> duolify.engine.v1.Usage
+	36,  // 96: duolify.engine.v1.EngineService.ScreenInstruction:input_type -> duolify.engine.v1.ScreenInstructionRequest
+	38,  // 97: duolify.engine.v1.EngineService.ReplanOutline:input_type -> duolify.engine.v1.ReplanOutlineRequest
+	9,   // 98: duolify.engine.v1.EngineService.ScreenCharacter:input_type -> duolify.engine.v1.ScreenCharacterRequest
+	7,   // 99: duolify.engine.v1.EngineService.MapCharacter:input_type -> duolify.engine.v1.MapCharacterRequest
+	11,  // 100: duolify.engine.v1.EngineService.ScreenCourse:input_type -> duolify.engine.v1.ScreenCourseRequest
+	13,  // 101: duolify.engine.v1.EngineService.ScreenReview:input_type -> duolify.engine.v1.ScreenReviewRequest
+	15,  // 102: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
+	31,  // 103: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
+	33,  // 104: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
+	40,  // 105: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
+	42,  // 106: duolify.engine.v1.EngineService.GenerateRetryVariants:input_type -> duolify.engine.v1.GenerateRetryVariantsRequest
+	45,  // 107: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
+	51,  // 108: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
+	55,  // 109: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
+	59,  // 110: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
+	63,  // 111: duolify.engine.v1.EngineService.OutlineChatChange:input_type -> duolify.engine.v1.OutlineChatChangeRequest
+	4,   // 112: duolify.engine.v1.EngineService.SynthesizeNarration:input_type -> duolify.engine.v1.SynthesizeNarrationRequest
+	2,   // 113: duolify.engine.v1.EngineService.Transcribe:input_type -> duolify.engine.v1.TranscribeRequest
+	37,  // 114: duolify.engine.v1.EngineService.ScreenInstruction:output_type -> duolify.engine.v1.ScreenInstructionResponse
+	39,  // 115: duolify.engine.v1.EngineService.ReplanOutline:output_type -> duolify.engine.v1.ReplanOutlineResponse
+	10,  // 116: duolify.engine.v1.EngineService.ScreenCharacter:output_type -> duolify.engine.v1.ScreenCharacterResponse
+	8,   // 117: duolify.engine.v1.EngineService.MapCharacter:output_type -> duolify.engine.v1.MapCharacterResponse
+	12,  // 118: duolify.engine.v1.EngineService.ScreenCourse:output_type -> duolify.engine.v1.ScreenCourseResponse
+	14,  // 119: duolify.engine.v1.EngineService.ScreenReview:output_type -> duolify.engine.v1.ScreenReviewResponse
+	16,  // 120: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
+	32,  // 121: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
+	34,  // 122: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
+	41,  // 123: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
+	43,  // 124: duolify.engine.v1.EngineService.GenerateRetryVariants:output_type -> duolify.engine.v1.GenerateRetryVariantsResponse
+	50,  // 125: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
+	52,  // 126: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
+	56,  // 127: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
+	61,  // 128: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
+	64,  // 129: duolify.engine.v1.EngineService.OutlineChatChange:output_type -> duolify.engine.v1.OutlineChatChangeResponse
+	6,   // 130: duolify.engine.v1.EngineService.SynthesizeNarration:output_type -> duolify.engine.v1.SynthesizeNarrationResponse
+	3,   // 131: duolify.engine.v1.EngineService.Transcribe:output_type -> duolify.engine.v1.TranscribeResponse
+	114, // [114:132] is the sub-list for method output_type
+	96,  // [96:114] is the sub-list for method input_type
 	96,  // [96:96] is the sub-list for extension type_name
 	96,  // [96:96] is the sub-list for extension extendee
 	0,   // [0:96] is the sub-list for field type_name
@@ -5759,7 +5961,7 @@ func file_duolify_engine_v1_engine_proto_init() {
 	if File_duolify_engine_v1_engine_proto != nil {
 		return
 	}
-	file_duolify_engine_v1_engine_proto_msgTypes[37].OneofWrappers = []any{
+	file_duolify_engine_v1_engine_proto_msgTypes[39].OneofWrappers = []any{
 		(*GenerateLessonEvent_Progress)(nil),
 		(*GenerateLessonEvent_Slide)(nil),
 		(*GenerateLessonEvent_Lesson)(nil),
@@ -5767,7 +5969,7 @@ func file_duolify_engine_v1_engine_proto_init() {
 		(*GenerateLessonEvent_Attempt)(nil),
 		(*GenerateLessonEvent_Unavailable)(nil),
 	}
-	file_duolify_engine_v1_engine_proto_msgTypes[46].OneofWrappers = []any{
+	file_duolify_engine_v1_engine_proto_msgTypes[48].OneofWrappers = []any{
 		(*ChatEvent_Delta)(nil),
 		(*ChatEvent_Usage)(nil),
 		(*ChatEvent_Attempt)(nil),
@@ -5780,7 +5982,7 @@ func file_duolify_engine_v1_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_duolify_engine_v1_engine_proto_rawDesc), len(file_duolify_engine_v1_engine_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   61,
+			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

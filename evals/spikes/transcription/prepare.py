@@ -27,7 +27,7 @@ def ff(*args):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--out", default="audio"); ap.add_argument("--tts", action="store_true")
+    ap = argparse.ArgumentParser(); ap.add_argument("--out", default="audio"); ap.add_argument("--tts", action="store_true"); ap.add_argument("--extra", action="store_true", help="long, short and Spanish clips (golden set 6.7)")
     a = ap.parse_args(); raw = os.path.join(a.out, "_raw"); wav = os.path.join(a.out, "_wav")
     os.makedirs(raw, exist_ok=True); os.makedirs(wav, exist_ok=True)
     import pyarrow.parquet as pq
@@ -80,6 +80,32 @@ def main():
                                          headers={"xi-api-key": env["ELEVENLABS_API_KEY"], "content-type": "application/json"})
             open(f"{raw}/tech{i}.mp3", "wb").write(urllib.request.urlopen(req, timeout=60).read())
             ff("-i", f"{raw}/tech{i}.mp3", "-ar", "16000", "-ac", "1", f"{wav}/tech-{i}.wav")
+    if a.extra:
+        # Golden set 6.7: a 27.8 s clip (the three LibriSpeech utterances joined; near the 30 s limit), a one-second
+        # synthetic clip, and two Spanish FLEURS es_419 clips (CC-BY-4.0).
+        ff("-i", f"{wav}/en-clean-1.wav", "-i", f"{wav}/en-clean-2.wav", "-i", f"{wav}/en-clean-3.wav", "-filter_complex",
+           "concat=n=3:v=0:a=1", "-ar", "16000", "-ac", "1", f"{wav}/en-long-1.wav")
+        hf("google/fleurs", "data/es_419/test.tsv", "data/es_419/audio/test.tar.gz", local=raw + "/fleurs_es")
+        rows = list(csv.reader(open(raw + "/fleurs_es/data/es_419/test.tsv", encoding="utf8"), delimiter="\t")); pick = []; seen_t = set()
+        for r in rows:
+            if 6 <= int(r[-2]) / 16000 <= 12 and r[3] not in seen_t and len(pick) < 2:
+                seen_t.add(r[3]); pick.append(r[1])
+        with tarfile.open(raw + "/fleurs_es/data/es_419/audio/test.tar.gz") as t:
+            for m in t:
+                if m.name.split("/")[-1] in pick:
+                    i = pick.index(m.name.split("/")[-1]) + 1; open(f"{raw}/es{i}.wav", "wb").write(t.extractfile(m).read())
+        for i in (1, 2):
+            ff("-i", f"{raw}/es{i}.wav", "-ar", "16000", "-ac", "1", f"{wav}/es-{i}.wav")
+        if a.tts:
+            env = {}
+            for line in open(os.path.expanduser("~/.config/duolify/secrets.env")):
+                if line.startswith(("ELEVENLABS_API_KEY=", "ELEVENLABS_VOICE_ID=")):
+                    k, v = line.strip().split("=", 1); env[k] = v.strip("\"'")
+            req = urllib.request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{env['ELEVENLABS_VOICE_ID']}?output_format=mp3_44100_64",
+                                         data=json.dumps({"text": "Yes, please.", "model_id": "eleven_multilingual_v2"}).encode(),
+                                         headers={"xi-api-key": env["ELEVENLABS_API_KEY"], "content-type": "application/json"})
+            open(f"{raw}/short1.mp3", "wb").write(urllib.request.urlopen(req, timeout=60).read())
+            ff("-i", f"{raw}/short1.mp3", "-ar", "16000", "-ac", "1", f"{wav}/en-short-1.wav")
     # the two containers the app will send: WebM/Opus and MP4/AAC (m4a)
     for f in sorted(os.listdir(wav)):
         b = f[:-4]

@@ -40,6 +40,39 @@ service EngineService {
   rpc OutlineChatChange(OutlineChatChangeRequest) returns (OutlineChatChangeResponse);
   // SynthesizeNarration turns stored Slide narration text into audio with character alignment (E14).
   rpc SynthesizeNarration(SynthesizeNarrationRequest) returns (SynthesizeNarrationResponse);
+  // Transcribe turns one short voice recording into text (voice input). Audio lives in memory
+  // for the length of the call only. The Engine refuses with a typed ErrorInfo reason:
+  // `invalid_audio` (INVALID_ARGUMENT), `transcribe_cost_ceiling`, `transcribe_failed` and
+  // `transcribe_timeout` (UNAVAILABLE) and the promotion denial codes when no evidence exists.
+  rpc Transcribe(TranscribeRequest) returns (TranscribeResponse);
+}
+
+message TranscribeRequest {
+  // Raw recording bytes, at most 1 MiB. Never logged, stored, hashed, queued or sent to analytics.
+  bytes audio = 1;
+  // Container the API identified from the bytes: `webm` (WebM/Opus) or `m4a` (MP4/AAC).
+  string container = 2;
+  // Recording length the API already validated (500 to 30000 ms).
+  uint32 duration_ms = 3;
+  // `tutor` or `note`; for logs and metrics only.
+  string purpose = 4;
+  // Optional ISO 639-1 hint; empty lets the model detect the language.
+  string language_hint = 5;
+}
+
+message TranscribeResponse {
+  // Transcript; empty when nothing intelligible was said. Never logged.
+  string text = 1;
+  // Detected language (ISO 639-1) when the model reports one, else empty.
+  string language = 2;
+  // Audio length the provider billed, in milliseconds (the request's length when unreported).
+  uint32 duration_ms = 3;
+  // Model that served the request and whether it was the fallback.
+  string model = 4;
+  bool fallback_used = 5;
+  uint32 latency_ms = 6;
+  // Provider-reported cost in nanodollars (USD x 1e9); zero when unreported.
+  uint64 cost_nanos = 7;
 }
 
 message SynthesizeNarrationRequest {
