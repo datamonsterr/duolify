@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
-import { useUiPreferences } from "../design/localization/Preferences";
+import { useCharacterT } from "./useCharacterT";
 import { characterLibrary, type CharacterRecord } from "./library";
 import type { CharacterSpec, Accessory, Expression } from "./types";
 import { compileRigSvg } from "./rig";
@@ -49,7 +49,7 @@ export function CharacterLibrary() {
   const [creator, setCreator] = useState<{ record?: CharacterRecord } | null>(
     null,
   );
-  const { t } = useUiPreferences();
+  const t = useCharacterT();
   const [draft, setDraft] = useState<CharacterSpec | null>(null);
   const [deleting, setDeleting] = useState<CharacterRecord | null>(null);
   const [error, setError] = useState("");
@@ -142,7 +142,7 @@ export function CharacterLibrary() {
       )}
       {!selected && !creator && (
         <Button variant="secondary" onClick={() => setCreator({})}>
-          {t("characters.v2.new" as never)}
+          {t("characters.v2.new")}
         </Button>
       )}
       {!selected && !creator && (
@@ -207,13 +207,13 @@ export function CharacterLibrary() {
               {record.document && !record.read_only && (
                 <Button
                   variant="secondary"
-                  aria-label={`${t("characters.v2.customize" as never)} ${record.spec.info.name}`}
+                  aria-label={`${t("characters.v2.customize")} ${record.spec.info.name}`}
                   onClick={() => {
                     setCreator({ record });
                     window.scrollTo({ top: 0, behavior: "instant" });
                   }}
                 >
-                  {t("characters.v2.customize" as never)}
+                  {t("characters.v2.customize")}
                 </Button>
               )}
               <Button

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "../design/Button";
-import { useUiPreferences } from "../design/localization/Preferences";
+import { useCharacterT } from "./useCharacterT";
 import { CharacterPreview } from "./CharacterPreview";
 import {
   CharacterSelector,
@@ -9,7 +9,6 @@ import {
 } from "./CharacterSelector";
 import { applyDraftPatch, defaultDraft } from "./draft";
 import { characterLibrary, type CharacterRecord } from "./library";
-import type { CharactersV2Id } from "./messages";
 import { POSES, type RigView } from "./rig-v2";
 import { validateSpecV2 } from "./schema-v2";
 import {
@@ -29,8 +28,7 @@ export function CharacterCreator({
   onSaved: (record: CharacterRecord) => void;
   onClose: () => void;
 }) {
-  const { t: raw } = useUiPreferences();
-  const t = raw as (id: CharactersV2Id) => string;
+  const t = useCharacterT();
   const [spec, setSpec] = useState<CharacterSpecV2>(
     () => record?.document ?? defaultDraft("human"),
   );
@@ -76,6 +74,15 @@ export function CharacterCreator({
             <Icon d="M15 5l-7 7 7 7" />
           </button>
           <h1>{t("characters.v2.short")}</h1>
+          <Button
+            className="cv2-save"
+            onClick={() => void submit()}
+            pending={pending}
+            disabled={!valid}
+          >
+            <Icon d="M5 12l5 5 9-10" />
+            {t(record ? "characters.v2.save" : "characters.v2.use")}
+          </Button>
         </div>
         <div className="cv2-stage">
           <button
@@ -126,15 +133,6 @@ export function CharacterCreator({
         {rejected && <p role="alert">{t("characters.v2.invalid")}</p>}
         {error && <p role="alert">{error}</p>}
         {saved && <p role="status">{t("characters.v2.saved")}</p>}
-        <div className="cv2-actions">
-          <Button
-            onClick={() => void submit()}
-            pending={pending}
-            disabled={!valid}
-          >
-            {t(record ? "characters.v2.save" : "characters.v2.use")}
-          </Button>
-        </div>
       </div>
     </section>
   );

@@ -1,4 +1,5 @@
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCharacterT } from "./useCharacterT";
 import { useUiPreferences } from "../design/localization/Preferences";
 import {
   COLOR_PRESETS,
@@ -135,8 +136,8 @@ const toPatch = (path: string[], value: unknown): Record<string, unknown> =>
     string,
     unknown
   >;
-const label = (t: (id: never) => string, id: string) =>
-  t(`characters.v2.f.${id}` as never);
+const label = (t: (id: string) => string, id: string) =>
+  t(`characters.v2.f.${id}`);
 
 export interface SelectorProps {
   spec: CharacterSpecV2;
@@ -158,14 +159,10 @@ export function CharacterSelector({
   onTab,
   hideTabs,
 }: SelectorProps) {
+  const t = useCharacterT();
   const {
-    t: raw,
     preferences: { locale },
   } = useUiPreferences();
-  const t = raw as (
-    id: CharactersV2Id | never,
-    v?: Record<string, string | number>,
-  ) => string;
   const [inner, setInner] = useState<Tab>("kind");
   const tab = controlled ?? inner;
   const setTab = (next: Tab) => (onTab ? onTab(next) : setInner(next));
@@ -311,7 +308,7 @@ function Swatches({
   options: string[];
   swatch: (v: string) => string;
   onPick: (v: string) => void;
-  t: (id: never, v?: Record<string, string | number>) => string;
+  t: (id: string, v?: Record<string, string | number>) => string;
   custom?: boolean;
 }) {
   const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : "#000000";
@@ -326,7 +323,7 @@ function Swatches({
               name={name}
               value={o}
               checked={value === o}
-              aria-label={t("characters.v2.color.pick" as never, { color: o })}
+              aria-label={t("characters.v2.color.pick", { color: o })}
               onChange={() => onPick(o)}
             />
             <span style={{ background: swatch(o) }} />
@@ -337,7 +334,7 @@ function Swatches({
             <input
               type="color"
               value={hex}
-              aria-label={t("characters.v2.color.custom" as never)}
+              aria-label={t("characters.v2.color.custom")}
               onChange={(e) => onPick(e.target.value.toUpperCase())}
             />
           </label>
@@ -359,7 +356,7 @@ function FieldView({
   spec: CharacterSpecV2;
   uid: string;
   locale: string;
-  t: (id: never, v?: Record<string, string | number>) => string;
+  t: (id: string, v?: Record<string, string | number>) => string;
   onPatch: (patch: Record<string, unknown>) => void;
 }) {
   const current = getAt(spec, field.path);
@@ -389,7 +386,7 @@ function FieldView({
         locale={locale}
         onPick={set}
         unavailable={(option) =>
-          t("characters.v2.option.unavailable" as never, { option })
+          t("characters.v2.option.unavailable", { option })
         }
       />
     );
@@ -490,7 +487,7 @@ function Accessories({
   legend: string;
   uid: string;
   locale: string;
-  t: (id: never, v?: Record<string, string | number>) => string;
+  t: (id: string, v?: Record<string, string | number>) => string;
   onPatch: (patch: Record<string, unknown>) => void;
 }) {
   const kinds = fieldOptions(spec as never, ["clothes", "accessories", "kind"]);
@@ -536,7 +533,7 @@ function Accessories({
         <Swatches
           key={a.kind}
           name={`${uid}-acc-${a.kind}`}
-          legend={t("characters.v2.accessory.color" as never, {
+          legend={t("characters.v2.accessory.color", {
             accessory: optionLabel(a.kind, locale),
           })}
           value={a.color}
@@ -567,8 +564,7 @@ export function CharacterTabs({
   tab: Tab;
   onTab: (tab: Tab) => void;
 }) {
-  const { t: raw } = useUiPreferences();
-  const t = raw as (id: CharactersV2Id) => string;
+  const t = useCharacterT();
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
   const onKey = (e: KeyboardEvent) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;

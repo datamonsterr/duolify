@@ -135,6 +135,9 @@
   align-items: center;
   gap: var(--space-2);
 }
+.cv2-save {
+  margin-inline-start: auto;
+}
 .cv2-bar h1 {
   font-size: 1.25rem;
   margin: 0;
@@ -299,6 +302,12 @@
 .cv2-text textarea {
   min-height: 44px;
   font: inherit;
+}
+.cv2-save {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
 }
 .cv2-actions {
   display: flex;
