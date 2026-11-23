@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { showToast, dismissToast } from "../../../components/toast";
+import { emitMascotTalk } from "../../../components/mascot/events";
+import { Icon } from "../../design/Icon";
+import { useUiPreferences } from "../../design/localization/Preferences";
 import { session } from "../../accounts/session";
 import { tutorService, type RegionAsk } from "../../chat/tutor";
 import { useTutor } from "../../chat/useTutor";
@@ -31,7 +35,7 @@ type Props = {
 };
 
 /**
- * The opaque answer panel docked to the right of the immersive stage: the Learner's question,
+ * The translucent answer panel docked to the right of the immersive stage: the Learner's question,
  * the streamed reply (Stop while it streams), follow-ups, save as an anchored Quick note,
  * collapse and close. It shares the lesson tutor thread with the tutor sheet.
  */
@@ -52,6 +56,7 @@ export default function AnswerPanel({
   const ask: RegionAsk | undefined = region
     ? { rect: region, at_ms: Math.round(atMs), input: asked }
     : undefined;
+  const { t } = useUiPreferences();
   const tutor = useTutor(
     courseId,
     tutorService,
@@ -126,55 +131,99 @@ export default function AnswerPanel({
       input: "typed",
     };
     try {
-      await session.request("/v1/notes", "POST", {
-        action_key: `region-answer:${id}`,
-        course_id: courseId,
-        lesson_id: lessonId,
-        slide_id: slideIndex,
-        slide_title: slideTitle,
-        source: "slide",
-        raw_text: text.slice(0, 2000),
-        anchor: anchorToWire(anchor),
-      });
+      const saved = await session.request<{ id?: string }>(
+        "/v1/notes",
+        "POST",
+        {
+          action_key: `region-answer:${id}`,
+          course_id: courseId,
+          lesson_id: lessonId,
+          slide_id: slideIndex,
+          slide_title: slideTitle,
+          source: "slide",
+          raw_text: text.slice(0, 2000),
+          anchor: anchorToWire(anchor),
+        },
+      );
       setNoteState((s) => ({ ...s, [id]: "saved" }));
+      showToast({
+        id: "note-saved",
+        message: t("imm.saved"),
+        action: saved?.id
+          ? {
+              label: t("imm.undo"),
+              onAction: () => {
+                void session
+                  .request(`/v1/notes/${saved.id}`, "DELETE")
+                  .catch(() => {});
+                setNoteState((s) => {
+                  const rest = { ...s };
+                  delete rest[id];
+                  return rest;
+                });
+              },
+            }
+          : undefined,
+      });
     } catch {
       setNoteState((s) => ({ ...s, [id]: "error" }));
+      showToast({
+        id: "note-saved",
+        message: t("imm.save_failed"),
+        tone: "error",
+      });
     }
   }
+
+  const notice = tutor.notice;
+  const refusal = !tutor.online
+    ? t("imm.offline")
+    : notice?.kind === "credits"
+      ? t("imm.credits")
+      : notice?.kind === "failed"
+        ? t("imm.failed")
+        : notice?.kind === "stale"
+          ? t("imm.stale")
+          : notice?.kind === "load"
+            ? t("imm.load")
+            : tutor.block
+              ? t("imm.block")
+              : "";
+  useEffect(() => {
+    if (refusal)
+      showToast({ id: "answer-notice", message: refusal, tone: "error" });
+    else dismissToast("answer-notice");
+  }, [refusal]);
+  // The mascot companion talks while a reply streams.
+  useEffect(() => {
+    emitMascotTalk(streaming);
+    return () => void emitMascotTalk(false);
+  }, [streaming]);
 
   if (collapsed)
     return (
       <button
         type="button"
-        className="imm-btn imm-answer-handle"
+        className="imm-btn imm-icon-btn imm-answer-handle"
         data-testid="answer-expand"
-        aria-label="Show the answer panel"
+        aria-label={t("imm.show")}
+        title={t("imm.show")}
         onClick={() => onCollapse(false)}
       >
-        Answer
+        <Icon name="ask" />
       </button>
     );
 
-  const notice = tutor.notice;
-  const refusal = !tutor.online
-    ? "Asking needs a connection. Your question is kept."
-    : notice?.kind === "credits"
-      ? "Not enough Credits for this question."
-      : notice?.kind === "failed"
-        ? "The tutor could not answer. Nothing was charged. Try again."
-        : notice?.kind === "stale"
-          ? "The price changed. Send again."
-          : notice?.kind === "load"
-            ? "The conversation could not be loaded."
-            : tutor.block
-              ? "This question needs more context than a quick answer allows."
-              : "";
+  const cannotSend =
+    !tutor.draft.trim() || busy || !tutor.online || !!tutor.block;
+  const sendReason =
+    cannotSend && tutor.draft.trim() ? refusal || t("imm.busy") : "";
 
   return (
     <aside
       className="imm-answer"
       data-testid="answer-panel"
-      aria-label="Answer about this area"
+      aria-label={t("imm.panel_label")}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -184,41 +233,45 @@ export default function AnswerPanel({
       }}
     >
       <header className="imm-answer-head">
-        <h2>{region ? "Ask about this area" : "Ask about this Slide"}</h2>
+        {earlier && (
+          <button
+            type="button"
+            className="imm-btn imm-icon-btn"
+            data-testid="answer-restore"
+            aria-label={t("imm.outline_before")}
+            title={t("imm.outline_before")}
+            onClick={() => onRestore(earlier.rect)}
+          >
+            <Icon name="select" />
+          </button>
+        )}
+        <span className="imm-grow" />
         <button
           type="button"
-          className="imm-btn"
+          className="imm-btn imm-icon-btn"
           data-testid="answer-collapse"
-          aria-label="Collapse the answer panel"
+          aria-label={t("imm.hide")}
+          title={t("imm.hide")}
           onClick={() => onCollapse(true)}
         >
-          Hide
+          <Icon name="chevron" />
         </button>
         <button
           type="button"
-          className="imm-btn"
+          className="imm-btn imm-icon-btn"
           data-testid="answer-close"
-          aria-label="Close the answer panel"
+          aria-label={t("imm.close")}
+          title={t("imm.close")}
           onClick={close}
         >
-          Close
+          <Icon name="close" />
         </button>
       </header>
-      {earlier && (
-        <button
-          type="button"
-          className="imm-btn"
-          data-testid="answer-restore"
-          onClick={() => onRestore(earlier.rect)}
-        >
-          Outline the area I asked about before
-        </button>
-      )}
       <div
         ref={log}
         className="imm-answer-log"
         role="log"
-        aria-label="Conversation"
+        aria-label={t("imm.panel_label")}
         aria-live="off"
       >
         {shown.map((m) => (
@@ -229,31 +282,33 @@ export default function AnswerPanel({
               m.content && (
                 <button
                   type="button"
-                  className="imm-btn"
+                  className="imm-btn imm-icon-btn"
                   data-testid="answer-save-note"
+                  aria-label={
+                    noteState[m.id] === "saved"
+                      ? t("imm.saved")
+                      : t("imm.save_note")
+                  }
+                  title={
+                    noteState[m.id] === "saved"
+                      ? t("imm.saved")
+                      : t("imm.save_note")
+                  }
+                  aria-pressed={noteState[m.id] === "saved"}
                   disabled={
                     noteState[m.id] === "saving" || noteState[m.id] === "saved"
                   }
                   onClick={() => void saveAsNote(m.id, m.content)}
                 >
-                  {noteState[m.id] === "saved"
-                    ? "Saved as Quick note"
-                    : noteState[m.id] === "error"
-                      ? "Could not save. Try again"
-                      : "Save as Quick note"}
+                  <Icon name={noteState[m.id] === "saved" ? "check" : "note"} />
                 </button>
               )}
           </div>
         ))}
       </div>
       <p className="imm-sr" role="status" data-testid="answer-status">
-        {streaming ? "Answering" : lastReply ? "Answer ready" : ""}
+        {streaming ? t("imm.answering") : lastReply ? t("imm.ready") : ""}
       </p>
-      {refusal && (
-        <p className="imm-answer-note" role="alert" data-testid="answer-notice">
-          {refusal}
-        </p>
-      )}
       <form
         className="imm-answer-compose"
         onSubmit={(e) => {
@@ -262,20 +317,24 @@ export default function AnswerPanel({
         }}
       >
         <label>
-          <span className="imm-sr">Your question</span>
+          <span className="imm-sr">{t("imm.question")}</span>
           <textarea
             ref={field}
             rows={2}
             value={tutor.draft}
             maxLength={2000}
-            placeholder={shown.length ? "Ask a follow-up" : "Ask about this"}
+            placeholder={shown.length ? t("imm.followup") : t("imm.ask_ph")}
             disabled={busy}
             onChange={(e) => {
               if (tutor.draft === "") setAsked("text");
               tutor.setDraft(e.target.value);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (
+                e.key === "Enter" &&
+                !e.shiftKey &&
+                !e.nativeEvent.isComposing
+              ) {
                 e.preventDefault();
                 sendNow();
               }
@@ -290,7 +349,11 @@ export default function AnswerPanel({
           purpose="tutor"
           entryPoint="answer_panel"
           lessonId={lessonId}
+          variant="bubble"
           disabled={busy || !tutor.online}
+          disabledReason={
+            !tutor.online ? t("imm.offline") : busy ? t("imm.busy") : undefined
+          }
           onTranscript={({ text, language }) => {
             setAsked("voice");
             tutor.setDraft(text);
@@ -300,23 +363,31 @@ export default function AnswerPanel({
         {streaming ? (
           <button
             type="button"
-            className="imm-btn"
+            className="imm-btn imm-icon-btn"
             data-testid="answer-stop"
+            aria-label={t("imm.stop")}
+            title={t("imm.stop")}
             onClick={() => void tutor.stop()}
           >
-            Stop
+            <Icon name="stop" />
           </button>
         ) : (
           <button
             type="submit"
-            className="imm-btn imm-btn-big"
+            className="imm-btn imm-icon-btn imm-btn-big"
             data-testid="answer-send"
-            disabled={
-              !tutor.draft.trim() || busy || !tutor.online || !!tutor.block
-            }
+            aria-label={t("imm.send")}
+            title={sendReason || t("imm.send")}
+            aria-describedby={sendReason ? "answer-send-reason" : undefined}
+            disabled={cannotSend}
           >
-            {busy ? "Sending…" : "Send"}
+            <Icon name="send" />
           </button>
+        )}
+        {sendReason && (
+          <span id="answer-send-reason" hidden>
+            {sendReason}
+          </span>
         )}
       </form>
     </aside>

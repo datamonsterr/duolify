@@ -109,3 +109,110 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.voice-bubble-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.voice-bubble {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.voice-bubble::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  z-index: -1;
+}
+.voice-bubble .nav-icon {
+  inline-size: 20px;
+  block-size: 20px;
+}
+.voice-bubble[aria-disabled="true"] {
+  opacity: 0.5;
+}
+.voice-bubble.recording::before {
+  border-color: var(--danger, var(--primary));
+  box-shadow: 0 0 0 calc(3px + var(--voice-level, 0) * 8px)
+    color-mix(in srgb, var(--danger, var(--primary)) 35%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-bubble.recording::before {
+    box-shadow: 0 0 0 4px
+      color-mix(in srgb, var(--danger, var(--primary)) 35%, transparent);
+  }
+}
+.voice-bubble:focus-visible::before {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.voice-badge {
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-end: -6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger, var(--primary));
+  color: var(--on-primary, #fff);
+  font-size: 0.7rem;
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+.voice-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.voice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding-inline-start: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  justify-self: start;
+}
+.voice-chip-cancel {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.voice-chip .nav-icon {
+  inline-size: 18px;
+  block-size: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.voice-reason {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

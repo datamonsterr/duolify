@@ -1,87 +1,23 @@
 import { useRef, useState, type PointerEvent, type KeyboardEvent } from "react";
 import type { VoiceEntryPoint } from "../../lib/analytics";
 import { useUiPreferences } from "../design/localization/Preferences";
-import { autoSendEnabled, explicitAutoSend, setAutoSend } from "./autosend";
-import {
-  useVoiceInput,
-  type Transcript,
-  type VoiceBlock,
-  type VoiceNotice,
-} from "./useVoiceInput";
+import { useVoiceInput, type Transcript } from "./useVoiceInput";
 import type { VoicePlatform } from "./platform";
+import { VoiceBubble } from "./VoiceBubble";
+import {
+  blockText,
+  clock,
+  EXPLAINED,
+  noticeText,
+  wasExplained,
+} from "./voice-text";
 import "./voice.css";
-
-const EXPLAINED = "duolify.voice.explained";
-const wasExplained = () => {
-  try {
-    return localStorage.getItem(EXPLAINED) === "1";
-  } catch {
-    return false;
-  }
-};
-
-const clock = (ms: number) => {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
-
-type T = ReturnType<typeof useUiPreferences>["t"];
-
-function blockText(t: T, block: Exclude<VoiceBlock, undefined>, resets?: Date) {
-  switch (block) {
-    case "offline":
-      return t("voice.offline");
-    case "unavailable":
-      return t("voice.unavailable");
-    case "unsupported":
-      return t("voice.unsupported");
-    case "daily_cap":
-      return resets
-        ? t("voice.cap_resets", {
-            time: resets.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          })
-        : t("voice.cap");
-    case "denied":
-      return t("voice.denied_block");
-    case "no_lesson":
-    case "loading":
-      return "";
-  }
-}
-
-function noticeText(t: T, n: VoiceNotice) {
-  switch (n.kind) {
-    case "denied":
-      return t("voice.denied");
-    case "no_microphone":
-      return t("voice.no_microphone");
-    case "silent":
-      return t("voice.silent");
-    case "too_short":
-      return t("voice.too_short");
-    case "empty":
-      return t("voice.empty");
-    case "error":
-      return n.cls === "rate_limited"
-        ? t("voice.rate_limited")
-        : n.cls === "too_large" || n.cls === "too_long"
-          ? t("voice.too_long")
-          : n.cls === "unavailable"
-            ? t("voice.unavailable_now")
-            : n.cls === "offline"
-              ? t("voice.offline_retry")
-              : t("voice.failed");
-  }
-}
 
 /**
  * Push-to-talk microphone control: hold to record, release to transcribe, slide off or press
  * Escape to cancel, tap to toggle. Typing stays available next to it, always.
  */
-export function VoiceButton({
+function VoiceTextButton({
   purpose,
   entryPoint,
   lessonId,
@@ -105,7 +41,6 @@ export function VoiceButton({
   });
   const [explaining, setExplaining] = useState(false);
   const { t } = useUiPreferences();
-  const [auto, setAuto] = useState(() => autoSendEnabled("en"));
   const button = useRef<HTMLButtonElement>(null);
   const recording = voice.phase === "recording";
   const transcribing = voice.phase === "transcribing";
@@ -234,20 +169,6 @@ export function VoiceButton({
           </button>
         </p>
       )}
-      {purpose === "tutor" && !recording && (
-        <label className="voice-hint voice-auto">
-          <input
-            type="checkbox"
-            data-testid="voice-auto-send"
-            checked={explicitAutoSend() ?? auto}
-            onChange={(event) => {
-              setAuto(event.target.checked);
-              setAutoSend(event.target.checked);
-            }}
-          />{" "}
-          {t("voice.auto_send")}
-        </label>
-      )}
       {explaining && (
         <div
           className="voice-explain"
@@ -285,5 +206,25 @@ export function VoiceButton({
         </div>
       )}
     </div>
+  );
+}
+
+export function VoiceButton(
+  props: Parameters<typeof VoiceTextButton>[0] & {
+    /** "bubble": a small round icon control; every explanation is a toast. */
+    variant?: "default" | "bubble";
+    /** Why the parent disabled the control; shown as a toast and as its description. */
+    disabledReason?: string;
+  },
+) {
+  const { variant, disabledReason, disabled = false, ...rest } = props;
+  return variant === "bubble" ? (
+    <VoiceBubble
+      {...rest}
+      disabled={disabled}
+      disabledReason={disabledReason}
+    />
+  ) : (
+    <VoiceTextButton {...rest} disabled={disabled} />
   );
 }
