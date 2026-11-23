@@ -11,6 +11,7 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter @duolify/client --ignore-scripts
 COPY docs/design/tokens.json docs/design/theme.css docs/design/
 COPY services/api/internal/characters/schema/ services/api/internal/characters/schema/
+COPY services/api/internal/characters/rig/ services/api/internal/characters/rig/
 COPY apps/client/ apps/client/
 ARG VITE_API_URL=""
 ARG VITE_POSTHOG_KEY=""

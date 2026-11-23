@@ -475,7 +475,9 @@ func crossCheckV2(spec *SpecV2) *SpecError {
 		return specErr("text_too_long", "")
 	}
 	b := spec.Body
-	if b.Kind != "human" && contrastBetween(b.PrimaryColor, b.Eyes.Color) < 2.5 {
+	// Robot eyes glow on the dark visor; other non-human eyes sit on the body colour.
+	if b.Kind == "robot" && contrastBetween(robotVisor, b.Eyes.Color) < 2.5 ||
+		b.Kind != "human" && b.Kind != "robot" && contrastBetween(b.PrimaryColor, b.Eyes.Color) < 2.5 {
 		return specErr("low_contrast", "body.eyes.color")
 	}
 	if b.Kind == "human" {
@@ -509,6 +511,8 @@ func crossCheckV2(spec *SpecV2) *SpecError {
 	}
 	return nil
 }
+
+const robotVisor = "#16242F"
 
 func contrastBetween(a, b string) float64 {
 	return contrastRatio(relativeLuminance(a), relativeLuminance(b))

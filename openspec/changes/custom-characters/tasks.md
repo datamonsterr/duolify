@@ -84,8 +84,8 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 ## 8. Rig v2: avatar, full body, poses (size L; final art blocked on #40)
 
-- [ ] 8.1 Unit first: deterministic compile (byte-identical SVG per document, rig version, view, pose, expression), render budget (avatar at most 8 KiB, full body at most 24 KiB, no external refs, filters, scripts or SMIL), alt text generated from attributes.
-- [ ] 8.2 Implement the compiler and part library with PLACEHOLDER parts (unblocked), including avatar crop, 7 poses and 7 expressions, in one shared TypeScript/Go-testable module; bundle for offline.
+- [x] 8.1 _Done: rigv2_test.go + rig-v2.test.ts; 252 shared SHA-256 goldens (rig/golden.v2.json) prove Go and TypeScript are byte-identical; every catalog id renders within budget, XML well-formed, no forbidden elements; alt text parity._ Unit first: deterministic compile (byte-identical SVG per document, rig version, view, pose, expression), render budget (avatar at most 8 KiB, full body at most 24 KiB, no external refs, filters, scripts or SMIL), alt text generated from attributes.
+- [x] 8.2 _Done: rig/parts.v2.json (declarative part library interpreted by rigv2.go and rig-v2.ts), 4 kinds, 7 poses, 7 expressions, avatar and body views, bundled into the client build; PLACEHOLDER art pending 8.3._ Implement the compiler and part library with PLACEHOLDER parts (unblocked), including avatar crop, 7 poses and 7 expressions, in one shared TypeScript/Go-testable module; bundle for offline.
 - [ ] 8.3 BLOCKED on #40: owner approval of the original v2 part library art (all kinds, age bands, head coverings) and the three default-cast Characters; replace placeholders, run accessibility and no-likeness review.
 
 ## 9. Engine prompt to attributes mapping (not blocked; M)

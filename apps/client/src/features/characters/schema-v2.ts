@@ -176,9 +176,12 @@ function cross(spec: CharacterSpecV2): SpecIssue | null {
   }
   if (total > MAX_TEXT) return issue("text_too_long", "");
   const b = spec.body;
+  // Robot eyes glow on the dark visor; other non-human eyes sit on the body colour.
   if (
-    b.kind !== "human" &&
-    contrastBetween(b.primary_color, b.eyes.color) < 2.5
+    (b.kind === "robot" && contrastBetween("#16242F", b.eyes.color) < 2.5) ||
+    (b.kind !== "human" &&
+      b.kind !== "robot" &&
+      contrastBetween(b.primary_color, b.eyes.color) < 2.5)
   )
     return issue("low_contrast", "body.eyes.color");
   if (b.kind === "human") {

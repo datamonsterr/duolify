@@ -83,6 +83,7 @@ jobs:
               - 'evals/**'
               # Embedded by engine-core and fingerprinted by the promotion evidence.
               - 'services/api/internal/characters/schema/**'
+              - 'services/api/internal/characters/rig/**'
               - '.mise/tasks/engine.toml'
               - *tooling
               - *tasks
