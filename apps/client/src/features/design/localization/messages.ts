@@ -481,7 +481,10 @@ let arabic: Record<MessageId, Message> | undefined;
 export const arabicLoaded = () => arabic !== undefined;
 export async function loadArabic() {
   arabic ??= (await import("./messages.ar")).ar;
+  Object.assign(arabic, lateArabic);
 }
+// Arabic strings registered by feature chunks before the Arabic catalogue itself has loaded.
+const lateArabic: Record<string, Message> = {};
 // Deliberately exposed only in the authored harness, never as a shipping language.
 function expand(text: string) {
   return `［${text}${"～".repeat(Math.ceil(text.length * 0.4))}］`;
@@ -505,7 +508,7 @@ export function registerMessages(
   arPart: Record<string, Message>,
 ) {
   Object.assign(en, enPart);
-  Object.assign(ar, arPart);
+  Object.assign(arabic ?? lateArabic, arPart);
   for (const [id, message] of Object.entries(enPart))
     (expanded as Record<string, Message>)[id] = expandMessage(message);
 }
