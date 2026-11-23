@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -50,6 +50,14 @@ export type GuidedScriptChatProps = {
   /** The guide submits only when the step needs the network; offline keeps the answers. */
   needsNetwork?: boolean;
   onDone?: () => void;
+  /** Runs after a step validates and before it is accepted (e.g. request the sign-in code).
+   * Return an error message to keep the step open with the entry intact. */
+  onStepCommit?: (
+    stepId: string,
+    answers: Record<string, Value>,
+  ) => Promise<string | null>;
+  /** Extra controls under the active widget (e.g. Resend code). */
+  stepActions?: (step: Step) => ReactNode;
   /** Destructive confirm card: Cancel leaves the flow without doing anything. */
   onCancel?: () => void;
 };
@@ -67,6 +75,8 @@ export function GuidedScriptChat({
   needsNetwork = true,
   onDone,
   onCancel,
+  onStepCommit,
+  stepActions,
 }: GuidedScriptChatProps) {
   const { t, reducedMotion } = useUiPreferences();
   const uid = useId();
@@ -193,8 +203,9 @@ export function GuidedScriptChat({
     ]);
   }
 
-  function submitValue(value: Value, file?: File) {
-    if (!step) return;
+  const [committing, setCommitting] = useState(false);
+  async function submitValue(value: Value, file?: File) {
+    if (!step || committing) return;
     const editing = state.editing === step.id;
     const out = answerStep(script, state, step.id, value);
     if (out.error) {
@@ -202,6 +213,27 @@ export function GuidedScriptChat({
         label(out.error === "required" ? "guided.required" : "guided.invalid"),
       );
       return;
+    }
+    if (onStepCommit) {
+      if (needsNetwork && !online) {
+        setError(label("guided.offline"));
+        return;
+      }
+      const values: Record<string, Value> = {};
+      for (const [id, a] of Object.entries(out.state.answers))
+        if (!a.skipped) values[id] = a.value;
+      setCommitting(true);
+      let failure: string | null = null;
+      try {
+        failure = await onStepCommit(step.id, values);
+      } catch {
+        failure = label("guided.submit_failed");
+      }
+      setCommitting(false);
+      if (failure) {
+        setError(failure);
+        return;
+      }
     }
     if (file) files.current.set(step.id, file);
     setError(null);
@@ -278,7 +310,7 @@ export function GuidedScriptChat({
   const display = (s: Step, a: Answer) => {
     if (a.skipped) return label("guided.skipped");
     const v = a.value;
-    if (s.widget === "password") return "••••••••";
+    if (s.widget === "password" || s.widget === "code") return "••••••••";
     if (s.widget === "toggle") return label(v ? "guided.yes" : "guided.no");
     if (s.widget === "rating") return t("guided.stars", { count: Number(v) });
     if (s.widget === "single" || s.widget === "chips+text") {
@@ -433,7 +465,7 @@ export function GuidedScriptChat({
             error={error}
             editing={state.editing === step.id}
             summary={summary}
-            disabled={status === "sending"}
+            disabled={status === "sending" || committing}
             onSubmit={submitValue}
             onSkip={doSkip}
             onCancel={
@@ -444,6 +476,7 @@ export function GuidedScriptChat({
                   : undefined
             }
           />
+          {stepActions?.(step)}
         </div>
       )}
       {fallback && step && fallback.stepId === step.id && (

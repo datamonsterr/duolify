@@ -85,6 +85,7 @@ export function StepWidget(props: WidgetProps) {
             ? null
             : ""),
   );
+  const [ticked, setTicked] = useState<string[]>([]);
   const text0 = typeof value === "string" ? value : "";
 
   function submit(event: FormEvent) {
@@ -311,17 +312,45 @@ export function StepWidget(props: WidgetProps) {
       break;
     case "confirm":
       control = (
-        <dl className="gc-summary">
-          {summary?.map((row) => (
-            <div key={row.label}>
-              <dt>{row.label}</dt>
-              <dd dir="auto">{row.answer}</dd>
-            </div>
-          ))}
-        </dl>
+        <>
+          {summary && summary.length > 0 && (
+            <dl className="gc-summary">
+              {summary?.map((row) => (
+                <div key={row.label}>
+                  <dt>{row.label}</dt>
+                  <dd dir="auto">{row.answer}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {step.checks && (
+            <fieldset className="gc-checks" aria-labelledby={promptId}>
+              {step.checks.map((id) => (
+                <label className="gc-check" key={id}>
+                  <input
+                    type="checkbox"
+                    name={id}
+                    checked={ticked.includes(id)}
+                    onChange={(e) =>
+                      setTicked((now) =>
+                        e.target.checked
+                          ? [...now, id]
+                          : now.filter((x) => x !== id),
+                      )
+                    }
+                  />
+                  <span>{t(t0(id))}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </>
       );
       break;
   }
+  const blocked = Boolean(
+    step.checks && step.checks.some((id) => !ticked.includes(id)),
+  );
   const destructive = step.widget === "confirm" && step.destructive;
   return (
     <form
@@ -345,10 +374,16 @@ export function StepWidget(props: WidgetProps) {
         )}
         <Button
           type="submit"
-          disabled={disabled}
+          disabled={disabled || blocked}
           className={destructive ? "gc-danger" : ""}
         >
-          {t(step.widget === "confirm" ? "guided.confirm" : "guided.send")}
+          {t(
+            step.actionKey
+              ? t0(step.actionKey)
+              : step.widget === "confirm"
+                ? "guided.confirm"
+                : "guided.send",
+          )}
         </Button>
         {props.onSkip && step.skippable && !editing && (
           <Button variant="quiet" onClick={props.onSkip}>

@@ -136,6 +136,8 @@
           "pattern": "^(GET|POST|PUT|PATCH|DELETE) /v1/"
         },
         "destructive": { "type": "boolean" },
+        "checks": { "type": "array", "items": { "type": "string" } },
+        "actionKey": { "type": "string" },
         "input": {
           "type": "object",
           "required": ["name", "autocomplete"],
