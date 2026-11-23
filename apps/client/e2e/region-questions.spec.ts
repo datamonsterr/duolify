@@ -126,6 +126,10 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
     }, info) => {
       const { posted, state } = await setup(page, request, vp, "ask");
       const seen = await mockTutor(page, state.lesson);
+      await page.context().addInitScript(() => {
+        (window as unknown as { __analyticsLog: unknown[] }).__analyticsLog =
+          [];
+      });
       await openLesson(page, state.lesson);
       await page.waitForTimeout(700);
       await enterImmersive(page);
@@ -195,6 +199,33 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
       expect(note.body.raw_text).toBe(REPLY);
       expect((note.body.anchor as { rect: object }).rect).toBeTruthy();
 
+      // Analytics: the area selection is captured on Ask, with enums and ids only.
+      const log = () =>
+        page.evaluate(
+          () =>
+            (
+              window as unknown as {
+                __analyticsLog?: {
+                  event: string;
+                  properties: Record<string, unknown>;
+                }[];
+              }
+            ).__analyticsLog ?? [],
+        );
+      const selected = (await log()).filter(
+        (e) => e.event === "lesson_region_selected",
+      );
+      expect(selected).toHaveLength(1);
+      expect(selected[0].properties).toMatchObject({
+        source: "client",
+        lesson_id: state.lesson,
+        slide_index: 0,
+        method: "keyboard", // Select area, then moved with the arrow keys
+      });
+      expect(["small", "medium", "large"]).toContain(
+        selected[0].properties.area_bucket,
+      );
+
       // Collapse keeps the area outlined and hands the stage back.
       await panel.getByTestId("answer-collapse").click();
       await expect(page.getByTestId("answer-expand")).toBeVisible();
@@ -205,6 +236,17 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
       // Close resumes playback.
       await page.getByTestId("answer-close").click();
       await expect(page.getByTestId("answer-panel")).toHaveCount(0);
+      const closed = (await log()).filter(
+        (e) => e.event === "lesson_answer_panel_closed",
+      );
+      expect(closed).toHaveLength(1);
+      expect(closed[0].properties).toMatchObject({
+        outcome: "completed",
+        saved_note: true,
+        follow_ups: "0",
+        lesson_id: state.lesson,
+      });
+      expect(JSON.stringify(closed[0].properties)).not.toContain("orange");
       // The fixture Slide is short, so resuming may also restart it: the clock must move either way.
       await expect.poll(() => clock(page)).not.toBe(t0);
       await snap(page, info, vp, "4-closed-resumed");

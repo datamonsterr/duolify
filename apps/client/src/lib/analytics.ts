@@ -1008,8 +1008,13 @@ export function trackRegion(
     properties.follow_ups = countBucket(value.follow_ups);
   }
   try {
-    if (!posthog.has_opted_out_capturing())
+    if (!posthog.has_opted_out_capturing()) {
       posthog.capture(value.event, properties);
+      // A test can opt in by defining `window.__analyticsLog = []` before the page loads.
+      (
+        window as unknown as { __analyticsLog?: unknown[] }
+      ).__analyticsLog?.push({ event: value.event, properties });
+    }
   } catch {
     /* Playback never depends on analytics. */
   }
