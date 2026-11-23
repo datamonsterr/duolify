@@ -1,3 +1,4 @@
+import { MascotAvatar } from "../../components/mascot";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { session } from "../accounts/session";
@@ -99,6 +100,7 @@ export function DailyCheckIn() {
   };
   return (
     <div className="check-in-notice">
+      <MascotAvatar size={40} state="happy" />
       <Feedback
         tone="success"
         title={t(notice.granted ? "checkin.granted" : "checkin.full", values)}

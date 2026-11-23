@@ -6,6 +6,7 @@ export default defineConfig({
   testMatch: [
     "design-e13-03.spec.ts",
     "design-e13-04.spec.ts",
+    "mascot-g5.spec.ts",
     "guided-script-e1.spec.ts",
     "guided-script-a11y.spec.ts",
     "copy-budget.spec.ts",
