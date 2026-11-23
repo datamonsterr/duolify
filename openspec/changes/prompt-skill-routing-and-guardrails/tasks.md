@@ -5,7 +5,7 @@ Future implementation checklist; this change delivers specification and a measur
 - [x] 0.1 Baseline from `evals/promotion/live-report.json` and `engine-core` prompt text (see `design.md`).
 - [x] 0.2 Live spike `evals/spikes/prompt-routing/` (12 lesson cases, 3 prompt arms, live Decisions API router) with `RESULTS.md`.
 - [ ] 0.3 Owner answers the owner-only questions in `design.md` (self-harm support resources and wording; confirm the Decisions API alpha dependency is acceptable behind a fallback).
-- [ ] 0.4 ADR recording the decisions table; `CONTEXT.md` terms **Skill**, **Router**, **Input guard**.
+- [x] 0.4 ADR recording the decisions table; `CONTEXT.md` terms **Skill**, **Router**, **Input guard**.
 
 ## 1. Skill module loader and fingerprint (M)
 
