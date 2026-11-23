@@ -6,9 +6,7 @@ androidWebViewHierarchy: devtools
 - tapOn: One-time code
 - inputText: ${CODE}
 - takeScreenshot: sign-in-code
-- scrollUntilVisible:
-    element: Sign in
-- tapOn: Sign in
+- pressKey: Enter
 - assertVisible: ".*400 Credits.*daily check-in.*"
 - takeScreenshot: first-check-in
 - scrollUntilVisible:
