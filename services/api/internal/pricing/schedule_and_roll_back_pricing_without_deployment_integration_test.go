@@ -106,7 +106,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := read()
-	if before["version"] != "usd-hy4-check-in-2026-11-22" || before["next_scheduled"] == nil {
+	if before["version"] != activeVersion || before["next_scheduled"] == nil {
 		t.Fatalf("scheduled response=%v", before)
 	}
 
@@ -121,7 +121,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	if err := runtime.ActivateDue(ctx, unverifiedAdmin); err == nil {
 		t.Fatal("activation accepted absent verifier")
 	}
-	if got := read(); got["version"] != "usd-hy4-check-in-2026-11-22" {
+	if got := read(); got["version"] != activeVersion {
 		t.Fatalf("unverified successor exposed: %v", got)
 	}
 	// Run two independent replicas to exercise the shared transaction marker.
@@ -173,7 +173,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	for _, event := range events.events {
 		properties := event["properties"].(map[string]any)
-		if event["distinct_id"] != "00000000-0000-4000-8000-000000000011" || properties["actor_id"] != event["distinct_id"] || properties["pricing_version"] != "usd-runtime-flip" {
+		if event["distinct_id"] != "00000000-0000-4000-8000-000000000011" || properties["actor_id"] != nil || properties["pricing_version"] != "usd-runtime-flip" {
 			t.Errorf("invalid activation common properties: %v", event)
 		}
 		if _, private := properties["reason"]; private {

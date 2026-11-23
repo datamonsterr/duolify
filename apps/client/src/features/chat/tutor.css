@@ -402,3 +402,19 @@
     box-shadow: 0 -8px 24px rgb(0 0 0 / 0.18);
   }
 }
+
+.region-thumb {
+  position: relative;
+  inline-size: 128px;
+  aspect-ratio: 16 / 9;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--raised);
+  overflow: hidden;
+}
+.region-thumb > span {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 25%, transparent);
+}

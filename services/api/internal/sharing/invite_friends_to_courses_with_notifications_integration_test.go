@@ -362,12 +362,12 @@ func TestInviteExpiryAcceptDeclineRevoke(t *testing.T) {
 		}
 		enrolled := 0
 		for _, ev := range e.ev.named("course_enrolled_published") {
-			if ev["source"] == "invite" && ev["_id"] == id {
+			if ev["entry_point"] == "invite" && ev["_id"] == id {
 				enrolled++
 			}
 		}
 		if enrolled != 1 {
-			t.Fatalf("course_enrolled_published(source=invite) emitted %d times", enrolled)
+			t.Fatalf("course_enrolled_published(entry_point=invite) emitted %d times", enrolled)
 		}
 		if _, err := e.s.DeclineInvite(ctx, id, inv.ID); !errors.Is(err, sharing.ErrInviteUnavailable) {
 			t.Fatalf("decline after accept: %v", err)

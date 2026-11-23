@@ -362,6 +362,9 @@ func TestSetupChatIntegration(t *testing.T) {
 		defer mu.Unlock()
 		var foundAiEvent, foundProfileUpdated, foundOnboardingCompleted bool
 		for _, event := range captured {
+			if name, _ := event["event"].(string); name == "learner_signed_up" {
+				continue // sign-up precedes the later opt-out
+			}
 			if event["distinct_id"] == optOutUser.LearnerID {
 				t.Fatalf("opted-out user produced event: %+v", event)
 			}

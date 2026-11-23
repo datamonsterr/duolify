@@ -215,7 +215,7 @@ func TestAnchoredQuickNotesIntegration(t *testing.T) {
 			t.Fatalf("event %s carries note text", k)
 		}
 	}
-	if anchored[0].Properties["has_region"] != true || anchored[0].Properties["source"] != "typed" || anchored[0].Properties["slide_index"] != 2 {
+	if anchored[0].Properties["has_region"] != true || anchored[0].Properties["entry_point"] != "typed" || anchored[0].Properties["slide_index"] != 2 {
 		t.Fatalf("event properties: %v", anchored[0].Properties)
 	}
 

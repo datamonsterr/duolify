@@ -236,7 +236,7 @@ func TestPricingDraftAndApproveThroughHTTP(t *testing.T) {
 		got[name] = true
 		actor, _ := event["distinct_id"].(string)
 		properties, _ := event["properties"].(map[string]any)
-		if (actor != authorID && actor != approverID) || properties["actor_id"] != actor || properties["pricing_version"] != "usd-admin-e12-05-1" || properties["source"] != "api" || properties["platform"] != "web" || properties["app_version"] == "" {
+		if (actor != authorID && actor != approverID) || properties["pricing_version"] != "usd-admin-e12-05-1" || properties["source"] != "api" || properties["platform"] != "web" || properties["app_version"] == "" {
 			t.Fatalf("missing UUID/common event props: %+v", event)
 		}
 		if _, ok := properties["reason"]; ok {

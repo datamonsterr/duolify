@@ -15,12 +15,16 @@ type Identity = {
 };
 let identity: Identity | undefined;
 const exposed = new Set<string>();
+const shownQuotes = new Set<string>();
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Auth supplies the internal Learner UUID; public browsing has no identity.
 export function configureAnalytics(value: Identity | null) {
-  if (identity?.learnerId !== value?.learnerId) exposed.clear();
+  if (identity?.learnerId !== value?.learnerId) {
+    exposed.clear();
+    shownQuotes.clear();
+  }
   identity = value ?? undefined;
   try {
     if (value?.optedOut) posthog.opt_out_capturing();
@@ -34,6 +38,64 @@ export function configureAnalytics(value: Identity | null) {
     } catch {
       /* Identity setup must not block the app. */
     }
+  }
+}
+
+const quoteFeatures = new Set([
+  "preview",
+  "outline",
+  "lesson_content",
+  "narration",
+  "tutor_short",
+  "tutor_long",
+  "quick_note",
+  "cached_replay",
+  "setup_chat",
+  "course_brief_chat",
+  "outline_chat_change",
+  "outline_replan",
+  "character_create",
+]);
+export function trackQuoteShown(value: {
+  quote_id: string;
+  feature: string;
+  pricing_version: string;
+}) {
+  if (
+    !identity ||
+    identity.optedOut ||
+    !uuid.test(identity.learnerId) ||
+    !uuid.test(value.quote_id) ||
+    !quoteFeatures.has(value.feature) ||
+    !/^[A-Za-z0-9_.:-]{1,100}$/.test(value.pricing_version) ||
+    shownQuotes.has(value.quote_id)
+  )
+    return;
+  const storageKey = `quote-shown:${identity.learnerId}:${value.quote_id}`;
+  try {
+    if (sessionStorage.getItem(storageKey)) return;
+  } catch {
+    /* In-memory deduplication still applies without storage. */
+  }
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("action_quote_shown", {
+      quote_id: value.quote_id,
+      feature: value.feature,
+      pricing_version: value.pricing_version,
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? appVersion,
+      source: "client",
+    });
+    shownQuotes.add(value.quote_id);
+    try {
+      sessionStorage.setItem(storageKey, "1");
+    } catch {
+      /* In-memory deduplication still applies without storage. */
+    }
+  } catch {
+    /* Analytics must not interrupt a quote. */
   }
 }
 // Apply consent before any network request. PostHog's opt-out disables capture
@@ -171,6 +233,7 @@ function captureSSOUI(
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: distinctID,
       platform:
         identity?.platform ??
@@ -180,7 +243,6 @@ function captureSSOUI(
         ),
       app_version: identity?.appVersion ?? appVersion,
       source: "client",
-      ...properties,
     });
   } catch {
     /* Sign-in continues if analytics is unavailable. */
@@ -207,11 +269,11 @@ function captureAuth(event: string, properties: Record<string, string>) {
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: identity.learnerId,
       platform: identity.platform,
       app_version: identity.appVersion ?? appVersion,
       source: "client",
-      ...properties,
     });
   } catch {
     /* Analytics delivery cannot block sign-in. */
@@ -297,6 +359,7 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
 export function trackExampleCoursesViewed(
   surface: "courses" | "learn_empty" | "onboarding",
 ) {
+  if (!["courses", "learn_empty", "onboarding"].includes(surface)) return;
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {
     if (posthog.has_opted_out_capturing()) return;
@@ -360,11 +423,11 @@ function trackShell(
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: identity.learnerId,
       platform: identity.platform,
       app_version: identity.appVersion ?? appVersion,
       source: "client",
-      ...properties,
     });
   } catch {
     /* Analytics never blocks navigation. */
@@ -491,11 +554,11 @@ function trackSettings(
   try {
     if (!posthog.has_opted_out_capturing())
       posthog.capture(event, {
+        ...properties,
         distinct_id: identity.learnerId,
         platform: identity.platform,
         app_version: identity.appVersion ?? appVersion,
         source: "client",
-        ...properties,
       });
   } catch {
     /* Preference changes never depend on telemetry. */
@@ -573,25 +636,6 @@ export function trackTutorControl(controlId: "delete_thread") {
     });
   } catch {
     /* Telemetry failure never blocks deleting. */
-  }
-}
-
-export function trackQuickNoteCreated(value: {
-  source: "slide" | "lesson" | "chat";
-  length: number;
-}) {
-  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
-  try {
-    if (posthog.has_opted_out_capturing()) return;
-    posthog.capture("quick_note_created", {
-      distinct_id: identity.learnerId,
-      platform: identity.platform,
-      app_version: identity.appVersion ?? appVersion,
-      source: value.source,
-      length: value.length,
-    });
-  } catch {
-    /* Analytics failure never blocks note creation. */
   }
 }
 
@@ -911,6 +955,66 @@ export function trackImmersive(
   }
 }
 
+const areaBucket = (area: number) =>
+  area < 0.08 ? "small" : area < 0.3 ? "medium" : "large";
+const countBucket = (n: number) => (n <= 0 ? "0" : n === 1 ? "1" : "2_plus");
+
+/** Region question funnel (immersive-mobile-lesson-player analytics spec): ids, counts and closed enums only. */
+export function trackRegion(
+  value:
+    | {
+        event: "lesson_region_selected";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        method: "two_finger" | "select_area" | "keyboard";
+        area: number;
+      }
+    | {
+        event: "lesson_answer_panel_closed";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        outcome: "completed" | "stopped" | "failed";
+        saved_note: boolean;
+        follow_ups: number;
+      },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const id = /^[A-Za-z0-9_-]{1,100}$/;
+  if (
+    !id.test(value.course_id) ||
+    !id.test(value.lesson_id) ||
+    !Number.isSafeInteger(value.slide_index) ||
+    value.slide_index < 0 ||
+    value.slide_index >= 100
+  )
+    return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? appVersion,
+    source: "client",
+    course_id: value.course_id,
+    lesson_id: value.lesson_id,
+    slide_index: value.slide_index,
+  };
+  if (value.event === "lesson_region_selected") {
+    properties.method = value.method;
+    properties.area_bucket = areaBucket(value.area);
+  } else {
+    properties.outcome = value.outcome;
+    properties.saved_note = value.saved_note;
+    properties.follow_ups = countBucket(value.follow_ups);
+  }
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(value.event, properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
 // E14-01 catalogue: narrate-one-slide-mock-speech/specs/analytics/spec.md. Ids and a
 // duration only; narration text, audio and URLs never leave the device.
 export function trackNarrationPlayed(value: {
@@ -1036,7 +1140,7 @@ type OnboardingEvent =
       event: "onboarding_path_chosen";
       path: "topic" | "setup_chat" | "example" | "skip";
     }
-  | { event: "onboarding_tour_started"; source: "first_run" | "settings" }
+  | { event: "onboarding_tour_started"; entry_point: "first_run" | "settings" }
   | { event: "onboarding_tour_step_viewed"; step: string }
   | { event: "onboarding_tour_skipped"; at_step: string };
 export function trackOnboarding(value: OnboardingEvent) {
@@ -1059,8 +1163,8 @@ export function trackOnboarding(value: OnboardingEvent) {
         captureAuth(value.event, { path: value.path });
       break;
     case "onboarding_tour_started":
-      if (["first_run", "settings"].includes(value.source))
-        captureAuth(value.event, { source: value.source });
+      if (["first_run", "settings"].includes(value.entry_point))
+        captureAuth(value.event, { entry_point: value.entry_point });
       break;
     case "onboarding_tour_step_viewed":
       if (steps.includes(value.step))

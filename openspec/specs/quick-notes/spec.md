@@ -87,7 +87,7 @@ The system SHALL emit `quick_note_created`, `quick_note_enriched`, `quick_note_e
 
 #### Scenario: Note created
 - **WHEN** a note is saved
-- **THEN** `quick_note_created` is emitted with `source` (`slide`, `lesson` or `chat`) and `length`
+- **THEN** `quick_note_created` is emitted with `entry_point` (`slide`, `lesson` or `chat`) and `length`
 
 ### Requirement: Note data backup and retention
 Notes, enrichment, and review state MUST be stored in Postgres and covered by the nightly dump. Notes MUST be exportable by the Learner as cleanly formatted Markdown (separating original raw text from AI summary, tags, and links) and deletable by the Learner on demand or deleted with the account within 30 days.

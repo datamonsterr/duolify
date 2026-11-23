@@ -5,7 +5,27 @@ fn config_has_all_tasks() {
     const HY4: &str = "tencent/hy4-flash";
     const GLM: &str = "z-ai/glm-5.3-flash";
     let config: Models = toml::from_str(include_str!("../../../config/models.toml")).unwrap();
-    assert_eq!(config.tasks.len(), 15);
+    assert_eq!(config.tasks.len(), 16);
+    let transcribe = &config.tasks["transcribe"];
+    assert_eq!(transcribe.model, "qwen/qwen3-asr-0.6b");
+    assert_eq!(
+        transcribe.fallback_models,
+        ["openai/whisper-large-v3-turbo"]
+    );
+    assert!(transcribe.zdr);
+    assert_eq!(transcribe.data_collection.as_deref(), Some("deny"));
+    assert_eq!(
+        transcribe.endpoint.as_deref(),
+        Some("/api/v1/audio/transcriptions")
+    );
+    for route in [transcribe.primary_route(), transcribe.fallback_route()] {
+        assert!(route.zdr);
+        assert_eq!(route.data_collection.as_deref(), Some("deny"));
+        assert_eq!(
+            route.endpoint.as_deref(),
+            Some("/api/v1/audio/transcriptions")
+        );
+    }
     for (task, effort) in [
         ("lesson", "none"),
         ("published_copy_lesson", "none"),

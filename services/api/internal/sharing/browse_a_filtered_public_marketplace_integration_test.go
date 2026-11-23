@@ -491,7 +491,7 @@ func TestBrowseAFilteredPublicMarketplace(t *testing.T) {
 		if n := count(t, f, `SELECT count(*) FROM credit_entries WHERE learner_id=$1`, viewer); n != 0 {
 			t.Fatalf("free enrollment wrote %d credit entries", n)
 		}
-		if ev := ev.named("course_enrolled_published"); len(ev) != 1 || ev[0]["source"] != "marketplace" {
+		if ev := ev.named("course_enrolled_published"); len(ev) != 1 || ev[0]["entry_point"] != "marketplace" {
 			t.Fatalf("enroll event = %+v", ev)
 		}
 		p, _ = s.MarketCourse(ctx, viewer, l.CourseID)

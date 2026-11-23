@@ -241,11 +241,7 @@ func (o DrillOptions) emit(ok bool, duration time.Duration) {
 		version = info.Main.Version
 	}
 	props := func() map[string]any {
-		source := o.Source
-		if source == "scheduled" {
-			source = "api"
-		}
-		return map[string]any{"source": source, "platform": "web", "app_version": version, "duration_ms": duration.Milliseconds(), "ok": ok}
+		return map[string]any{"source": "api", "platform": "web", "app_version": version, "duration_ms": duration.Milliseconds(), "ok": ok}
 	}
 	const system = "00000000-0000-4000-8000-000000000011"
 	if !ok {

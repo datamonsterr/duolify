@@ -42,8 +42,8 @@ func TestCourseInviteEventsAreCataloguedAndCarryOnlyIDsAndEnums(t *testing.T) {
 			t.Errorf("%s lost its ids: %s", name, got)
 		}
 	}
-	enrolled := encode("course_enrolled_published", map[string]any{"source": "invite", "course_id": id, "source_course_id": inv, "version": 2})
-	if !strings.Contains(enrolled, `"source":"invite"`) {
-		t.Errorf("source invite dropped: %s", enrolled)
+	enrolled := encode("course_enrolled_published", map[string]any{"source": "api", "entry_point": "invite", "course_id": id, "source_course_id": inv, "version": 2})
+	if !strings.Contains(enrolled, `"entry_point":"invite"`) {
+		t.Errorf("entry point invite dropped: %s", enrolled)
 	}
 }

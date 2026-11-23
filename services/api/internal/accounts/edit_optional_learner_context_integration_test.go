@@ -205,6 +205,9 @@ func TestOptionalContextConfirmationOwnershipAndEvents(t *testing.T) {
 	counts := map[string]int{}
 	for _, event := range captured {
 		name, _ := event["event"].(string)
+		if name == "learner_signed_up" { // sign-up precedes any later opt-out and is asserted in signup tests
+			continue
+		}
 		counts[name]++
 		props, _ := event["properties"].(map[string]any)
 		if event["distinct_id"] != initial["learner_id"] || props["source"] != "api" || props["platform"] != "web" || props["app_version"] == "" {

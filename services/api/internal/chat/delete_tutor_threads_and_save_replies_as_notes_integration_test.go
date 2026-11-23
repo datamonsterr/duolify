@@ -242,7 +242,7 @@ func TestDeleteTutorThreadsAndSaveRepliesAsNotesIntegration(t *testing.T) {
 		}
 		// Exactly one creation event, ids and counts only.
 		created := events.named("quick_note_created")
-		if len(created) != 1 || created[0]["source"] != "chat" || fmt.Sprint(created[0]["length"]) != fmt.Sprint(len(secretReply)) {
+		if len(created) != 1 || created[0]["entry_point"] != "chat" || created[0]["source"] != "api" || fmt.Sprint(created[0]["length"]) != fmt.Sprint(len(secretReply)) {
 			t.Fatalf("events %v", created)
 		}
 		for _, e := range events.events {

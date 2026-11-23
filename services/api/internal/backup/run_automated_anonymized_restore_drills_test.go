@@ -113,7 +113,7 @@ func TestDrillFailureEmitsBackupFailedAndDrillCompletedWithoutPrivateText(t *tes
 		t.Fatalf("events=%v", events.names())
 	}
 	for _, e := range events.events {
-		if e.id != "00000000-0000-4000-8000-000000000011" || e.props["source"] != "ci" || e.props["platform"] != "web" || e.props["app_version"] == "" || e.props["ok"] != false {
+		if e.id != "00000000-0000-4000-8000-000000000011" || e.props["source"] != "api" || e.props["platform"] != "web" || e.props["app_version"] == "" || e.props["ok"] != false {
 			t.Fatalf("common properties: %+v", e)
 		}
 		if _, ok := e.props["duration_ms"].(int64); !ok {
