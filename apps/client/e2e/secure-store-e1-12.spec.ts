@@ -89,6 +89,7 @@ test("mobile platform store double persists session across restart and clears on
   await page.goto("/sign-in?returnTo=%2Fprofile");
   await page.getByRole("button", { name: "Get started" }).click();
   await page.getByLabel("Email address").fill("mobile@example.test");
+  await page.getByLabel("Email address").press("Enter");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel("One-time code").fill("123456");
