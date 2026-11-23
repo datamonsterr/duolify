@@ -98,7 +98,7 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 - [ ] 10.1 E2E first: build a human, an animal, a robot and a fantasy creature from selectors only with zero Credits; prompt path then tweak; both paths produce one document shape; avatar and full-body previews update live; keyboard and screen reader complete the flow.
 - [ ] 10.2 Component tests for each selector widget (kind and base, age band, skin and colour pickers, face, hair and head covering, eyes and eyebrows, facial hair, glasses, body type, clothes, accessories, name, pronouns, voice, personality); reduced motion; mobile and desktop layout; draft preserved on error.
-- [ ] 10.3 Export `CharacterSelector` and `CharacterPreview` for reuse by the guided chat in `conversational-flows-and-mascot`; document the draft-patch contract (see design, Mascot contract).
+- [x] 10.3 Export `CharacterSelector` and `CharacterPreview` for reuse by the guided chat in `conversational-flows-and-mascot`; document the draft-patch contract (see design, Mascot contract).
 
 ## 11. Safety extensions (M; guardrail wiring depends on the parallel change landing)
 

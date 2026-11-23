@@ -112,3 +112,225 @@
 .character-quote strong {
   color: var(--text);
 }
+
+/* Character creator v2: phone first, two columns from 900px. */
+.cv2-creator {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.cv2-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  background: var(--bg, #f7f9f4);
+  border-bottom: 2px solid var(--line);
+  box-shadow: 0 -24px 0 var(--bg, #f7f9f4);
+}
+.cv2-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cv2-save {
+  margin-inline-start: auto;
+}
+.cv2-bar h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+.cv2-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+.cv2-avatar {
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  cursor: pointer;
+}
+.cv2-avatar[aria-pressed="true"] {
+  width: 96px;
+}
+.cv2-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+}
+.cv2-preview {
+  display: block;
+  aspect-ratio: 1;
+  min-width: 0;
+}
+.cv2-preview > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.cv2-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+.cv2-tabs button {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 4px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.cv2-tabs [aria-selected="true"] {
+  background: var(--primary, #1677c9);
+  border-color: var(--primary, #1677c9);
+  color: #fff;
+}
+.cv2-panel,
+.cv2-selector,
+.cv2-side {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.cv2-field {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+.cv2-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: var(--space-2);
+}
+.cv2-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.cv2-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: auto;
+  min-height: 44px;
+  padding: 4px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  font-size: 0.68rem;
+  text-align: center;
+  cursor: pointer;
+}
+.cv2-tile span {
+  overflow-wrap: break-word;
+}
+.cv2-tile:has(input:checked) {
+  border-color: var(--primary, #1677c9);
+  background: color-mix(in srgb, var(--primary, #1677c9) 12%, transparent);
+}
+.cv2-tile:has(input:focus-visible),
+.cv2-swatch:has(input:focus-visible) {
+  outline: 3px solid var(--primary, #1677c9);
+  outline-offset: 2px;
+}
+.cv2-tile[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cv2-tile input,
+.cv2-swatch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.cv2-tile .cv2-preview {
+  width: 56px;
+  height: 56px;
+}
+.cv2-swatch {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+.cv2-swatch > span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+}
+.cv2-swatch:has(input:checked) > span {
+  outline: 3px solid var(--primary, #1677c9);
+  outline-offset: 2px;
+}
+.cv2-custom input {
+  opacity: 1;
+  position: static;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.cv2-text {
+  display: grid;
+  gap: 4px;
+}
+.cv2-text input,
+.cv2-text textarea {
+  min-height: 44px;
+  font: inherit;
+}
+.cv2-save {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+}
+.cv2-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+@media (min-width: 900px) {
+  .cv2-creator {
+    grid-template-columns: 320px 1fr;
+    align-items: start;
+  }
+  .cv2-head {
+    grid-column: 1;
+    top: var(--space-4);
+    border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+  }
+  .cv2-avatar {
+    width: 220px;
+    height: 220px;
+  }
+  .cv2-side {
+    grid-column: 2;
+  }
+}
