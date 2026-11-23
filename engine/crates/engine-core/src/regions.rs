@@ -255,7 +255,15 @@ pub fn slide_regions_with(cfg: &Config, slide: &Value) -> Result<Vec<Region>, St
         let window = if start == 0 && end == 0 {
             None
         } else if start < end && end <= duration {
-            Some((start as u32, end as u32))
+            match (u32::try_from(start), u32::try_from(end)) {
+                (Ok(start), Ok(end)) => Some((start, end)),
+                _ => {
+                    return Err(format!(
+                        "region {id}: start_ms and end_ms must fit in 32 bits (at most {})",
+                        u32::MAX
+                    ));
+                }
+            }
         } else {
             return Err(format!(
                 "region {id}: start_ms and end_ms must be 0 and 0 (whole slide) or 0 <= start_ms < end_ms <= duration_ms ({duration})"
@@ -332,7 +340,8 @@ pub fn layout(html: &str, regions: &[Region]) -> String {
             pct(h)
         ));
     }
-    format!("{html}<style data-duolify-regions>{css}</style>")
+    // First, so an unclosed raw-text element later in the html cannot swallow the stylesheet.
+    format!("<style data-duolify-regions>{css}</style>{html}")
 }
 
 fn words(text: &str) -> HashSet<String> {
@@ -391,7 +400,8 @@ pub fn schema() -> Value {
         "slot":{"type":"string","enum":slots},
         "role":{"type":"string","enum":ROLES},
         "description":{"type":"string"},
-        "start_ms":{"type":"integer"},"end_ms":{"type":"integer"}},
+        "start_ms":{"type":"integer","minimum":0,"maximum":crate::lessontest::MAX_DURATION_MS},
+        "end_ms":{"type":"integer","minimum":0,"maximum":crate::lessontest::MAX_DURATION_MS}},
         "required":["slot","role","description","start_ms","end_ms"],
         "additionalProperties":false}})
 }

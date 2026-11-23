@@ -5,11 +5,12 @@ use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
 /// Scripted audio endpoint: each call pops the next step. `None` hangs past the attempt timeout.
+type Step = Option<Result<Transcription, Option<u16>>>;
 struct Scripted {
-    steps: Mutex<Vec<Option<Result<Transcription, ()>>>>,
+    steps: Mutex<Vec<Step>>,
     seen: Mutex<Vec<(String, usize, String)>>,
 }
-fn scripted(steps: Vec<Option<Result<Transcription, ()>>>) -> Arc<Scripted> {
+fn scripted(steps: Vec<Step>) -> Arc<Scripted> {
     Arc::new(Scripted {
         steps: Mutex::new(steps.into_iter().rev().collect()),
         seen: Mutex::default(),
@@ -43,7 +44,8 @@ impl LlmProvider for Scripted {
         let step = self.steps.lock().unwrap().pop().expect("unexpected call");
         match step {
             Some(Ok(t)) => Ok(t),
-            Some(Err(())) => bail!("provider down"),
+            Some(Err(None)) => bail!("provider down"),
+            Some(Err(Some(code))) => Err(HttpStatus(code).into()),
             None => {
                 tokio::time::sleep(Duration::from_secs(60)).await;
                 bail!("unreachable")
@@ -52,14 +54,41 @@ impl LlmProvider for Scripted {
     }
 }
 
-fn said(text: &str, cost_nanos: u64) -> Option<Result<Transcription, ()>> {
+fn said(text: &str, cost_nanos: u64) -> Step {
     Some(Ok(Transcription {
         text: text.into(),
         language: "en".into(),
         seconds: 4.0,
         cost_nanos,
+        cost_reported: true,
+        confidence: None,
         model: String::new(),
     }))
+}
+/// A recording whose cost the provider did not report.
+fn said_unpriced(text: &str, seconds: f64) -> Step {
+    Some(Ok(Transcription {
+        text: text.into(),
+        seconds,
+        cost_reported: false,
+        ..Default::default()
+    }))
+}
+/// Encoded sound: no repeating packets.
+fn speech_like() -> Vec<u8> {
+    let mut x = 0x9E37_79B9_7F4A_7C15u64;
+    (0..4096)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            (x >> 24) as u8
+        })
+        .collect()
+}
+/// Digital silence: the same packet over and over.
+fn silent() -> Vec<u8> {
+    [0x78u8, 0x01, 0x02].repeat(1500)
 }
 fn router(p: Arc<Scripted>, f: Arc<Scripted>) -> ProviderRouter {
     ProviderRouter::new(p, f).unwrap()
@@ -125,7 +154,7 @@ async fn primary_answers_without_touching_the_fallback() {
 #[tokio::test]
 async fn a_failed_primary_tries_the_fallback_exactly_once() {
     let (p, f) = (
-        scripted(vec![Some(Err(()))]),
+        scripted(vec![Some(Err(None))]),
         scripted(vec![said("second try", 10)]),
     );
     let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
@@ -133,7 +162,10 @@ async fn a_failed_primary_tries_the_fallback_exactly_once() {
     assert_eq!(out.attempts, 2);
     assert_eq!(out.transcription.model, "openai/whisper-large-v3-turbo");
 
-    let (p, f) = (scripted(vec![Some(Err(()))]), scripted(vec![Some(Err(()))]));
+    let (p, f) = (
+        scripted(vec![Some(Err(None))]),
+        scripted(vec![Some(Err(None))]),
+    );
     let err = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap_err();
     assert_eq!(err, TranscribeError::Failed);
     assert_eq!(err.reason(), "transcribe_failed");
@@ -175,6 +207,7 @@ async fn a_cost_above_the_ceiling_is_not_delivered_or_retried() {
 
 #[tokio::test]
 async fn silence_hallucinated_by_the_fallback_becomes_empty_text() {
+    let quiet = silent();
     for invented in [
         "Thank you.",
         "thank you",
@@ -183,22 +216,155 @@ async fn silence_hallucinated_by_the_fallback_becomes_empty_text() {
         ".",
     ] {
         let (p, f) = (
-            scripted(vec![Some(Err(()))]),
+            scripted(vec![Some(Err(None))]),
             scripted(vec![said(invented, 3)]),
         );
-        let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
+        let out = transcribe(&router(p, f), &rec(&quiet)).await.unwrap();
         assert_eq!(out.transcription.text, "", "{invented:?}");
     }
     // A real sentence from the fallback, or the same words from the primary, are kept.
     let (p, f) = (
-        scripted(vec![Some(Err(()))]),
+        scripted(vec![Some(Err(None))]),
         scripted(vec![said("Thank you for the explanation", 3)]),
     );
-    let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
+    let out = transcribe(&router(p, f), &rec(&quiet)).await.unwrap();
     assert_eq!(out.transcription.text, "Thank you for the explanation");
     let (p, f) = (scripted(vec![said("Thank you.", 3)]), scripted(vec![]));
-    let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
+    let out = transcribe(&router(p, f), &rec(&quiet)).await.unwrap();
     assert_eq!(out.transcription.text, "Thank you.");
+}
+
+#[tokio::test]
+async fn a_real_spoken_answer_is_kept_whatever_the_fallback_says() {
+    let sound = speech_like();
+    for spoken in ["Thank you.", "Okay", "you", "Bye", "Thanks"] {
+        let (p, f) = (
+            scripted(vec![Some(Err(None))]),
+            scripted(vec![said(spoken, 3)]),
+        );
+        let out = transcribe(&router(p, f), &rec(&sound)).await.unwrap();
+        assert!(out.fallback_used);
+        assert_eq!(out.transcription.text, spoken, "{spoken:?}");
+    }
+    // Punctuation alone is never an answer.
+    let (p, f) = (
+        scripted(vec![Some(Err(None))]),
+        scripted(vec![said(".", 3)]),
+    );
+    let out = transcribe(&router(p, f), &rec(&sound)).await.unwrap();
+    assert_eq!(out.transcription.text, "");
+}
+
+#[tokio::test]
+async fn a_low_provider_confidence_marks_the_audio_quiet() {
+    let sound = speech_like();
+    let mut t = Transcription {
+        text: "Thank you.".into(),
+        cost_reported: true,
+        confidence: Some(0.2),
+        ..Default::default()
+    };
+    let (p, f) = (
+        scripted(vec![Some(Err(None))]),
+        scripted(vec![Some(Ok(t.clone()))]),
+    );
+    let out = transcribe(&router(p, f), &rec(&sound)).await.unwrap();
+    assert_eq!(out.transcription.text, "");
+    t.confidence = Some(0.95);
+    let (p, f) = (scripted(vec![Some(Err(None))]), scripted(vec![Some(Ok(t))]));
+    let out = transcribe(&router(p, f), &rec(&sound)).await.unwrap();
+    assert_eq!(out.transcription.text, "Thank you.");
+}
+
+#[tokio::test]
+async fn an_unreported_cost_is_estimated_not_free() {
+    // 4 s claimed: primary rate on the primary, fallback rate on the fallback.
+    let (p, f) = (
+        scripted(vec![said_unpriced("hi there", 4.0)]),
+        scripted(vec![]),
+    );
+    let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
+    assert_eq!(out.transcription.cost_nanos, 4 * PRIMARY_NANOS_PER_SECOND);
+    let (p, f) = (
+        scripted(vec![Some(Err(None))]),
+        scripted(vec![said_unpriced("hi there", 4.0)]),
+    );
+    let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
+    assert_eq!(out.transcription.cost_nanos, 4 * WORST_NANOS_PER_SECOND);
+    // The provider billing more seconds than claimed raises the estimate, and the ceiling applies.
+    let (p, f) = (
+        scripted(vec![said_unpriced("long", 300.0)]),
+        scripted(vec![]),
+    );
+    let err = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap_err();
+    assert_eq!(err, TranscribeError::CostCeiling);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_timed_out_primary_counts_as_worst_case_spend() {
+    let (p, f) = (scripted(vec![None]), scripted(vec![said("late", 10_000)]));
+    let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
+    assert_eq!(
+        out.transcription.cost_nanos,
+        10_000 + 4 * PRIMARY_NANOS_PER_SECOND
+    );
+    // The timed-out spend plus a fallback at the ceiling is over the per-request ceiling.
+    let (p, f) = (
+        scripted(vec![None]),
+        scripted(vec![said("late", MAX_COST_NANOS)]),
+    );
+    let err = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap_err();
+    assert_eq!(err, TranscribeError::CostCeiling);
+}
+
+#[tokio::test]
+async fn a_permanent_provider_rejection_is_not_retried() {
+    for code in [400u16, 401, 404, 413, 422] {
+        let (p, f) = (scripted(vec![Some(Err(Some(code)))]), scripted(vec![]));
+        let err = transcribe(&router(p, f.clone()), &rec(&[7; 9]))
+            .await
+            .unwrap_err();
+        assert_eq!(err, TranscribeError::Rejected, "{code}");
+        assert_eq!(err.reason(), "transcribe_rejected");
+        assert!(f.seen.lock().unwrap().is_empty(), "{code}");
+    }
+    for code in [408u16, 429, 500, 502, 503] {
+        let (p, f) = (
+            scripted(vec![Some(Err(Some(code)))]),
+            scripted(vec![said("second try", 10)]),
+        );
+        let out = transcribe(&router(p, f), &rec(&[7; 9])).await.unwrap();
+        assert!(out.fallback_used, "{code}");
+    }
+}
+
+#[test]
+fn the_language_hint_is_validated() {
+    let mut r = rec(&[1u8; 10]);
+    for ok in ["", "en", "vi", "yue", "pt-BR", "zh-Hans"] {
+        r.language_hint = ok;
+        assert!(validate(&r).is_ok(), "{ok:?}");
+    }
+    for bad in [
+        "e",
+        "english",
+        "EN",
+        "en_US",
+        "en-",
+        "en-B",
+        "pt-BRAZIL",
+        "en\n",
+        "x".repeat(500).as_str(),
+        "en,fr",
+        "e1",
+    ] {
+        r.language_hint = bad;
+        assert_eq!(
+            validate(&r).unwrap_err(),
+            TranscribeError::InvalidAudio("language_hint"),
+            "{bad:?}"
+        );
+    }
 }
 
 #[test]

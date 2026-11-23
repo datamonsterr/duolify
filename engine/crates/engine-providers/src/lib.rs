@@ -530,7 +530,7 @@ impl LlmProvider for HttpProvider {
             .map_err(|e| anyhow::anyhow!("transcription request failed: {}", e.without_url()))?;
         let status = response.status();
         if !status.is_success() {
-            bail!("transcription provider answered {status}");
+            return Err(engine_core::transcribe::HttpStatus(status.as_u16()).into());
         }
         let value: Value = response.json().await.context("transcription response")?;
         let text = value["text"]
@@ -538,14 +538,18 @@ impl LlmProvider for HttpProvider {
             .context("transcription response has no text")?
             .to_string();
         let usage = &value["usage"];
+        let cost = usage["cost"]
+            .as_f64()
+            .filter(|c| c.is_finite() && *c >= 0.0);
         Ok(engine_core::transcribe::Transcription {
             text,
             language: language_code(&value["language"]),
             seconds: usage["seconds"].as_f64().unwrap_or_default(),
-            cost_nanos: usage["cost"]
+            cost_nanos: cost.map_or(0, |c| (c * 1e9).round() as u64),
+            cost_reported: cost.is_some(),
+            confidence: value["confidence"]
                 .as_f64()
-                .filter(|c| c.is_finite() && *c >= 0.0)
-                .map_or(0, |c| (c * 1e9).round() as u64),
+                .filter(|c| c.is_finite() && (0.0..=1.0).contains(c)),
             model: model.into(),
         })
     }

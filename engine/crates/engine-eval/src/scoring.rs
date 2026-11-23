@@ -32,6 +32,11 @@ pub struct Thresholds {
     pub minimum_score: f64,
     #[serde(default)]
     pub tasks: HashMap<String, f64>,
+    /// The `course_preview` output cap (tokens) the evidence is valid for. A live run refuses to
+    /// record a report when the active pricing cap differs, and the file is fingerprinted, so a cap
+    /// change makes committed evidence stale.
+    #[serde(default)]
+    pub preview_output_limit: Option<u32>,
 }
 
 impl Default for Thresholds {
@@ -39,6 +44,7 @@ impl Default for Thresholds {
         Self {
             minimum_score: 1.0,
             tasks: HashMap::new(),
+            preview_output_limit: None,
         }
     }
 }
@@ -146,6 +152,9 @@ pub struct EvalReport {
     /// Cases in the dataset before `--limit` sampling; promotion needs every one evaluated.
     #[serde(default)]
     pub dataset_cases: usize,
+    /// The `course_preview` output cap this run was scored under (None when no preview case ran).
+    #[serde(default)]
+    pub preview_output_limit: Option<u32>,
     pub task_reports: BTreeMap<String, TaskReport>,
     pub results: Vec<CaseResult>,
 }
@@ -170,6 +179,7 @@ impl Default for EvalReport {
             passed: false,
             critical_failure: false,
             dataset_cases: 0,
+            preview_output_limit: None,
             task_reports: BTreeMap::new(),
             results: Vec::new(),
         }
@@ -594,6 +604,7 @@ mod tests {
         let thresholds = Thresholds {
             minimum_score: 0.5,
             tasks: HashMap::new(),
+            preview_output_limit: None,
         };
 
         // 3 cases: 2 pass, 1 fails a critical check

@@ -111,7 +111,7 @@ pub fn response_format(task: &str) -> Option<Value> {
                     "required":["title","lessons"],"additionalProperties":false}},
                 "slides":{"type":"array","items":{"type":"object","properties":{
                     "html":{"type":"string"},"narration":{"type":"string"},
-                    "duration_ms":{"type":"integer"}},
+                    "duration_ms":{"type":"integer","minimum":crate::lessontest::MIN_DURATION_MS,"maximum":crate::lessontest::MAX_DURATION_MS}},
                     "required":["html","narration","duration_ms"],"additionalProperties":false}}},
                 "required":["title","description","units","slides"],"additionalProperties":false}),
         ),
@@ -186,7 +186,7 @@ pub fn lesson_format() -> Value {
     };
     let mut slide = json!({"type":"object","properties":{
         "slide_id":{"type":"string"},"html":{"type":"string"},
-        "narration":{"type":"string"},"duration_ms":{"type":"integer"},
+        "narration":{"type":"string"},"duration_ms":{"type":"integer","minimum":crate::lessontest::MIN_DURATION_MS,"maximum":crate::lessontest::MAX_DURATION_MS},
         "topic_ids":{"type":"array","items":{"type":"string"},"minItems":1}},
         "required":["slide_id","html","narration","duration_ms","topic_ids"],
         "additionalProperties":false});
