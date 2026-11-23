@@ -44,8 +44,8 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 6. Migrate sign-in (M)
 
-- [ ] 6.1 e2e: email/code chat with autofill attributes, wrong code, resend, throttle, offline, age gate; pre-auth memory-only
-- [ ] 6.2 Scripts `auth.signin`, `auth.age`; keep return-path allowlist and credential storage rules
+- [x] 6.1 e2e: email/code chat with autofill attributes, wrong code, resend, throttle, offline, age gate; pre-auth memory-only
+- [x] 6.2 Scripts `auth.signin` (the age gate is its second step, so no separate `auth.age`); keep return-path allowlist and credential storage rules
 
 ## 7. Migrate character flows (M)
 

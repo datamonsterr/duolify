@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ar, en } from "./messages";
+import { en } from "./messages";
+import { ar } from "./messages.ar";
 
 describe("message catalogues", () => {
   it("keeps every English id in Arabic and no extra Arabic id", () => {

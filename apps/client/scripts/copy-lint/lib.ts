@@ -16,7 +16,7 @@ export type Config = {
   denylist: Record<string, string>;
   visibleAttributes: string[];
   visibleProperties: string[];
-  catalogues: { file: string; en: string; ar: string }[];
+  catalogues: { file: string; arFile?: string; en: string; ar: string }[];
   sourceIgnore: string[];
   screens: ScreenDef[];
 };

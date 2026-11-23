@@ -169,6 +169,8 @@ test("daily cap shows a toast with the reset time", async ({
   await paintSlide(page, SLIDES.dark);
   const mic = page.getByTestId("voice-mic");
   await mic.dispatchEvent("pointerdown", { pointerId: 1, isPrimary: true });
+  // Release only once recording has started; a slow runner can take over a second to open the mic.
+  await expect(page.getByTestId("voice-timer")).toBeVisible();
   await page.waitForTimeout(900);
   await mic.dispatchEvent("pointerup", { pointerId: 1, isPrimary: true });
   await expect(page.getByTestId("toast")).toContainText("voice limit");
