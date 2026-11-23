@@ -525,7 +525,7 @@ export function SignIn({
               </Button>
             </>
           )}
-          {!online ? (
+          {!online && !(guided && step !== "welcome") ? (
             <p role="status" className="auth-warning">
               Offline. Connect to sign in. Saved lessons open after sign-in.
             </p>

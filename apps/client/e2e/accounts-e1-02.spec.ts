@@ -87,7 +87,7 @@ for (const width of [1280, 390]) {
         page.getByRole("heading", { name: "Welcome back" }),
       ).toBeVisible();
       await context.setOffline(true);
-      await expect(page.getByRole("status")).toContainText("Offline");
+      await expect(page.getByRole("status")).toContainText(/offline/i);
       await context.setOffline(false);
       await page.getByRole("button", { name: "Back to welcome" }).click();
       await expect(

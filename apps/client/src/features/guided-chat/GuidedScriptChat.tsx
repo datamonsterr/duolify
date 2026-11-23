@@ -510,7 +510,11 @@ export function GuidedScriptChat({
               error={error}
               editing={state.editing === step.id}
               summary={summary}
-              disabled={status === "sending" || committing}
+              disabled={
+                status === "sending" ||
+                committing ||
+                Boolean(onStepCommit && needsNetwork && !online)
+              }
               onSubmit={submitValue}
               onSkip={doSkip}
               onCancel={
