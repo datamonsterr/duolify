@@ -1,3 +1,4 @@
+import "./messages.signin";
 import type { GuidedScript } from "./types";
 
 /** Email code sign-in. Pre-auth: nothing is drafted or stored, answers live in memory only. */

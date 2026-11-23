@@ -875,19 +875,29 @@ export const ar: Record<MessageId, Message> = {
 function expand(text: string) {
   return `［${text}${"～".repeat(Math.ceil(text.length * 0.4))}］`;
 }
+const expandMessage = (message: Message): Message =>
+  typeof message === "string"
+    ? expand(message)
+    : (Object.fromEntries(
+        Object.entries(message).map(([category, text]) => [
+          category,
+          expand(text),
+        ]),
+      ) as PluralMessage);
 export const expanded = Object.fromEntries(
-  Object.entries(en).map(([id, message]) => [
-    id,
-    typeof message === "string"
-      ? expand(message)
-      : Object.fromEntries(
-          Object.entries(message).map(([category, text]) => [
-            category,
-            expand(text),
-          ]),
-        ),
-  ]),
+  Object.entries(en).map(([id, message]) => [id, expandMessage(message)]),
 ) as Record<MessageId, Message>;
+/** Lazy copy: a feature chunk adds its own strings when it loads, keeping them out of the
+ * first-load bundle. The ids are typed through `guidedEn`; only the values arrive late. */
+export function registerMessages(
+  enPart: Record<string, Message>,
+  arPart: Record<string, Message>,
+) {
+  Object.assign(en, enPart);
+  Object.assign(ar, arPart);
+  for (const [id, message] of Object.entries(enPart))
+    (expanded as Record<string, Message>)[id] = expandMessage(message);
+}
 export type Locale = "en" | "ar" | "en-XA";
 export function resolveLocale(value: unknown): Locale {
   if (value === "en-XA") return value;

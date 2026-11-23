@@ -90,10 +90,9 @@ it("keeps drafts and emits only stable sign-in properties after verified UUID id
   const done = vi.fn();
   render(<SignIn onSignedIn={done} />);
   fireEvent.click(screen.getByRole("button", { name: "Get started" }));
-  fireEvent.change(screen.getByLabelText("Email address"), {
-    target: { value: "private@example.test" },
-  });
-  fireEvent.submit(screen.getByLabelText("Email address").closest("form")!);
+  const email = await screen.findByLabelText("Email address");
+  fireEvent.change(email, { target: { value: "private@example.test" } });
+  fireEvent.submit(email.closest("form")!);
   fireEvent.click(await screen.findByLabelText("I am 16 or older"));
   fireEvent.click(screen.getByRole("button", { name: "Send code" }));
   const code = await screen.findByLabelText("One-time code");

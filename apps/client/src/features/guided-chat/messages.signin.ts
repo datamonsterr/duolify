@@ -1,3 +1,4 @@
+import { registerMessages } from "../design/localization/messages";
 // Sign-in script copy. Turns stay under 90 characters, buttons under 3 words.
 export const signinEn = {
   "g.signin.email.q": "What's your email address?",
@@ -28,3 +29,5 @@ export const signinAr: Record<keyof typeof signinEn, string> = {
   "g.signin.title": "تسجيل الدخول",
   "g.signin.back": "العودة للترحيب",
 };
+
+registerMessages(signinEn, signinAr);

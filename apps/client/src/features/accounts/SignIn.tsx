@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { Badge } from "../design/Badge";
 import {
@@ -31,7 +31,9 @@ import { isTauri } from "@tauri-apps/api/core";
 import "./accounts.css";
 import { SharedDemo } from "../courses/SharedDemo";
 import { Brand } from "../design/brand/Brand";
-import { GuidedSignIn } from "./GuidedSignIn";
+const GuidedSignIn = lazy(() =>
+  import("./GuidedSignIn").then((m) => ({ default: m.GuidedSignIn })),
+);
 import { guidedEnabled } from "../guided-chat/flags";
 
 export function SignIn({
@@ -420,10 +422,12 @@ export function SignIn({
                     : "Check your email"}
               </h1>
               {guided ? (
-                <GuidedSignIn
-                  requestCode={chatRequestCode}
-                  verifyCode={chatVerify}
-                />
+                <Suspense fallback={<p role="status" aria-busy="true" />}>
+                  <GuidedSignIn
+                    requestCode={chatRequestCode}
+                    verifyCode={chatVerify}
+                  />
+                </Suspense>
               ) : (
                 <>
                   <p>
