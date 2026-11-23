@@ -7,3 +7,5 @@ public/mockServiceWorker.js
 
 test-results
 playwright-report
+copy-baseline.json
+e2e/copy-budget.baseline.json

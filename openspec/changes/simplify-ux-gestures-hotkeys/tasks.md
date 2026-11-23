@@ -1,9 +1,9 @@
 ## 1. Copy audit and lint (size M)
-- [ ] 1.1 E2E: failing Playwright `copy-budget.spec.ts` counts visible strings per screen at 390 by 844 in `en` and `ar` (dir rtl) and checks heading, label, caption limits (all screens listed in the audit)
-- [ ] 1.2 Integration: lint fixtures for literal-outside-catalogue, missing `ar` or `en-XA` key, over-budget string by role, denylist word, Flesch-Kincaid over 7, baseline raise
-- [ ] 1.3 Unit: word and character counters, role-from-key-suffix, FK grade, denylist, `data-user-content` exclusion
-- [ ] 1.4 Code: `apps/client/scripts/copy-lint.ts` (TypeScript AST scan) wired into `mise run client:lint`; baseline file with per-file counts that only ratchets down; `mise run client:copy-audit` generating `docs/design/copy-audit.md` with current and target counts per screen
-- [ ] 1.5 Commit the first audit (exact counts replacing the grep estimates in design.md) and the plain-words denylist
+- [x] 1.1 E2E: failing Playwright `copy-budget.spec.ts` counts visible strings per screen at 390 by 844 in `en` and `ar` (dir rtl) and checks heading, label, caption limits (all screens listed in the audit) (done: `apps/client/e2e/copy-budget.spec.ts` (10 routes x en/ar at 390 by 844, baseline `e2e/copy-budget.baseline.json`, `COPY_BUDGET_UPDATE=1` lowers it); also runs under `client:e2e-localization`)
+- [x] 1.2 Integration: lint fixtures for literal-outside-catalogue, missing `ar` or `en-XA` key, over-budget string by role, denylist word, Flesch-Kincaid over 7, baseline raise (done: `scripts/copy-lint/copy-lint.integration.test.ts` (7 fixtures))
+- [x] 1.3 Unit: word and character counters, role-from-key-suffix, FK grade, denylist, `data-user-content` exclusion (done: `scripts/copy-lint/lib.test.ts` (10 tests) and `catalogue_parity.test.ts` (fails on a missing ar key))
+- [x] 1.4 Code: `apps/client/scripts/copy-lint.ts` (TypeScript AST scan) wired into `mise run client:lint`; baseline file with per-file counts that only ratchets down; `mise run client:copy-audit` generating `docs/design/copy-audit.md` with current and target counts per screen (done: `scripts/copy-lint.ts`, `copy-lint.config.json`, `copy-baseline.json`; tasks `client:copy-lint` (in `client:lint-web`), `client:copy-baseline`, `client:copy-audit`)
+- [x] 1.5 Commit the first audit (exact counts replacing the grep estimates in design.md) and the plain-words denylist (done: `docs/design/copy-audit.md` committed; design.md counts replaced; denylist in `copy-lint.config.json`)
 
 ## 2. Toast, coach mark and tooltip primitives (size M)
 - [ ] 2.1 E2E: toast within 100 ms, auto-dismiss 4 s, swipe dismiss, Esc, undo restores state; coach mark once per id across reload; tooltip on long-press and hover
