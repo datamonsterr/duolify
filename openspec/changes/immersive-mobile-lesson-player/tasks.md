@@ -51,12 +51,12 @@
 ## 6. Voice input
 
 - [ ] 6.1 e2e: hold to record, release to transcribe, transcript in the composer, auto-send after the edit window, edit cancels auto-send; cancel by sliding off; 30-second stop; dictated Quick note with undo; permission denied; offline; daily cap; voice unavailable without a transcription rate
-- [ ] 6.2 integration: transcription endpoint limits (duration, size, container, entitlement, rate limit, daily cap) reject before any Engine call; no audio is written anywhere (assert on storage, logs and queues); settlement of transcription usage against the quote policy; a transcript that is never sent spends no Credits
+- [x] 6.2 integration: transcription endpoint limits (duration, size, container, entitlement, rate limit, daily cap) reject before any Engine call; no audio is written anywhere (assert on storage, logs and queues); settlement of transcription usage against the quote policy; a transcript that is never sent spends no Credits
 - [ ] 6.3 unit: recorder state machine, duration and size guards, container selection
-- [ ] 6.4 Proto and Engine: `Transcribe` RPC on the OpenRouter audio transcription endpoint with primary and fallback, timeout, data collection denied, typed errors; `transcribe` task in `models.toml`
-- [ ] 6.5 API: `POST /v1/voice/transcriptions`; proxy body limit; limit counters in Redis with expiry
+- [x] 6.4 Proto and Engine: `Transcribe` RPC on the OpenRouter audio transcription endpoint with primary and fallback, timeout, data collection denied, typed errors; `transcribe` task in `models.toml`
+- [x] 6.5 API: `POST /v1/voice/transcriptions`; proxy body limit; limit counters in Redis with expiry
 - [ ] 6.6 Client: push-to-talk control, level meter and timer, tap-to-toggle, permission flow; Tauri mobile microphone permission strings
-- [ ] 6.7 Golden set: transcription cases (languages, accents, noise, silence, technical terms) with word-error-rate, latency and cost thresholds; promotion evidence for the task; pin the dataset revision
+- [x] 6.7 Golden set: transcription cases (languages, accents, noise, silence, technical terms) with word-error-rate, latency and cost thresholds; promotion evidence for the task; pin the dataset revision
 - [ ] 6.8 Analytics: `voice_recording_finished`, `voice_recording_cancelled`, `voice_transcription_succeeded`, `voice_transcription_failed`, `voice_transcript_used`, `voice_transcript_discarded`; `$ai_generation` mapping for transcription without content
 
 ## 7. Documentation, backup and release
