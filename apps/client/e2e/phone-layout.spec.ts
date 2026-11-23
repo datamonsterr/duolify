@@ -180,6 +180,7 @@ test.describe("phone layout at 390 by 844", () => {
             "share",
             "bookmark",
             "home",
+            "theme",
           ],
           `${path} ${f.icon}`,
         ).toContain(f.icon);

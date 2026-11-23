@@ -23,8 +23,7 @@ test("settings and profile drafts persist", async ({ page }) => {
   await expect(page.getByLabel("Analytics")).not.toBeChecked();
   await page.reload();
   await expect(page.getByLabel("Analytics")).not.toBeChecked();
-  await page.goto("/settings#account");
-  await page.getByRole("link", { name: "Profile" }).tap();
+  await page.goto("/profile");
   await page
     .getByLabel("Goal", { exact: true })
     .fill("Unconfirmed profile draft");

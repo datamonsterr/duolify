@@ -1,6 +1,6 @@
 import { OnboardingGate } from "../onboarding/OnboardingGate";
 import { DailyGoal } from "../gamification/DailyGoal";
-import { PreferenceControls } from "../design/localization/PreferenceControls";
+import { AppBarControls } from "./AppBarControls";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
@@ -194,6 +194,7 @@ export function AppShell() {
             </aside>
             <header className="mobile-header">
               <Brand to="/" />
+              <AppBarControls />
               <Link
                 data-tour="credits"
                 className="credit-shortcut"
@@ -206,12 +207,7 @@ export function AppShell() {
           </>
         )}
         <main className="app-main" id="main-content" tabIndex={-1} ref={main}>
-          {path !== "/settings" && !mobile && (
-            <details className="appearance-menu">
-              <summary>{t("settings.title")}</summary>
-              <PreferenceControls />
-            </details>
-          )}
+          {!mobile && <AppBarControls />}
           <Outlet />
           <OnboardingGate path={path} />
         </main>

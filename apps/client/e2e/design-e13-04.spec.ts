@@ -159,9 +159,8 @@ test("real lesson preserves position, note and static explanation through prefer
   await page
     .getByRole("textbox", { name: "Your note", exact: true })
     .fill("Private lesson note");
-  await page.locator(".appearance-menu summary").click();
-  await page.getByLabel("Appearance", { exact: true }).selectOption("dark");
-  await page.getByLabel("Reduce motion", { exact: true }).check();
+  await page.getByRole("button", { name: "Dark theme", exact: true }).click();
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(
     page.getByRole("textbox", { name: "Your note", exact: true }),
   ).toHaveValue("Private lesson note");
@@ -314,7 +313,7 @@ for (const locale of ["en", "ar"])
     page,
   }) => {
     await seedLocalizedAccount(page, locale);
-    await page.goto("/settings");
+    await page.goto("/settings#account");
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
     const link = page.getByRole("link", {
       name: locale === "ar" ? "إدارة الجلسات" : "Manage sessions",

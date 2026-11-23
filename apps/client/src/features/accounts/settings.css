@@ -10,25 +10,114 @@
 .settings-page fieldset {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  /* Label column sized to its longest label; the control column is capped. */
+  grid-template-columns: max-content minmax(0, 20rem);
+  align-items: center;
+  justify-content: start;
+  column-gap: var(--space-6);
+  row-gap: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
 }
 .settings-page legend {
-  font-weight: var(--weight-heavy);
-  padding-inline: var(--space-2);
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .settings-page label {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--size-target);
+  overflow-wrap: normal;
+  word-break: normal;
 }
-.settings-page label:has(select) {
-  justify-content: space-between;
-  flex-wrap: wrap;
+/* A field row puts the label text and its control in the two columns of the fieldset. */
+.settings-page fieldset > label:has(select, input:not([type="checkbox"])) {
+  display: contents;
+}
+.settings-page fieldset > label:has(input[type="checkbox"]) {
+  grid-column: 1 / -1;
+  /* Spans the row without widening the label column. */
+  inline-size: 0;
+  min-inline-size: 100%;
+}
+.settings-page fieldset select,
+.settings-page fieldset input:not([type="checkbox"]) {
+  inline-size: 100%;
+  min-block-size: var(--size-target);
+  box-sizing: border-box;
+}
+.settings-page fieldset input:not([type="checkbox"]) {
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.settings-page .preference-controls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 20rem);
+  align-items: center;
+  justify-content: start;
+  column-gap: var(--space-6);
+  row-gap: var(--space-3);
+  margin: 0;
+}
+.settings-page .preference-controls > * {
+  overflow-wrap: normal;
+}
+.settings-page .preference-select,
+.settings-page .preference-select label {
+  display: contents;
+}
+.settings-page .preference-controls > .preference-motion,
+.settings-page .preference-controls > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+@media (width < 30rem) {
+  .settings-page fieldset,
+  .settings-page .preference-controls {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
+  }
+  .settings-page fieldset > label:has(select, input:not([type="checkbox"])) {
+    display: grid;
+    gap: var(--space-1);
+  }
+}
+.settings-tabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  border-block-end: 1px solid var(--line);
+}
+.settings-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  min-block-size: var(--size-target);
+  padding-inline: var(--space-3);
+  border-block-end: 3px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+}
+.settings-tabs a[aria-current="page"] {
+  color: var(--text);
+  border-block-end-color: var(--primary);
+}
+.settings-tabs .nav-icon,
+.settings-tabs svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
 }
 .settings-page select {
   min-height: var(--size-target);
@@ -252,4 +341,17 @@
   border-radius: 50%;
   border: 2px solid var(--border, #ddd);
   flex: none;
+}
+
+.settings-page fieldset > .preference-controls,
+.settings-page fieldset > details {
+  grid-column: 1 / -1;
+  inline-size: 0;
+  min-inline-size: 100%;
+}
+.settings-page fieldset > .preference-controls {
+  grid-template-columns: subgrid;
+  padding: 0;
+  border: 0;
+  background: none;
 }

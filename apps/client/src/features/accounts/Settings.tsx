@@ -66,7 +66,7 @@ function applyVisualPreferences(settings: LearnerSettings) {
 }
 
 export function Settings() {
-  const { t, preferences, update: updateUi } = useUiPreferences();
+  const { t, preferences, update: updateUi, reset } = useUiPreferences();
   // Saving the account's language and appearance applies them to the app, not only this form.
   const applyToApp = (settings: LearnerSettings) => {
     const next = {
@@ -109,11 +109,12 @@ export function Settings() {
         }
       })
       .catch(() => {
-        if (active) setError("Could not read settings. Connect and retry.");
+        if (active) setError(t("settings.read_error"));
       });
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only on retry, not on language change
   }, [attempt]);
 
   const update = <K extends keyof LearnerSettings>(
@@ -157,12 +158,10 @@ export function Settings() {
       applyVisualPreferences(result);
       applyPlaybackSettings(result);
       applyToApp(result);
-      setNotice("Settings saved");
+      setNotice(t("settings.saved"));
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not save settings. Retry.",
+        cause instanceof Error ? cause.message : t("settings.save_error"),
       );
       if (!optedOut && saved.analytics_opt_out) setAnalyticsConsent(false);
     } finally {
@@ -181,13 +180,15 @@ export function Settings() {
 
   const mobile = useMobileLayout();
   const section = useSettingsSection();
-  const shown = (id: SectionId) => !mobile || section === id;
+  // Phones open one section from the list; larger screens always show one, "look" first.
+  const current = mobile ? section : (section ?? "look");
+  const shown = (id: SectionId) => current === id;
   const inForm =
-    section === "look" ||
-    section === "audio" ||
-    section === "goals" ||
-    section === "privacy";
-  const sectionTitle = (id: SectionId) => sectionLabels[id];
+    current === "look" ||
+    current === "audio" ||
+    current === "goals" ||
+    current === "privacy";
+  const sectionTitle = (id: SectionId) => t(sectionLabels[id]);
   const bool =
     (key: keyof SettingsFields) => (event: ChangeEvent<HTMLInputElement>) =>
       update(key, event.target.checked);
@@ -199,17 +200,31 @@ export function Settings() {
           <button
             type="button"
             className="settings-back"
-            aria-label="Back"
+            aria-label={t("settings.back")}
             onClick={() => history.back()}
           >
             <Icon name="back" />
           </button>
         )}
-        <h1>
+        <h1 className={mobile ? undefined : "sr-only"}>
           {mobile && section ? sectionTitle(section) : t("settings.title")}
         </h1>
       </header>
-      {!saved && !error && <p role="status">Loading…</p>}
+      {!mobile && (
+        <nav className="settings-tabs" aria-label={t("settings.title")}>
+          {sections.map(({ id, icon }) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              aria-current={current === id ? "page" : undefined}
+            >
+              <Icon name={icon} />
+              <span>{sectionTitle(id)}</span>
+            </a>
+          ))}
+        </nav>
+      )}
+      {!saved && !error && <p role="status">{t("settings.loading")}</p>}
       {error && (
         <>
           <Feedback tone="danger" title={error} blocking />
@@ -220,7 +235,7 @@ export function Settings() {
                 setAttempt((value) => value + 1);
               }}
             >
-              Retry
+              {t("settings.retry_load")}
             </Button>
           )}
         </>
@@ -256,8 +271,15 @@ export function Settings() {
             void commit();
           }}
         >
-          <div hidden={!shown("look")} data-section="look">
+          <fieldset hidden={!shown("look")} data-section="look">
+            <legend>{sectionTitle("look")}</legend>
             <PreferenceControls
+              onReset={() => {
+                reset();
+                update("locale", "en");
+                update("appearance", "system");
+                update("motion", "system");
+              }}
               value={{
                 locale: resolveLocale(draft.locale),
                 appearance: draft.appearance,
@@ -271,7 +293,7 @@ export function Settings() {
               }}
             />
             <label>
-              Text size
+              {t("settings.text_size")}
               <select
                 value={draft.text_size}
                 onChange={(event) =>
@@ -289,7 +311,7 @@ export function Settings() {
               <summary>{t("mascot.guide")}</summary>
               <YourGuide />
             </details>
-          </div>
+          </fieldset>
           <fieldset hidden={!shown("audio")} data-section="audio">
             <legend>{sectionTitle("audio")}</legend>
             <label>
@@ -298,10 +320,10 @@ export function Settings() {
                 checked={draft.narration}
                 onChange={bool("narration")}
               />
-              Narration
+              {t("settings.narration")}
             </label>
             <label>
-              Speed
+              {t("settings.speed")}
               <select
                 value={draft.narration_speed}
                 onChange={(event) =>
@@ -321,7 +343,7 @@ export function Settings() {
                 checked={draft.captions}
                 onChange={bool("captions")}
               />
-              Captions
+              {t("settings.captions")}
             </label>
             <label>
               <input
@@ -329,7 +351,7 @@ export function Settings() {
                 checked={draft.autoplay}
                 onChange={bool("autoplay")}
               />
-              Autoplay
+              {t("settings.autoplay")}
             </label>
             <label>
               <input
@@ -349,23 +371,23 @@ export function Settings() {
                 checked={draft.fullscreen_on_rotate}
                 onChange={bool("fullscreen_on_rotate")}
               />
-              Full screen on rotate
+              {t("settings.rotate_full")}
             </label>
             <label htmlFor="settings-ui-sounds">
               <input
                 id="settings-ui-sounds"
-                aria-label="UI sounds"
+                aria-label={t("settings.ui_sounds")}
                 type="checkbox"
                 checked={draft.ui_sounds}
                 onChange={bool("ui_sounds")}
               />
-              UI sounds
+              {t("settings.ui_sounds")}
             </label>
             <label htmlFor="settings-haptics">
-              Haptics
+              {t("settings.haptics")}
               <select
                 id="settings-haptics"
-                aria-label="Haptics"
+                aria-label={t("settings.haptics")}
                 value={draft.haptics}
                 onChange={(event) =>
                   update(
@@ -375,33 +397,33 @@ export function Settings() {
                 }
               >
                 <option value="system">{t("settings.system")}</option>
-                <option value="on">On</option>
-                <option value="off">Off</option>
+                <option value="on">{t("settings.on")}</option>
+                <option value="off">{t("settings.off")}</option>
               </select>
             </label>
           </fieldset>
           <fieldset hidden={!shown("goals")} data-section="goals">
             <legend>{sectionTitle("goals")}</legend>
             <label>
-              Locale
+              {t("settings.locale")}
               <input
-                aria-label="Locale"
+                aria-label={t("settings.locale")}
                 value={draft.locale}
                 onChange={(event) => update("locale", event.target.value)}
               />
             </label>
             <label>
-              Time zone
+              {t("settings.time_zone")}
               <input
-                aria-label="Time zone"
+                aria-label={t("settings.time_zone")}
                 value={draft.time_zone}
                 onChange={(event) => update("time_zone", event.target.value)}
               />
             </label>
             <label>
-              Daily XP goal
+              {t("settings.daily_xp")}
               <input
-                aria-label="Daily XP goal"
+                aria-label={t("settings.daily_xp")}
                 type="number"
                 min="1"
                 max="10000"
@@ -417,9 +439,9 @@ export function Settings() {
               />
             </label>
             <label>
-              Daily minutes
+              {t("settings.daily_minutes")}
               <input
-                aria-label="Daily minutes"
+                aria-label={t("settings.daily_minutes")}
                 type="number"
                 min="1"
                 max="1440"
@@ -440,12 +462,12 @@ export function Settings() {
                 checked={draft.reminder_enabled ?? false}
                 onChange={bool("reminder_enabled")}
               />
-              Reminders
+              {t("settings.reminders")}
             </label>
             <label>
-              Reminder time
+              {t("settings.reminder_time")}
               <input
-                aria-label="Reminder time"
+                aria-label={t("settings.reminder_time")}
                 type="time"
                 value={draft.reminder_time}
                 onChange={(event) =>
@@ -455,14 +477,14 @@ export function Settings() {
             </label>
           </fieldset>
           <fieldset hidden={!shown("privacy")} data-section="privacy">
-            <legend>Privacy</legend>
+            <legend>{t("settings.sec_privacy")}</legend>
             <label>
               <input
                 type="checkbox"
                 checked={!draft.analytics_opt_out}
                 onChange={(event) => changeAnalytics(event.target.checked)}
               />
-              Analytics
+              {t("settings.analytics")}
             </label>
           </fieldset>
           <div
@@ -470,7 +492,7 @@ export function Settings() {
             hidden={mobile && !inForm}
           >
             <Button type="submit" data-action-level="primary" pending={pending}>
-              Save settings
+              {t("settings.save")}
             </Button>
             <span role="status">{notice}</span>
           </div>
@@ -482,14 +504,11 @@ export function Settings() {
       </div>
       <div hidden={!shown("account")} data-section="account">
         <SocialIdentity compact />
-        <a className="shell-link" href="/profile">
-          Profile
-        </a>
         <a className="shell-link" href="/settings/sessions">
           {t("settings.sessions")}
         </a>
         <a className="shell-link" href="/settings/characters">
-          Private characters
+          {t("settings.characters")}
         </a>
         {!mobile && (
           <Button
@@ -508,13 +527,13 @@ export function Settings() {
 }
 
 type SectionId = "look" | "audio" | "goals" | "privacy" | "account";
-const sectionLabels: Record<SectionId, string> = {
-  look: "Look and language",
-  audio: "Lessons & audio",
-  goals: "Goals & reminders",
-  privacy: "Privacy & data",
-  account: "Account",
-};
+const sectionLabels = {
+  look: "settings.sec_look",
+  audio: "settings.sec_audio",
+  goals: "settings.sec_goals",
+  privacy: "settings.sec_privacy",
+  account: "settings.sec_account",
+} as const;
 const sections: { id: SectionId; icon: IconName }[] = [
   { id: "look", icon: "look" },
   { id: "audio", icon: "audio" },
