@@ -13,7 +13,12 @@ vi.mock("posthog-js/dist/module.no-external", () => ({
 
 const learnerId = "a1111111-1111-4111-8111-111111111111";
 const on = (optedOut = false) =>
-  configureAnalytics({ learnerId, platform: "web", optedOut });
+  configureAnalytics({
+    learnerId,
+    platform: "web",
+    appVersion: "9.9.9",
+    optedOut,
+  });
 const base = { course_id: "c1", lesson_id: "l1", slide_index: 2 };
 
 describe("region question analytics", () => {
@@ -32,7 +37,7 @@ describe("region question analytics", () => {
     expect(posthog.capture).toHaveBeenCalledWith("lesson_region_selected", {
       distinct_id: learnerId,
       platform: "web",
-      app_version: "0.1.0",
+      app_version: "9.9.9",
       source: "client",
       ...base,
       method: "keyboard",
@@ -82,7 +87,7 @@ describe("region question analytics", () => {
         {
           distinct_id: learnerId,
           platform: "web",
-          app_version: "0.1.0",
+          app_version: "9.9.9",
           source: "client",
           ...base,
           outcome: "stopped",
