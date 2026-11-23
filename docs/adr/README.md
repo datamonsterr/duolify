@@ -24,5 +24,6 @@
 | [0021](0021-voice-input-data-handling.md) | Voice input: audio processed in memory and never stored, ZDR providers only | Proposed |
 | [0022](0022-security-headers-and-csp.md) | Security headers and CSP: edge-set web policy, sandboxed lesson frame with its own policy, API middleware | Accepted |
 | [0024](0024-scripted-guided-chat-and-mascot.md) | Scripted guided chat and original mascot | Accepted |
+| [0025](0025-prompt-skills-router-and-input-guard.md) | Prompt skills, skill router and consolidated input guard | Accepted |
 
 New ADR: copy the newest file, increase the number, keep it under one page.
