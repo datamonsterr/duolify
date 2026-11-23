@@ -606,6 +606,7 @@ pub mod pricing;
 pub mod promotion;
 pub mod regions;
 pub mod sharing;
+pub mod skills;
 pub mod slide;
 #[cfg(test)]
 mod tests;

@@ -9,10 +9,10 @@ Future implementation checklist; this change delivers specification and a measur
 
 ## 1. Skill module loader and fingerprint (M)
 
-- [ ] 1.1 E2E: a task with `prompt_mode = "monolithic"` produces byte-identical prompts to today for every golden fixture (guards all later groups).
-- [ ] 1.2 Integration: `engine/config/skills/*.toml` load at startup; unknown task, duplicate id, missing field, conflicting pair and over-budget set fail the boot check with a typed error.
-- [ ] 1.3 Unit: deterministic assembly (order, de-dup, cap, budget), token-count drift test (10 percent), skill files in `promotion::SOURCES` and `fingerprint_sources_cover_every_ai_module`.
-- [ ] 1.4 Implement `engine-core::skills` (loader, `assemble(task, ids, data) -> Prompt{system, user}`), config tables `[routing]`, `prompt_mode`; no skill content yet.
+- [x] 1.1 E2E: a task with `prompt_mode = "monolithic"` produces byte-identical prompts to today for every golden fixture (guards all later groups).
+- [x] 1.2 Integration: `engine/config/skills/*.toml` load at startup; unknown task, duplicate id, missing field, conflicting pair and over-budget set fail the boot check with a typed error.
+- [x] 1.3 Unit: deterministic assembly (order, de-dup, cap, budget), token-count drift test (10 percent), skill files in `promotion::SOURCES` and `fingerprint_sources_cover_every_ai_module`.
+- [x] 1.4 Implement `engine-core::skills` (loader, `assemble(task, ids, data) -> Prompt{system, user}`), config tables `[routing]`, `prompt_mode`; no skill content yet.
 
 ## 2. Provider system/user split and dynamic max_tokens (M)
 
