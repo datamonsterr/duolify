@@ -25,8 +25,8 @@ Common properties are `source` (emitting tier), `platform`, and `app_version`. T
 | `lesson_anchored_note_created` | analytics, quick-notes | `services/api/internal/notes/service.go` (`EmitAnchoredNoteCreated`) | `course_id`, `lesson_id`, `slide_index`, `entry_point` (`typed`/`voice`), `has_region`, common fields (`source=api`); no text or region | `services/api/internal/analytics/immersive_events_test.go`, `services/api/internal/notes/anchored_quick_notes_integration_test.go` | ok |
 | `quick_note_created` | analytics, quick-notes | `services/api/internal/notes/service.go` (server-side, once per note) | `entry_point` (`slide`/`lesson`/`chat`), `length`, common fields | `services/api/internal/notes/save_raw_quick_notes_before_enrichment_integration_test.go` | ok |
 | `$ai_generation` | analytics, AI capabilities | Multiple API emitters, including `services/api/internal/credits/reservations.go:593` | Partial: some failure paths lack trustworthy usage or error details | Outbox and emitter tests exist; full coverage remains unaudited | wrong-props |
-| `lesson_region_selected` | analytics, immersive lesson | No emitter found | Not applicable | No | missing |
-| `lesson_answer_panel_closed` | analytics, immersive lesson | No emitter found | Not applicable | No | missing |
+| `lesson_region_selected` | analytics, immersive lesson | `apps/client/src/features/lesson-player/immersive/ImmersiveNotes.tsx` (`openAnswer`), `apps/client/src/lib/analytics.ts` (`trackRegion`) | `course_id`, `lesson_id`, `slide_index`, `method`, `area_bucket`, common fields (`source=client`); no coordinates; `regions_matched` is resolved server-side and not sent | `apps/client/src/features/lesson-player/immersive/region_analytics.test.ts`, `apps/client/e2e/region-questions.spec.ts` | ok |
+| `lesson_answer_panel_closed` | analytics, immersive lesson | `apps/client/src/features/lesson-player/immersive/ImmersiveNotes.tsx` (`closeAnswer`), `apps/client/src/lib/analytics.ts` (`trackRegion`) | `course_id`, `lesson_id`, `slide_index`, `outcome`, `saved_note`, `follow_ups` bucket, common fields (`source=client`); no question or reply text | `apps/client/src/features/lesson-player/immersive/region_analytics.test.ts`, `apps/client/e2e/region-questions.spec.ts` | ok |
 
 ## Dashboards
 
@@ -52,6 +52,6 @@ Attribution rule: `source` is the emitting tier and `entry_point` is the UI plac
 
 ## Known gaps and privacy review in progress
 
-- The region-selection and answer-panel-close events have no emitter in the current client; their UI flows must exist before their transitions can be measured.
+- `lesson_region_selected` fires when the Learner asks or notes about the selected area (not on every drag); `regions_matched` is not sent by the client.
 - AI attempts are not yet fully audited. Quick-note enrichment previously emitted duplicate incomplete `$ai_generation` events; the direct emission has been removed in favor of the financial outbox. Its failure path still needs review for unknown provider usage and error attribution. Do not infer complete per-task success, latency, cost or fallback rates from the current stream.
 - The catalogue prohibits email, free text, lesson content and raw prompts. The client boundary and server allowlist, consent propagation and every emitter still require a complete review before the privacy audit can be considered finished.
