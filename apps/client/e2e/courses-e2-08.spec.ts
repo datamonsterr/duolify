@@ -1,4 +1,10 @@
 import { test, expect } from "./accounts-fixture";
+test.beforeEach(({ page }) =>
+  // The old brief form stays one release for rollback; these tests cover it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_brief", "off"),
+  ),
+);
 
 for (const colorScheme of ["light", "dark"] as const)
   for (const mobile of [false, true]) {

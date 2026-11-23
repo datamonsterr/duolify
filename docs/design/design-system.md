@@ -172,7 +172,7 @@ Source: `openspec/changes/simplify-ux-gestures-hotkeys` (Human-factors rules, Ph
 | Rule | How it is applied and tested |
 | --- | --- |
 | Fitts | Primary action of a phone view is docked at the bottom of the scrolling main area (`.action-dock`, `.courses-create`), in the lower 40% of 390 by 844, at least 44 by 44, above the tab bar. Tab bar is at least 56 px plus the safe-area inset. `reachViolations`, `gapViolations`. |
-| Hick | At most 1 `data-action-level="primary"` and 2 `secondary` per view. `Button` sets the attribute from `variant` (`level="none"` opts out). `actionLevelViolations`. |
+| Hick | At most 1 `data-action-level="primary"` and 2 `secondary` per view. Mark the view's controls with `data-action-level` (Button passes it through). `actionLevelViolations`. |
 | Recognition | One icon set in `features/design/Icon.tsx`. Icon-only controls only from `iconOnlyAllowlist` and with an accessible name; every other icon has a visible label of at most 2 words. `iconOnlyViolations`. |
 | Colour never alone | `Feedback` carries a tone icon (info, warning, error, check) plus a title; greyscale test saves with a failing request. |
 | Colour semantics | `primary` fill = the one primary action; success = tint + check; danger = destructive and errors only; `credit` = Credits only; `accent` = rewards. No new colours. |

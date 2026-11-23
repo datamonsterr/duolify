@@ -1,5 +1,11 @@
 import { test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
+test.beforeEach(({ page }) =>
+  // The old brief form stays one release for rollback; these tests cover it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_brief", "off"),
+  ),
+);
 
 for (const mobile of [false, true]) {
   test(`confirmed paid preview ${mobile ? "mobile" : "desktop"}`, async ({

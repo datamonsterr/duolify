@@ -13,7 +13,6 @@ import {
   trackPreference,
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
-import "../design/iconsExtra";
 import { Icon, type IconName } from "../design/Icon";
 import { useMobileLayout } from "../shell/AdaptiveLayouts";
 import { Feedback } from "../design/chat/Feedback";
@@ -457,7 +456,7 @@ export function Settings() {
             className="settings-actions action-dock"
             hidden={mobile && !inForm}
           >
-            <Button type="submit" pending={pending}>
+            <Button type="submit" data-action-level="primary" pending={pending}>
               Save settings
             </Button>
             <span role="status">{notice}</span>

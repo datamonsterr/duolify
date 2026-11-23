@@ -14,8 +14,10 @@ describe("action levels", () => {
   it("counts one primary and up to two secondary actions", () => {
     const { container } = render(
       <div>
-        <Button>Save</Button>
-        <Button variant="secondary">Skip</Button>
+        <Button data-action-level="primary">Save</Button>
+        <Button variant="secondary" data-action-level="secondary">
+          Skip
+        </Button>
         <Button variant="quiet">More</Button>
       </div>,
     );
@@ -25,11 +27,11 @@ describe("action levels", () => {
   it("fails two primaries and three secondaries", () => {
     const { container } = render(
       <div>
-        <Button>One</Button>
-        <Button>Two</Button>
-        <Button variant="secondary">A</Button>
-        <Button variant="secondary">B</Button>
-        <Button variant="secondary">C</Button>
+        <Button data-action-level="primary">One</Button>
+        <Button data-action-level="primary">Two</Button>
+        <Button data-action-level="secondary">A</Button>
+        <Button data-action-level="secondary">B</Button>
+        <Button data-action-level="secondary">C</Button>
       </div>,
     );
     expect(actionLevelViolations(container)).toHaveLength(2);
@@ -37,9 +39,9 @@ describe("action levels", () => {
   it("ignores controls inside hidden sections", () => {
     const { container } = render(
       <div>
-        <Button>One</Button>
+        <Button data-action-level="primary">One</Button>
         <section hidden>
-          <Button>Two</Button>
+          <Button data-action-level="primary">Two</Button>
         </section>
       </div>,
     );

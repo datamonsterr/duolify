@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { guidedEnabled } from "../guided-chat/flags";
 import { Sheet } from "../design/sheet/Sheet";
 import { Button } from "../design/Button";
 import { InstructionPanel } from "./InstructionPanel";
@@ -56,7 +57,10 @@ export function SteerCourse({ courseId }: { courseId: string }) {
           onClose={close}
         >
           <div hidden={replan}>
-            <InstructionPanel courseId={courseId} />
+            <InstructionPanel
+              courseId={courseId}
+              guided={guidedEnabled("course_steer")}
+            />
             <Button
               ref={replanTrigger}
               variant="secondary"

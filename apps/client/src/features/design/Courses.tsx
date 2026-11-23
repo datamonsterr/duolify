@@ -179,7 +179,6 @@ export function Courses({
           <h2>What would you like to keep learning?</h2>
           <Button
             variant="secondary"
-            level="none"
             onClick={() => {
               navigateTo("/courses/create");
             }}

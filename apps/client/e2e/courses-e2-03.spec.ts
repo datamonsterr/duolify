@@ -1,4 +1,10 @@
 import { test, expect } from "./accounts-fixture";
+test.beforeEach(({ page }) =>
+  // The old form stays one release for rollback; this spec covers it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_level", "off"),
+  ),
+);
 
 for (const mobile of [false, true]) {
   test(`switch courses and override course level ${mobile ? "mobile" : "desktop"}`, async ({
