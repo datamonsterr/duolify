@@ -166,3 +166,17 @@ test("select reserves space at the inline end in both directions", async ({
     expect(padding[1]).toBeGreaterThanOrEqual(32);
   }
 });
+
+test("disabled icon controls keep their contrast", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/sign-in");
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<style>.faded-control:disabled { opacity: .5 }</style><button class="faded-control" disabled>Icon</button>',
+    );
+  });
+  const button = page.getByRole("button", { name: "Icon" });
+  await expect(button).toHaveCSS("opacity", "1");
+  await expect(button).toHaveCSS("border-style", "dashed");
+});

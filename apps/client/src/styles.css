@@ -30,6 +30,11 @@ button {
 button:disabled {
   cursor: default;
 }
+:root body button:disabled,
+:root body button[aria-disabled="true"] {
+  opacity: 1;
+  border: 1px dashed var(--line);
+}
 h1,
 h2,
 h3 {

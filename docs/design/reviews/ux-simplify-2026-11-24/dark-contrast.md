@@ -18,6 +18,7 @@ Ratios are WCAG relative-luminance calculations from the resolved dark theme tok
 | Lesson test selection hint | 2.59:1 (#5e5e5e on #131f24) | 9.65:1 (#b8c7c9 on #131f24) | 4.5:1 |
 | Shared checkbox, disabled outline on surface | 2.57:1 (60% #7f9499 on #1c2b31) | 4.58:1 (#7f9499 on #1c2b31) | 3:1 |
 | Shared checkbox focus ring on surface | 7.78:1 (#7cc4ff on #1c2b31) | 7.78:1 | 3:1 |
+| Tutor disabled icon border on canvas | 2.33:1 (50% #7f9499 on #131f24) | 5.28:1 (#7f9499 on #131f24) | 3:1 |
 
 The initial axe scan found Bookmarks and sessions failures shown above. After waiting for session loading and disabling motion, the scan passes. The sessions result occurred during the button transition; intermediate animation colors remain unmeasured. The Quick notes route had multiple failures and is excluded by request.
 
