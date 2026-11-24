@@ -468,6 +468,7 @@ export const en = {
   "imm.select_area": "Select area",
   "imm.ask": "Ask",
   "imm.note": "Quick note",
+  "imm.voice_note": "Voice note",
   "imm.offline": "Offline. Your question is kept.",
   "imm.credits": "Not enough Credits.",
   "imm.failed": "No answer. Nothing charged. Retry.",
