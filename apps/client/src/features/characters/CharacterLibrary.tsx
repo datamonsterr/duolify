@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { useCharacterT } from "./useCharacterT";
 import { characterLibrary, type CharacterRecord } from "./library";
@@ -11,6 +11,13 @@ import { CharacterCreator } from "./CharacterCreator";
 import { CharacterPreview as CharacterPreviewV2 } from "./CharacterPreview";
 import type { CharacterSpecV2 } from "./types-v2";
 import { AppLink } from "../../lib/navigation";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedCharacterCreate = lazy(() =>
+  import("./GuidedCharacterCreate").then((m) => ({
+    default: m.GuidedCharacterCreate,
+  })),
+);
 
 function failure(error: unknown) {
   return error instanceof Error ? error.message : "Connect and retry.";
@@ -59,6 +66,7 @@ export function CharacterLibrary() {
     null,
   );
   const t = useCharacterT();
+  const [chat, setChat] = useState(false);
   const [draft, setDraft] = useState<CharacterSpec | null>(null);
   const [deleting, setDeleting] = useState<CharacterRecord | null>(null);
   const [error, setError] = useState("");
@@ -149,10 +157,34 @@ export function CharacterLibrary() {
           }}
         />
       )}
-      {!selected && !creator && (
-        <Button variant="secondary" onClick={() => setCreator({})}>
-          {t("characters.v2.new")}
-        </Button>
+      {chat && (
+        <Suspense fallback={<p role="status">…</p>}>
+          <GuidedCharacterCreate
+            onClose={() => setChat(false)}
+            onFullEditor={() => {
+              setChat(false);
+              setCreator({});
+            }}
+            onSaved={(record) =>
+              setRecords((current) => [
+                ...(current ?? []).filter((r) => r.id !== record.id),
+                record,
+              ])
+            }
+          />
+        </Suspense>
+      )}
+      {!selected && !creator && !chat && (
+        <div className="cv2-actions">
+          {guidedEnabled("character_create") && (
+            <Button onClick={() => setChat(true)}>
+              {t("characters.v2.chat")}
+            </Button>
+          )}
+          <Button variant="secondary" onClick={() => setCreator({})}>
+            {t("characters.v2.new")}
+          </Button>
+        </div>
       )}
       {!selected && !creator && (
         <CreateCharacter

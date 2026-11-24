@@ -8,6 +8,8 @@ export type GuidedFlag =
   | "course_level"
   | "course_steer"
   | "signin"
+  | "character_create"
+  | "character_cast"
   | "rest";
 
 const env = import.meta.env as Record<string, string | undefined>;

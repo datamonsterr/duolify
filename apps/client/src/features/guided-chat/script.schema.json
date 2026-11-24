@@ -75,7 +75,8 @@
             "confirm",
             "email",
             "code",
-            "password"
+            "password",
+            "character"
           ]
         },
         "promptKey": { "type": "string" },
@@ -110,6 +111,14 @@
                 "file"
               ]
             }
+          }
+        },
+        "character": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tab": { "enum": ["kind", "look", "outfit", "about"] },
+            "pick": { "enum": ["guide", "support"] }
           }
         },
         "limit": { "type": "string" },

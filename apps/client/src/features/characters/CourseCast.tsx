@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import "./characters.css";
 import { Button } from "../design/Button";
 import {
@@ -10,6 +10,11 @@ import { getDefaultCastFixtures } from "./fixtures";
 import { CastAvatar } from "./CastAvatar";
 import type { CharacterSpecV2 } from "./types-v2";
 import { AppLink } from "../../lib/navigation";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedCourseCast = lazy(() =>
+  import("./GuidedCourseCast").then((m) => ({ default: m.GuidedCourseCast })),
+);
 
 export function CourseCast({ courseId }: { courseId: string }) {
   const [records, setRecords] = useState<CharacterRecord[] | null>(null);
@@ -21,6 +26,7 @@ export function CourseCast({ courseId }: { courseId: string }) {
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
   const [reload, setReload] = useState(0);
+  const [chat, setChat] = useState(false);
   useEffect(() => {
     let active = true;
     void Promise.all([characterLibrary.list(), characterLibrary.cast(courseId)])
@@ -59,6 +65,20 @@ export function CourseCast({ courseId }: { courseId: string }) {
   const distinct =
     keys.filter(Boolean).length === new Set(keys.filter(Boolean)).size;
   const selected = choices.find((r) => r.id === selection.guide) ?? builtIns[0];
+  if (chat)
+    return (
+      <section className="characters-page">
+        <Suspense fallback={<p role="status">…</p>}>
+          <GuidedCourseCast
+            courseId={courseId}
+            onClose={() => {
+              setChat(false);
+              setReload((n) => n + 1);
+            }}
+          />
+        </Suspense>
+      </section>
+    );
   return (
     <section className="characters-page">
       <AppLink className="shell-link" href={`/course/${courseId}`}>
@@ -66,6 +86,9 @@ export function CourseCast({ courseId }: { courseId: string }) {
       </AppLink>
       <h1>Course Cast</h1>
       <p>No character credits are spent.</p>
+      {guidedEnabled("character_cast") && !selection.published && (
+        <Button onClick={() => setChat(true)}>Choose in chat</Button>
+      )}
       {error && (
         <div role="alert">
           <p>

@@ -404,3 +404,32 @@
     grid-column: 2;
   }
 }
+
+.gc-host {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.gc-host-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.gc-host-bar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.gc-host-done {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+.gc-character {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.gc-character > .cv2-stage-pair {
+  justify-content: center;
+}
