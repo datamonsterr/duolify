@@ -1,16 +1,235 @@
 //! OpenRouter-primary routing against a mock server: request body, fallback order,
 //! served-model accounting and the optional direct Anthropic last resort.
-use engine_core::{LlmProvider, Route, StreamEvent};
-use engine_providers::HttpProvider;
+use engine_core::{
+    GatewayBudget, GatewayCacheStatus, GatewayReason, LlmProvider, OpenRouterTransport, Route,
+    StreamEvent,
+};
+use engine_providers::{GatewayConfig, HttpProvider};
 use futures::StreamExt;
 use serde_json::{Value, json};
+use std::time::Duration;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
-    matchers::{body_partial_json, header, method},
+    matchers::{body_partial_json, header, method, path},
 };
 
 const HY4: &str = "tencent/hy4-flash";
 const GLM: &str = "z-ai/glm-5.3-flash";
+const GATEWAY_BASE_PATH: &str = "/v1/account/gateway/openrouter";
+const GATEWAY_CHAT_PATH: &str = "/v1/account/gateway/openrouter/chat/completions";
+const GATEWAY_AUDIO_PATH: &str = "/v1/account/gateway/openrouter/audio/transcriptions";
+const DIRECT_AUDIO_PATH: &str = "/api/v1/audio/transcriptions";
+
+fn gateway_case(name: &str) -> Value {
+    let cases: Value = serde_json::from_str(include_str!(
+        "../../../../evals/fixtures/openrouter-gateway.json"
+    ))
+    .unwrap();
+    cases[name].clone()
+}
+
+fn gateway_provider(direct: &MockServer, gateway: &MockServer, allow_stt: bool) -> HttpProvider {
+    let config = GatewayConfig::parse(
+        Some(&format!("{}{GATEWAY_BASE_PATH}/", gateway.uri())),
+        Some("gateway-token"),
+        allow_stt.then_some("true"),
+    )
+    .unwrap();
+    HttpProvider::openrouter_with_gateway(
+        "openrouter-key".into(),
+        format!("{}/api/v1/chat/completions", direct.uri()),
+        config,
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn gateway_chat_separates_credentials_and_caches_only_explicit_public_routes() {
+    let gateway = MockServer::start().await;
+    let direct = MockServer::start().await;
+    let provider = gateway_provider(&direct, &gateway, false);
+    let private_case = gateway_case("private");
+    let public_case = gateway_case("public");
+    let public_input = public_case["input"].as_str().unwrap();
+    Mock::given(path(GATEWAY_CHAT_PATH))
+        .respond_with(ok("response").insert_header("cf-aig-cache-status", "HIT"))
+        .expect(4)
+        .mount(&gateway)
+        .await;
+    let private = route(HY4, &[], &[]);
+    let public = Route {
+        gateway_cache_public: true,
+        ..route(HY4, &[], &[])
+    };
+    let private_result = provider
+        .complete_route(&private, private_case["input"].as_str().unwrap(), 200)
+        .await
+        .unwrap();
+    let public_result = provider
+        .complete_route(&public, public_input, 200)
+        .await
+        .unwrap();
+    assert_eq!(
+        private_result.transport,
+        Some(OpenRouterTransport::Gateway(GatewayCacheStatus::Bypass))
+    );
+    assert_eq!(
+        public_result.transport,
+        Some(OpenRouterTransport::Gateway(GatewayCacheStatus::Hit))
+    );
+    provider
+        .complete_route(&public, public_input, 200)
+        .await
+        .unwrap();
+    provider
+        .complete_route(&public, public_input, 201)
+        .await
+        .unwrap();
+    let requests = gateway.received_requests().await.unwrap();
+    for request in &requests {
+        assert_eq!(request.headers["authorization"], "Bearer openrouter-key");
+        assert_eq!(
+            request.headers["cf-aig-authorization"],
+            "Bearer gateway-token"
+        );
+        assert_eq!(request.headers["cf-aig-collect-log"], "false");
+        assert_eq!(request.headers["cf-aig-max-attempts"], "1");
+        assert_eq!(request.headers["cf-aig-no-wholesale"], "true");
+    }
+    assert_eq!(requests[0].headers["cf-aig-skip-cache"], "true");
+    assert!(!requests[0].headers.contains_key("cf-aig-cache-ttl"));
+    assert!(!requests[0].headers.contains_key("cf-aig-cache-key"));
+    for request in &requests[1..] {
+        assert!(!request.headers.contains_key("cf-aig-skip-cache"));
+        assert_eq!(
+            request.headers["cf-aig-cache-ttl"],
+            public_case["expected_cache_ttl_seconds"].as_str().unwrap()
+        );
+        assert_eq!(request.headers["cf-aig-cache-key"].len(), 64);
+    }
+    assert_eq!(
+        requests[1].headers["cf-aig-cache-key"],
+        requests[2].headers["cf-aig-cache-key"]
+    );
+    assert_ne!(
+        requests[2].headers["cf-aig-cache-key"],
+        requests[3].headers["cf-aig-cache-key"]
+    );
+    assert!(direct.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn gateway_transcription_opt_in_retries_the_identical_zdr_payload_directly() {
+    let gateway = MockServer::start().await;
+    let direct = MockServer::start().await;
+    let provider = gateway_provider(&direct, &gateway, true);
+    let case = gateway_case("transcription");
+    Mock::given(path(GATEWAY_AUDIO_PATH))
+        .respond_with(
+            ResponseTemplate::new(case["gateway_status"].as_u64().unwrap() as u16)
+                .set_body_json(&case["gateway_body"]),
+        )
+        .mount(&gateway)
+        .await;
+    Mock::given(path(DIRECT_AUDIO_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"text": "synthetic"})))
+        .mount(&direct)
+        .await;
+    let route = Route {
+        endpoint: Some(DIRECT_AUDIO_PATH.into()),
+        zdr: true,
+        data_collection: Some("deny".into()),
+        ..Default::default()
+    };
+    let audio: Vec<u8> = serde_json::from_value(case["audio_bytes"].clone()).unwrap();
+    let result = provider
+        .transcribe(&route, "speech/model", &audio, "webm", Some("en"))
+        .await
+        .unwrap();
+    assert_eq!(result.text, "synthetic");
+    let via_gateway = gateway.received_requests().await.unwrap();
+    let via_direct = direct.received_requests().await.unwrap();
+    assert_eq!(via_gateway.len(), 1);
+    assert_eq!(via_direct.len(), 1);
+    let sent = &via_gateway[0];
+    assert_eq!(sent.headers["cf-aig-collect-log"], "false");
+    assert_eq!(sent.headers["cf-aig-skip-cache"], "true");
+    assert!(!sent.headers.contains_key("cf-aig-cache-ttl"));
+    let body: Value = sent.body_json().unwrap();
+    assert_eq!(body["provider"], case["provider"]);
+    assert_eq!(body["input_audio"], case["input_audio"]);
+    assert_eq!(sent.body, via_direct[0].body);
+    assert_eq!(
+        via_direct[0].headers["authorization"],
+        "Bearer openrouter-key"
+    );
+    assert!(
+        via_direct[0]
+            .headers
+            .keys()
+            .all(|name| !name.as_str().starts_with("cf-aig-"))
+    );
+}
+
+#[tokio::test]
+async fn gateway_timeout_uses_only_the_reserved_direct_retry() {
+    let gateway = MockServer::start().await;
+    let direct = MockServer::start().await;
+    let provider = gateway_provider(&direct, &gateway, false);
+    Mock::given(path(GATEWAY_CHAT_PATH))
+        .respond_with(ok("slow").set_delay(Duration::from_secs(4)))
+        .expect(2)
+        .mount(&gateway)
+        .await;
+    Mock::given(path("/api/v1/chat/completions"))
+        .respond_with(ok("direct"))
+        .expect(1)
+        .mount(&direct)
+        .await;
+    let mut route = Route {
+        gateway_budget: Some(GatewayBudget {
+            timeout: Duration::from_secs(1),
+            may_retry_billable: true,
+        }),
+        ..route(HY4, &[], &[])
+    };
+    let result = provider.complete_route(&route, "test", 200).await.unwrap();
+    assert_eq!(result.text, "direct");
+    assert_eq!(
+        result.transport,
+        Some(OpenRouterTransport::Direct {
+            fallback_reason: Some(GatewayReason::Timeout),
+            gateway_may_bill: true
+        })
+    );
+    route.gateway_budget.as_mut().unwrap().may_retry_billable = false;
+    let error = provider
+        .complete_route(&route, "test", 200)
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("timeout"));
+}
+
+#[tokio::test]
+async fn gateway_rejects_upstream_client_errors_and_never_follows_redirects() {
+    let gateway = MockServer::start().await;
+    let direct = MockServer::start().await;
+    let provider = gateway_provider(&direct, &gateway, false);
+    for response in [
+        ResponseTemplate::new(400).set_body_json(json!({"error": {"code": 400}})),
+        ResponseTemplate::new(429).set_body_json(json!({"errors": [{"code": 2003}]})),
+        ResponseTemplate::new(307).insert_header("location", direct.uri().as_str()),
+    ] {
+        gateway.reset().await;
+        Mock::given(path(GATEWAY_CHAT_PATH))
+            .respond_with(response)
+            .expect(1)
+            .mount(&gateway)
+            .await;
+        assert!(provider.complete(HY4, "private note").await.is_err());
+        assert!(direct.received_requests().await.unwrap().is_empty());
+    }
+}
 
 fn route(model: &str, fallbacks: &[&str], efforts: &[(&str, &str)]) -> Route {
     Route {

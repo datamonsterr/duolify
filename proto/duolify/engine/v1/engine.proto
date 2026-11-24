@@ -73,6 +73,7 @@ message TranscribeResponse {
   uint32 latency_ms = 6;
   // Provider-reported cost in nanodollars (USD x 1e9); zero when unreported.
   uint64 cost_nanos = 7;
+  OpenRouterTransport openrouter_transport = 8;
 }
 
 message SynthesizeNarrationRequest {
@@ -189,6 +190,35 @@ message HealthResponse {
   repeated string providers = 2;
 }
 
+// Sanitized routing metadata. Provider and model identity are carried separately.
+message OpenRouterTransport {
+  enum Route {
+    ROUTE_UNSPECIFIED = 0;
+    ROUTE_GATEWAY = 1;
+    ROUTE_DIRECT = 2;
+  }
+  enum CacheStatus {
+    CACHE_STATUS_UNSPECIFIED = 0;
+    CACHE_STATUS_HIT = 1;
+    CACHE_STATUS_MISS = 2;
+    CACHE_STATUS_BYPASS = 3;
+    CACHE_STATUS_UNKNOWN = 4;
+  }
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_NONE = 1;
+    REASON_TIMEOUT = 2;
+    REASON_UNAVAILABLE = 3;
+    REASON_TRANSPORT_ERROR = 4;
+  }
+  Route route = 1;
+  CacheStatus gateway_cache_status = 2;
+  bool gateway_fallback = 3;
+  Reason gateway_reason = 4;
+  // The gateway attempt might have reached a billable upstream before the direct retry.
+  bool gateway_may_bill = 5;
+}
+
 // Usage is reported on every AI response so the API can settle credits.
 message Usage {
   string provider = 1;
@@ -210,6 +240,7 @@ message Usage {
   // Tokens were estimated from delivered bytes (bounded by the quote) because the provider
   // sent no final usage frame; the API settles them as partial usage.
   bool estimated = 17;
+  OpenRouterTransport openrouter_transport = 18;
 }
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.

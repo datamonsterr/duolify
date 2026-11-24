@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -258,7 +259,7 @@ func (s *Service) screenReview(ctx context.Context, actor, text string) Outcome 
 				continue
 			}
 			reported = true
-			s.emit(actor, "$ai_generation", map[string]any{"feature": "screen_review", "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "succeeded": a.Delivered, "usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode, "provider_cost_nanos": attemptCost(a, rates)})
+			s.emit(actor, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{"feature": "screen_review", "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "succeeded": a.Delivered, "usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode, "provider_cost_nanos": attemptCost(a, rates)}, a.GetOpenrouterTransport()))
 		}
 	}
 	if !reported {

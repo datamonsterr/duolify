@@ -31,6 +31,7 @@ course_outline = 1.0
 
     let bin = common::eval_bin();
     let output = Command::new(bin)
+        .env_remove("EVAL_BUDGET_USD")
         .arg("--mode")
         .arg("draft")
         .arg("--data")

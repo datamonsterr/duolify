@@ -61,6 +61,7 @@ func settlementUsage(q pricing.Quote, promptSize int, delivered string, reported
 		u.LatencyMs = min(reported.LatencyMs, u32(q.Bounds["timeout_ms"]))
 		u.UsageUnavailable = reported.UsageUnavailable
 		u.Estimated = reported.Estimated
+		u.OpenrouterTransport = reported.GetOpenrouterTransport()
 		u.FallbackUsed = reported.Provider != q.Rate.Provider || reported.Model != q.Rate.Model
 	} else {
 		u.InputTokens = u32(min(estimateTokens(promptSize), q.Bounds["input_tokens"]))

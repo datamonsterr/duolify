@@ -377,6 +377,7 @@ async fn outline_recovery_timeout_fallback_and_boundary_cases() {
                 cache_write_tokens: 0,
                 cache_read_tokens: 0,
                 usage_unavailable: false,
+                transport: None,
             })
         }
         async fn stream(

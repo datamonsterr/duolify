@@ -459,7 +459,7 @@ func (m eventMeta) succeeded(out *enginev1.TranscribeResponse, latencyMs int) {
 	if out.GetFallbackUsed() {
 		m.emit("transcription_fallback_used", clone(common))
 	}
-	m.generation(map[string]any{"succeeded": true, "usage_available": true, "model": out.GetModel(), "fallback_used": out.GetFallbackUsed(), "latency_ms": latencyMs, "provider_cost_nanos": out.GetCostNanos()})
+	m.generation(analytics.WithOpenRouterTransport(map[string]any{"succeeded": true, "usage_available": true, "model": out.GetModel(), "fallback_used": out.GetFallbackUsed(), "latency_ms": latencyMs, "provider_cost_nanos": out.GetCostNanos()}, out.GetOpenrouterTransport()))
 }
 
 func (m eventMeta) failed(class, code string, latencyMs int) {

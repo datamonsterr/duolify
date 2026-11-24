@@ -317,6 +317,7 @@ dependencies = [
  "engine-core",
  "futures",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "tokio",

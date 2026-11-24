@@ -1,9 +1,18 @@
 pub mod elevenlabs;
+mod openrouter_gateway;
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
-use engine_core::{Completion, CompletionStream, LlmProvider, Route, StreamEvent};
+use engine_core::{
+    Completion, CompletionStream, GatewayBudget, GatewayCacheStatus, GatewayReason, LlmProvider,
+    OpenRouterTransport, OpenRouterTransportError, Route, StreamEvent,
+};
 use futures::{StreamExt, stream};
+pub use openrouter_gateway::GatewayConfig;
+use openrouter_gateway::{Gateway, GatewayFailure};
 use serde_json::{Value, json};
+use std::{future::Future, time::Duration};
+
+const CHAT_ENDPOINT: &str = "chat/completions";
 
 fn truncation_reason(value: &Value, anthropic: bool) -> Option<&'static str> {
     if anthropic && value["stop_reason"] == "max_tokens" {
@@ -20,6 +29,7 @@ pub struct HttpProvider {
     url: String,
     key: String,
     anthropic: bool,
+    gateway: Option<Gateway>,
 }
 pub type AnthropicProvider = HttpProvider;
 pub type OpenRouterProvider = HttpProvider;
@@ -30,6 +40,7 @@ impl HttpProvider {
             url,
             key,
             anthropic: true,
+            gateway: None,
         }
     }
     pub fn openrouter(key: String, url: String) -> Self {
@@ -38,7 +49,17 @@ impl HttpProvider {
             url,
             key,
             anthropic: false,
+            gateway: None,
         }
+    }
+    pub fn openrouter_with_gateway(
+        key: String,
+        direct_url: String,
+        config: Option<GatewayConfig>,
+    ) -> Result<Self> {
+        let mut provider = Self::openrouter(key, direct_url);
+        provider.gateway = config.map(Gateway::new).transpose()?;
+        Ok(provider)
     }
     /// Single-model routes for a fallback chain; `None` when the route is already one model.
     fn chain(&self, route: &Route) -> Option<Vec<Route>> {
@@ -56,24 +77,8 @@ impl HttpProvider {
                 .collect(),
         )
     }
-    fn request(
-        &self,
-        route: &Route,
-        input: &str,
-        streaming: bool,
-        max_output: u32,
-    ) -> reqwest::RequestBuilder {
-        self.request_model(route, &route.model, input, streaming, max_output)
-    }
-    /// One request for one model id; the reasoning effort is looked up per model.
-    fn request_model(
-        &self,
-        route: &Route,
-        model: &str,
-        input: &str,
-        streaming: bool,
-        max_output: u32,
-    ) -> reqwest::RequestBuilder {
+    fn chat_body(&self, route: &Route, input: &str, streaming: bool, max_output: u32) -> Value {
+        let model = &route.model;
         let mut body = json!({"model":model,"messages":[{"role":"user","content":input}],"stream":streaming,"max_tokens":max_output});
         if !self.anthropic {
             if let Some(effort) = route.reasoning.get(model) {
@@ -107,28 +112,157 @@ impl HttpProvider {
             // Only endpoints that honour `response_format` may serve a structured task.
             body["provider"]["require_parameters"] = json!(true);
         }
-        let mut req = self.client.post(&self.url);
-        if self.anthropic {
-            body["max_tokens"] = json!(max_output);
-            req = req
-                .header("x-api-key", &self.key)
-                .header("anthropic-version", "2023-06-01");
-        } else {
-            req = req
-                .bearer_auth(&self.key)
-                .header("HTTP-Referer", "https://duolify.online")
-                .header("X-Title", "Duolify");
-        }
         if streaming && !self.anthropic {
             body["stream_options"] = json!({"include_usage":true});
         }
-        req.json(&body)
+        body
+    }
+
+    async fn send(
+        &self,
+        request: reqwest::RequestBuilder,
+        body: &Value,
+    ) -> Result<reqwest::Response> {
+        let request = if self.anthropic {
+            request
+                .header("x-api-key", &self.key)
+                .header("anthropic-version", "2023-06-01")
+        } else {
+            request
+                .bearer_auth(&self.key)
+                .header("HTTP-Referer", "https://duolify.online")
+                .header("X-Title", "Duolify")
+        };
+        Ok(request
+            .json(body)
+            .send()
+            .await
+            .map_err(reqwest::Error::without_url)?)
+    }
+
+    async fn routed<T, F, Fut>(
+        &self,
+        route: &Route,
+        endpoint: &str,
+        body: &Value,
+        parse: F,
+    ) -> Result<(T, Option<OpenRouterTransport>)>
+    where
+        F: Fn(reqwest::Response, bool) -> Fut,
+        Fut: Future<Output = Result<T>>,
+    {
+        let chat = endpoint == CHAT_ENDPOINT;
+        let direct = || async {
+            let url = if chat {
+                self.url.clone()
+            } else {
+                audio_url(&self.url, endpoint)
+            };
+            parse(
+                check_status(self.send(self.client.post(url), body).await?)?,
+                false,
+            )
+            .await
+        };
+        let Some(gateway) = self
+            .gateway
+            .as_ref()
+            .filter(|gateway| chat || gateway.stt())
+        else {
+            let transport = (!self.anthropic).then_some(OpenRouterTransport::DIRECT);
+            return with_transport(direct().await, transport);
+        };
+        let public = chat && route.gateway_cache_public;
+        let budget = route.gateway_budget.unwrap_or(GatewayBudget {
+            timeout: if chat {
+                Duration::from_secs(30)
+            } else {
+                Duration::from_secs(8)
+            },
+            may_retry_billable: true,
+        });
+        let started = tokio::time::Instant::now();
+        let gateway_window = budget.timeout / 2;
+        let response = openrouter_gateway::try_gateway(
+            gateway_window,
+            self.send(gateway.request(endpoint, body, public), body),
+        )
+        .await;
+        let result = match response {
+            Ok(response) => {
+                let remaining = gateway_window.saturating_sub(started.elapsed());
+                let cache = openrouter_gateway::cache_status(&response, public);
+                match openrouter_gateway::check_gateway_response(response, remaining).await {
+                    Ok(response) => {
+                        openrouter_gateway::try_gateway(remaining, async {
+                            Ok((
+                                parse(check_status(response)?, true).await?,
+                                OpenRouterTransport::Gateway(cache),
+                            ))
+                        })
+                        .await
+                    }
+                    Err(error) => Err((GatewayFailure::classify(&error), error)),
+                }
+            }
+            Err(error) => Err(error),
+        };
+        match result {
+            Ok((result, transport)) => Ok((result, Some(transport))),
+            Err((failure, error)) => {
+                let remaining = budget.timeout.saturating_sub(started.elapsed());
+                if !remaining.is_zero()
+                    && let Some(transport) = failure.and_then(|failure| failure.fallback(budget))
+                {
+                    let result = tokio::time::timeout(remaining, direct())
+                        .await
+                        .unwrap_or_else(|_| Err(anyhow::anyhow!("direct OpenRouter timeout")));
+                    return with_transport(result, Some(transport));
+                }
+                let cache = if public {
+                    GatewayCacheStatus::Unknown
+                } else {
+                    GatewayCacheStatus::Bypass
+                };
+                with_transport(Err(error), Some(OpenRouterTransport::Gateway(cache)))
+            }
+        }
     }
 }
+
+fn check_status(response: reqwest::Response) -> Result<reqwest::Response> {
+    if !response.status().is_success() {
+        return Err(engine_core::transcribe::HttpStatus(response.status().as_u16()).into());
+    }
+    Ok(response)
+}
+
+fn with_transport<T>(
+    result: Result<T>,
+    transport: Option<OpenRouterTransport>,
+) -> Result<(T, Option<OpenRouterTransport>)> {
+    result
+        .map(|value| (value, transport))
+        .map_err(|source| match transport {
+            Some(transport) => OpenRouterTransportError { transport, source }.into(),
+            None => source,
+        })
+}
+
+async fn json_response(response: reqwest::Response, gateway: bool) -> Result<Value> {
+    let value: Value = response.json().await.map_err(reqwest::Error::without_url)?;
+    if gateway
+        && let Some(reason) = openrouter_gateway::classify_response(reqwest::StatusCode::OK, &value)
+    {
+        return Err(GatewayFailure::after_send(reason).into());
+    }
+    Ok(value)
+}
+
 /// OpenRouter answers audio on its own path under the same API root as chat completions.
 fn audio_url(chat_url: &str, endpoint: &str) -> String {
     let root = chat_url.find("/api/").map_or(chat_url, |i| &chat_url[..i]);
-    format!("{}{endpoint}", root.trim_end_matches('/'))
+    format!("{}/api/v1/{endpoint}", root.trim_end_matches('/'))
 }
 
 /// A two or three letter lowercase code, else unknown: the value is logged and counted, so
@@ -192,12 +326,9 @@ impl LlmProvider for HttpProvider {
             return Err(last.context("empty model chain")?);
         }
         let model = route.model.as_str();
-        let value: Value = self
-            .request(route, input, false, max_output)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+        let body = self.chat_body(route, input, false, max_output);
+        let (value, transport) = self
+            .routed(route, CHAT_ENDPOINT, &body, json_response)
             .await?;
         if let Some(reason) = truncation_reason(&value, self.anthropic) {
             tracing::warn!(model, reason, "provider output truncated");
@@ -294,198 +425,81 @@ impl LlmProvider for HttpProvider {
                     .and_then(|n| u32::try_from(n).ok())
                     .unwrap_or(0)
             },
+            transport,
         })
     }
     async fn stream_route(&self, route: &Route, input: &str) -> Result<CompletionStream> {
+        Ok(self
+            .stream_route_with_transport(route, input, 4096)
+            .await?
+            .0)
+    }
+    async fn stream_route_with_transport(
+        &self,
+        route: &Route,
+        input: &str,
+        max_output: u32,
+    ) -> Result<(CompletionStream, Option<OpenRouterTransport>)> {
         if let Some(chain) = self.chain(route) {
             let mut last = None;
             for sub in chain {
-                match self.stream_route(&sub, input).await {
+                match self
+                    .stream_route_with_transport(&sub, input, max_output)
+                    .await
+                {
                     Ok(done) => return Ok(done),
                     Err(e) => last = Some(e),
                 }
             }
             return Err(last.context("empty model chain")?);
         }
-        let response = self
-            .request(route, input, true, 4096)
-            .send()
-            .await?
-            .error_for_status()?;
-        let anthropic = self.anthropic;
-        let model = route.model.clone();
-        // Served model and reasoning tokens arrive in chunks; share them with the usage event.
-        let served = std::sync::Arc::new(std::sync::Mutex::new((None::<String>, 0_u32)));
-        let output = stream::unfold(
-            (
-                Box::pin(response.bytes_stream()),
-                Vec::<u8>::new(),
-                false,
-                None::<u32>,
-                None::<u32>,
-                0_u32,
-                0_u32,
-                false,
-            ),
-            move |(
-                mut bytes,
-                mut buffer,
-                mut done,
-                mut input,
-                mut output,
-                mut write,
-                mut read,
-                mut emitted,
-            )| {
-                let model = model.clone();
-                let served = served.clone();
-                async move {
-                    loop {
-                        if let Some(pos) = buffer.iter().position(|b| *b == b'\n') {
-                            let line = match String::from_utf8(buffer.drain(..=pos).collect()) {
-                                Ok(s) => s,
-                                Err(e) => {
-                                    return Some((
-                                        Err(e.into()),
-                                        (bytes, buffer, true, input, output, write, read, emitted),
-                                    ));
-                                }
-                            };
-                            if let Some(data) = line.trim().strip_prefix("data:") {
-                                let data = data.trim();
-                                if data == "[DONE]" {
-                                    done = true;
-                                    continue;
-                                }
-                                let v: Value = match serde_json::from_str(data) {
-                                    Ok(v) => v,
-                                    Err(e) => {
-                                        return Some((
-                                            Err(e.into()),
-                                            (
-                                                bytes, buffer, true, input, output, write, read,
-                                                emitted,
-                                            ),
-                                        ));
-                                    }
-                                };
-                                if v["type"] == "error" || !v["error"].is_null() {
-                                    return Some((
-                                        Err(anyhow::anyhow!("provider stream error")),
-                                        (bytes, buffer, true, input, output, write, read, true),
-                                    ));
-                                }
-                                let count =
-                                    |v: &Value| v.as_u64().and_then(|n| u32::try_from(n).ok());
-                                if anthropic {
-                                    if let Some(n) =
-                                        count(&v["message"]["usage"]["cache_creation_input_tokens"])
-                                    {
-                                        write = n
-                                    }
-                                    if let Some(n) =
-                                        count(&v["message"]["usage"]["cache_read_input_tokens"])
-                                    {
-                                        read = n
-                                    }
-                                    if let Some(n) = count(&v["message"]["usage"]["input_tokens"]) {
-                                        input = Some(n);
-                                    }
-                                    if let Some(n) = count(&v["usage"]["output_tokens"]) {
-                                        output = Some(n);
-                                    }
-                                    if v["type"] == "message_stop" {
-                                        done = true;
-                                    }
-                                } else {
-                                    if let Some(n) =
-                                        count(&v["usage"]["prompt_tokens_details"]["cached_tokens"])
-                                    {
-                                        read = n
-                                    }
-                                    if let Some(n) = count(&v["usage"]["prompt_tokens"]) {
-                                        input = Some(n);
-                                    }
-                                    if let Some(n) = count(&v["usage"]["completion_tokens"]) {
-                                        output = Some(n);
-                                    }
-                                    if let Some(n) = count(
-                                        &v["usage"]["completion_tokens_details"]["reasoning_tokens"],
-                                    ) {
-                                        served.lock().unwrap().1 = n;
-                                    }
-                                    if let Some(m) = v["model"].as_str().filter(|m| !m.is_empty()) {
-                                        served.lock().unwrap().0 = Some(m.to_owned());
-                                    }
-                                }
-                                let delta = if anthropic {
-                                    v["delta"]["text"].as_str()
-                                } else {
-                                    v["choices"][0]["delta"]["content"].as_str()
-                                };
-                                if let Some(text) = delta {
-                                    return Some((
-                                        Ok(StreamEvent::Delta(text.to_owned())),
-                                        (bytes, buffer, done, input, output, write, read, emitted),
-                                    ));
-                                }
-                            }
-                        } else if done {
-                            if emitted {
-                                return None;
-                            }
-                            emitted = true;
-                            let usage = Completion {
-                                text: String::new(),
-                                provider: if anthropic { "anthropic" } else { "openrouter" }.into(),
-                                model: {
-                                    let guard = served.lock().unwrap();
-                                    guard.0.clone().unwrap_or(model)
-                                },
-                                input_tokens: if anthropic {
-                                    input.unwrap_or(0)
-                                } else {
-                                    input.unwrap_or(0).saturating_sub(read)
-                                },
-                                output_tokens: billed_output(
-                                    output.unwrap_or(0),
-                                    served.lock().unwrap().1,
-                                ),
-                                cache_write_tokens: write,
-                                cache_read_tokens: read,
-                                usage_unavailable: input.is_none() || output.is_none(),
-                            };
-                            return Some((
-                                Ok(StreamEvent::Usage(usage)),
-                                (bytes, buffer, done, input, output, write, read, emitted),
-                            ));
-                        } else {
-                            match bytes.next().await {
-                                Some(Ok(b)) => buffer.extend_from_slice(&b),
-                                Some(Err(e)) => {
-                                    return Some((
-                                        Err(e.into()),
-                                        (bytes, buffer, true, input, output, write, read, true),
-                                    ));
-                                }
-                                None => {
-                                    return Some((
-                                        Err(anyhow::anyhow!(
-                                            "provider stream ended before completion"
-                                        )),
-                                        (bytes, Vec::new(), true, input, output, write, read, true),
-                                    ));
-                                }
-                            }
-                        }
+        let body = self.chat_body(route, input, true, max_output);
+        let (stream, transport) = self
+            .routed(
+                route,
+                CHAT_ENDPOINT,
+                &body,
+                |response, via_gateway| async move {
+                    if via_gateway
+                        && response
+                            .headers()
+                            .get(reqwest::header::CONTENT_TYPE)
+                            .and_then(|value| value.to_str().ok())
+                            .is_some_and(|value| value.starts_with("application/json"))
+                    {
+                        json_response(response, true).await?;
+                        bail!("gateway returned JSON in place of a provider stream");
                     }
-                }
-            },
-        );
-        Ok(Box::pin(output))
+                    let mut stream =
+                        response_stream(response, self.anthropic, route.model.clone(), via_gateway);
+                    if self.gateway.is_none() {
+                        return Ok(stream);
+                    }
+                    // Inspect only the first visible event. Once returned, this stream has no retry path.
+                    let first = stream
+                        .next()
+                        .await
+                        .context("provider stream ended before completion")??;
+                    Ok(Box::pin(stream::once(async { Ok(first) }).chain(stream))
+                        as CompletionStream)
+                },
+            )
+            .await?;
+        Ok((
+            Box::pin(stream.map(move |event| {
+                event.map(|event| match event {
+                    StreamEvent::Usage(mut usage) => {
+                        usage.transport = transport;
+                        StreamEvent::Usage(usage)
+                    }
+                    other => other,
+                })
+            })),
+            transport,
+        ))
     }
-    /// OpenRouter `POST /api/v1/audio/transcriptions`: base64 audio, data collection denied and
-    /// zero data retention required (ADR 0021). One model per request; the caller owns fallback.
+
+    /// OpenRouter `POST /api/v1/audio/transcriptions`: base64 audio and the ADR 0021 policy.
     async fn transcribe(
         &self,
         route: &Route,
@@ -501,7 +515,13 @@ impl LlmProvider for HttpProvider {
         let endpoint = route
             .endpoint
             .as_deref()
-            .context("transcription route has no endpoint")?;
+            .and_then(|endpoint| endpoint.strip_prefix("/api/v1/"))
+            .filter(|endpoint| *endpoint == "audio/transcriptions")
+            .context("transcription route has no supported endpoint")?;
+        anyhow::ensure!(
+            route.zdr && route.data_collection.as_deref() == Some("deny"),
+            "transcription route must require zero data retention"
+        );
         let mut body = json!({
             "model": model,
             "input_audio": {
@@ -510,29 +530,12 @@ impl LlmProvider for HttpProvider {
             },
             "response_format": "verbose_json",
             "temperature": 0,
-            "provider": {"data_collection": "deny"},
+            "provider": {"data_collection": "deny", "zdr": true},
         });
-        if route.zdr {
-            body["provider"]["zdr"] = json!(true);
-        }
         if let Some(language) = language {
             body["language"] = json!(language);
         }
-        let response = self
-            .client
-            .post(audio_url(&self.url, endpoint))
-            .bearer_auth(&self.key)
-            .header("HTTP-Referer", "https://duolify.online")
-            .header("X-Title", "Duolify")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("transcription request failed: {}", e.without_url()))?;
-        let status = response.status();
-        if !status.is_success() {
-            return Err(engine_core::transcribe::HttpStatus(status.as_u16()).into());
-        }
-        let value: Value = response.json().await.context("transcription response")?;
+        let (value, transport) = self.routed(route, endpoint, &body, json_response).await?;
         let text = value["text"]
             .as_str()
             .context("transcription response has no text")?
@@ -551,8 +554,200 @@ impl LlmProvider for HttpProvider {
                 .as_f64()
                 .filter(|c| c.is_finite() && (0.0..=1.0).contains(c)),
             model: model.into(),
+            transport,
         })
     }
+}
+
+fn response_stream(
+    response: reqwest::Response,
+    anthropic: bool,
+    model: String,
+    via_gateway: bool,
+) -> CompletionStream {
+    // Served model and reasoning tokens arrive in chunks; share them with the usage event.
+    let served = std::sync::Arc::new(std::sync::Mutex::new((None::<String>, 0_u32)));
+    let output = stream::unfold(
+        (
+            Box::pin(response.bytes_stream()),
+            Vec::<u8>::new(),
+            false,
+            None::<u32>,
+            None::<u32>,
+            0_u32,
+            0_u32,
+            false,
+        ),
+        move |(
+            mut bytes,
+            mut buffer,
+            mut done,
+            mut input,
+            mut output,
+            mut write,
+            mut read,
+            mut emitted,
+        )| {
+            let model = model.clone();
+            let served = served.clone();
+            async move {
+                loop {
+                    if let Some(pos) = buffer.iter().position(|b| *b == b'\n') {
+                        let line = match String::from_utf8(buffer.drain(..=pos).collect()) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                return Some((
+                                    Err(e.into()),
+                                    (bytes, buffer, true, input, output, write, read, emitted),
+                                ));
+                            }
+                        };
+                        if let Some(data) = line.trim().strip_prefix("data:") {
+                            let data = data.trim();
+                            if data == "[DONE]" {
+                                done = true;
+                                continue;
+                            }
+                            let v: Value = match serde_json::from_str(data) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    return Some((
+                                        Err(e.into()),
+                                        (bytes, buffer, true, input, output, write, read, emitted),
+                                    ));
+                                }
+                            };
+                            if v["type"] == "error"
+                                || !v["error"].is_null()
+                                || v["errors"]
+                                    .as_array()
+                                    .is_some_and(|errors| !errors.is_empty())
+                            {
+                                let error = if via_gateway
+                                    && let Some(reason) = openrouter_gateway::classify_response(
+                                        reqwest::StatusCode::OK,
+                                        &v,
+                                    ) {
+                                    GatewayFailure::after_send(reason).into()
+                                } else {
+                                    anyhow::anyhow!("provider stream error")
+                                };
+                                return Some((
+                                    Err(error),
+                                    (bytes, buffer, true, input, output, write, read, true),
+                                ));
+                            }
+                            let count = |v: &Value| v.as_u64().and_then(|n| u32::try_from(n).ok());
+                            if anthropic {
+                                if let Some(n) =
+                                    count(&v["message"]["usage"]["cache_creation_input_tokens"])
+                                {
+                                    write = n
+                                }
+                                if let Some(n) =
+                                    count(&v["message"]["usage"]["cache_read_input_tokens"])
+                                {
+                                    read = n
+                                }
+                                if let Some(n) = count(&v["message"]["usage"]["input_tokens"]) {
+                                    input = Some(n);
+                                }
+                                if let Some(n) = count(&v["usage"]["output_tokens"]) {
+                                    output = Some(n);
+                                }
+                                if v["type"] == "message_stop" {
+                                    done = true;
+                                }
+                            } else {
+                                if let Some(n) =
+                                    count(&v["usage"]["prompt_tokens_details"]["cached_tokens"])
+                                {
+                                    read = n
+                                }
+                                if let Some(n) = count(&v["usage"]["prompt_tokens"]) {
+                                    input = Some(n);
+                                }
+                                if let Some(n) = count(&v["usage"]["completion_tokens"]) {
+                                    output = Some(n);
+                                }
+                                if let Some(n) = count(
+                                    &v["usage"]["completion_tokens_details"]["reasoning_tokens"],
+                                ) {
+                                    served.lock().unwrap().1 = n;
+                                }
+                                if let Some(m) = v["model"].as_str().filter(|m| !m.is_empty()) {
+                                    served.lock().unwrap().0 = Some(m.to_owned());
+                                }
+                            }
+                            let delta = if anthropic {
+                                v["delta"]["text"].as_str()
+                            } else {
+                                v["choices"][0]["delta"]["content"].as_str()
+                            };
+                            if let Some(text) = delta.filter(|text| !text.is_empty()) {
+                                return Some((
+                                    Ok(StreamEvent::Delta(text.to_owned())),
+                                    (bytes, buffer, done, input, output, write, read, emitted),
+                                ));
+                            }
+                        }
+                    } else if done {
+                        if emitted {
+                            return None;
+                        }
+                        emitted = true;
+                        let usage = Completion {
+                            text: String::new(),
+                            provider: if anthropic { "anthropic" } else { "openrouter" }.into(),
+                            model: {
+                                let guard = served.lock().unwrap();
+                                guard.0.clone().unwrap_or(model)
+                            },
+                            input_tokens: if anthropic {
+                                input.unwrap_or(0)
+                            } else {
+                                input.unwrap_or(0).saturating_sub(read)
+                            },
+                            output_tokens: billed_output(
+                                output.unwrap_or(0),
+                                served.lock().unwrap().1,
+                            ),
+                            cache_write_tokens: write,
+                            cache_read_tokens: read,
+                            usage_unavailable: input.is_none() || output.is_none(),
+                            transport: None,
+                        };
+                        return Some((
+                            Ok(StreamEvent::Usage(usage)),
+                            (bytes, buffer, done, input, output, write, read, emitted),
+                        ));
+                    } else {
+                        match bytes.next().await {
+                            Some(Ok(b)) => buffer.extend_from_slice(&b),
+                            Some(Err(e)) => {
+                                return Some((
+                                    Err(e.without_url().into()),
+                                    (bytes, buffer, true, input, output, write, read, true),
+                                ));
+                            }
+                            None => {
+                                let error = if via_gateway {
+                                    GatewayFailure::after_send(GatewayReason::TransportError).into()
+                                } else {
+                                    anyhow::anyhow!("provider stream ended before completion")
+                                };
+                                return Some((
+                                    Err(error),
+                                    (bytes, Vec::new(), true, input, output, write, read, true),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    );
+    Box::pin(output)
 }
 /// Reasoning tokens bill as output. OpenAI-style `completion_tokens` already includes them;
 /// if a provider reports more reasoning than completion tokens they must be reported separately.
@@ -611,6 +806,15 @@ impl LlmProvider for RouteMock {
 
 pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
     use std::sync::Arc;
+    let read_setting = |name| match std::env::var(name) {
+        Ok(value) => Ok(Some(value)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => bail!("invalid UTF-8 in {name}"),
+    };
+    let base = read_setting("OPENROUTER_BASE_URL")?;
+    let token = read_setting("AI_GATEWAY_TOKEN")?;
+    let stt = read_setting("AI_GATEWAY_STT_ENABLED")?;
+    let gateway = GatewayConfig::parse(base.as_deref(), token.as_deref(), stt.as_deref())?;
     if mode == "mock" {
         return engine_core::ProviderRouter::new(Arc::new(RouteMock), Arc::new(RouteMock));
     }
@@ -621,11 +825,11 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
     if openrouter.is_empty() {
         bail!("OPENROUTER_API_KEY must not be empty");
     }
-    let url = "https://openrouter.ai/api/v1/chat/completions";
-    engine_core::ProviderRouter::new(
-        Arc::new(HttpProvider::openrouter(openrouter.clone(), url.into())),
-        Arc::new(HttpProvider::openrouter(openrouter, url.into())),
-    )
+    let url = format!("{}/{CHAT_ENDPOINT}", openrouter_gateway::DIRECT_BASE_URL);
+    let provider = Arc::new(HttpProvider::openrouter_with_gateway(
+        openrouter, url, gateway,
+    )?);
+    engine_core::ProviderRouter::new(provider.clone(), provider)
 }
 
 #[cfg(test)]

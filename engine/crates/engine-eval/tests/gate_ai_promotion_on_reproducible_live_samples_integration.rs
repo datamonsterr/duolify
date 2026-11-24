@@ -345,6 +345,7 @@ async fn test_recorded_provider_budget_sums_primary_and_judge_using_price_table(
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         },
         judge_completion: engine_core::Completion {
             text: "PASS".into(),
@@ -355,6 +356,7 @@ async fn test_recorded_provider_budget_sums_primary_and_judge_using_price_table(
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         },
     });
 
@@ -427,6 +429,7 @@ async fn test_recorded_provider_fails_closed_on_primary_usage_unavailable() {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: true, // Primary usage unavailable!
+            transport: None,
         },
         judge_completion: engine_core::Completion {
             text: "PASS".into(),
@@ -437,6 +440,7 @@ async fn test_recorded_provider_fails_closed_on_primary_usage_unavailable() {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         },
     });
 
@@ -482,6 +486,7 @@ async fn test_recorded_provider_fails_closed_on_judge_usage_unavailable() {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         },
         judge_completion: engine_core::Completion {
             text: "PASS".into(),
@@ -492,6 +497,7 @@ async fn test_recorded_provider_fails_closed_on_judge_usage_unavailable() {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: true, // Judge usage unavailable!
+            transport: None,
         },
     });
 

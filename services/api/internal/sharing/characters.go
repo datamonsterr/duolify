@@ -8,6 +8,7 @@ import (
 	"time"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/jackc/pgx/v5"
 )
@@ -229,7 +230,7 @@ func (s *Service) screenCharacters(ctx context.Context, owner string, snap Snaps
 				} else {
 					out.CostNanos += cost
 				}
-				s.emit(owner, "$ai_generation", map[string]any{"feature": "character_screen", "provider": a.Provider, "model": a.Model, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "fallback_used": a.FallbackUsed, "usage_available": !a.UsageUnavailable, "succeeded": a.Delivered, "error_code": a.ErrorCode, "provider_cost_nanos": cost})
+				s.emit(owner, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{"feature": "character_screen", "provider": a.Provider, "model": a.Model, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "fallback_used": a.FallbackUsed, "usage_available": !a.UsageUnavailable, "succeeded": a.Delivered, "error_code": a.ErrorCode, "provider_cost_nanos": cost}, a.GetOpenrouterTransport()))
 			}
 		}
 		if callErr != nil || resp == nil || resp.PolicyVersion != "character-v1" || !resp.PublicationScreened || len(resp.Attempts) == 0 || len(resp.Attempts) > int(min(s.cfg.MaxAttempts, 2)) {

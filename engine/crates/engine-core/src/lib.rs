@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, pin::Pin, sync::Arc, time::Duration};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(from = "RawModels")]
@@ -48,6 +48,7 @@ pub struct Model {
     pub endpoint: Option<String>,
     pub zdr: bool,
     pub data_collection: Option<String>,
+    pub gateway_cache_public: bool,
 }
 #[derive(Deserialize)]
 struct RawModel {
@@ -64,6 +65,8 @@ struct RawModel {
     zdr: bool,
     #[serde(default)]
     data_collection: Option<String>,
+    #[serde(default)]
+    gateway_cache_public: bool,
 }
 impl From<RawModel> for Model {
     fn from(raw: RawModel) -> Self {
@@ -81,6 +84,7 @@ impl From<RawModel> for Model {
             endpoint: raw.endpoint,
             zdr: raw.zdr,
             data_collection: raw.data_collection,
+            gateway_cache_public: raw.gateway_cache_public,
         }
     }
 }
@@ -99,6 +103,84 @@ pub struct Route {
     pub endpoint: Option<String>,
     pub zdr: bool,
     pub data_collection: Option<String>,
+    /// Set only on tasks whose entire request is server-identified public content.
+    pub gateway_cache_public: bool,
+    pub gateway_budget: Option<GatewayBudget>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GatewayBudget {
+    pub timeout: Duration,
+    /// The quote has room for a second attempt even if the first might still be billed.
+    pub may_retry_billable: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayReason {
+    Timeout,
+    Unavailable,
+    TransportError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayCacheStatus {
+    Hit,
+    Miss,
+    Bypass,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpenRouterTransport {
+    Gateway(GatewayCacheStatus),
+    Direct {
+        fallback_reason: Option<GatewayReason>,
+        gateway_may_bill: bool,
+    },
+}
+
+impl OpenRouterTransport {
+    pub const DIRECT: Self = Self::Direct {
+        fallback_reason: None,
+        gateway_may_bill: false,
+    };
+
+    pub fn gateway_may_bill(self) -> bool {
+        matches!(
+            self,
+            Self::Direct {
+                gateway_may_bill: true,
+                ..
+            }
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct OpenRouterTransportError {
+    pub transport: OpenRouterTransport,
+    pub source: anyhow::Error,
+}
+
+impl std::fmt::Display for OpenRouterTransportError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.source.fmt(formatter)
+    }
+}
+
+impl std::error::Error for OpenRouterTransportError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.source.as_ref())
+    }
+}
+
+impl OpenRouterTransportError {
+    pub fn transport(error: &anyhow::Error) -> Option<OpenRouterTransport> {
+        error.downcast_ref::<Self>().map(|error| error.transport)
+    }
 }
 /// A rejected answer and the corrective user message sent after it on the repair attempt.
 #[derive(Debug, Clone, Default)]
@@ -117,6 +199,8 @@ impl Model {
             endpoint: self.endpoint.clone(),
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
+            gateway_cache_public: self.gateway_cache_public,
+            gateway_budget: None,
         }
     }
     /// One bounded attempt: exactly one model request, no provider-side chain, so the bounded
@@ -140,6 +224,8 @@ impl Model {
             endpoint: self.endpoint.clone(),
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
+            gateway_cache_public: self.gateway_cache_public,
+            gateway_budget: None,
         }
     }
 }
@@ -157,6 +243,8 @@ pub struct Completion {
     /// False includes an explicitly measured zero; true retains the cost hold.
     #[serde(default)]
     pub usage_unavailable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<OpenRouterTransport>,
 }
 #[derive(Debug, Clone)]
 pub enum StreamEvent {
@@ -193,6 +281,14 @@ pub trait LlmProvider: Send + Sync {
     }
     async fn stream_route(&self, route: &Route, input: &str) -> Result<CompletionStream> {
         self.stream(&route.model, input).await
+    }
+    async fn stream_route_with_transport(
+        &self,
+        route: &Route,
+        input: &str,
+        _max_output: u32,
+    ) -> Result<(CompletionStream, Option<OpenRouterTransport>)> {
+        Ok((self.stream_route(route, input).await?, None))
     }
     /// Speech to text on the route's audio endpoint. The audio is borrowed for the call only.
     async fn transcribe(
@@ -277,6 +373,7 @@ impl LlmProvider for MockProvider {
             cost_nanos: 0,
             cost_reported: true,
             confidence: None,
+            transport: None,
             model: model.into(),
         })
     }
@@ -573,6 +670,7 @@ impl LlmProvider for MockProvider {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         })
     }
     async fn stream(&self, model: &str, _: &str) -> Result<CompletionStream> {
@@ -585,6 +683,7 @@ impl LlmProvider for MockProvider {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         };
         Ok(Box::pin(futures::stream::iter(vec![
             Ok(StreamEvent::Delta("Sample response".into())),

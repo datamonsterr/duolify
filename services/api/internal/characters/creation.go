@@ -14,6 +14,7 @@ import (
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
@@ -628,7 +629,7 @@ func (s *Service) recordMapping(ctx context.Context, owner, id string, attempts 
 				continue
 			}
 			props := map[string]any{"feature": "character_create", "provider_cost_nanos": usageCost(a, bounds), "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "succeeded": a.Delivered && callErr == nil, "usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode}
-			if err = creationEvent(ctx, tx, owner, fmt.Sprintf("%s:mapping:%d", id, i), "$ai_generation", props); err != nil {
+			if err = creationEvent(ctx, tx, owner, fmt.Sprintf("%s:mapping:%d", id, i), "$ai_generation", analytics.WithOpenRouterTransport(props, a.GetOpenrouterTransport())); err != nil {
 				return err
 			}
 		}
@@ -659,7 +660,7 @@ func (s *Service) recordScreen(ctx context.Context, owner, id string, r *pb.Scre
 	if r != nil {
 		for _, a := range r.Attempts {
 			if a != nil {
-				s.emit(ctx, owner, "$ai_generation", map[string]any{"feature": "character_screen", "provider_cost_nanos": usageCost(a, creationScreenLimits(q, q.Bounds["max_cost_nanos"])), "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "succeeded": a.Delivered, "usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode})
+				s.emit(ctx, owner, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{"feature": "character_screen", "provider_cost_nanos": usageCost(a, creationScreenLimits(q, q.Bounds["max_cost_nanos"])), "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "succeeded": a.Delivered, "usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode}, a.GetOpenrouterTransport()))
 			}
 		}
 	}

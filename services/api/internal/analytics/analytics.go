@@ -670,6 +670,16 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
+		boolean("gateway_fallback")
+		for key, allowed := range map[string][]string{
+			"transport_route":      {"gateway", "direct"},
+			"gateway_cache_status": {"hit", "miss", "bypass", "unknown"},
+			"gateway_reason":       {"timeout", "unavailable", "transport_error", "none"},
+		} {
+			if value, ok := input[key].(string); ok && slices.Contains(allowed, value) {
+				out[key] = value
+			}
+		}
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
 		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
 		ids("provider", "model", "task", "pricing_version", "error_code", "envelope", "cache_class")

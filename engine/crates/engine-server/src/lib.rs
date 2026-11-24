@@ -167,6 +167,41 @@ type RpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 fn usage(c: &Completion) -> Option<pb::Usage> {
     usage_estimated(c, false)
 }
+fn openrouter_transport(
+    transport: Option<engine_core::OpenRouterTransport>,
+) -> Option<pb::OpenRouterTransport> {
+    use engine_core::{GatewayCacheStatus, GatewayReason, OpenRouterTransport};
+    use pb::open_router_transport::{CacheStatus, Reason, Route};
+    let (route, cache, reason, may_bill) = match transport? {
+        OpenRouterTransport::Gateway(cache) => (Route::Gateway, cache, None, false),
+        OpenRouterTransport::Direct {
+            fallback_reason,
+            gateway_may_bill,
+        } => (
+            Route::Direct,
+            GatewayCacheStatus::Bypass,
+            fallback_reason,
+            gateway_may_bill,
+        ),
+    };
+    Some(pb::OpenRouterTransport {
+        route: route as i32,
+        gateway_cache_status: match cache {
+            GatewayCacheStatus::Hit => CacheStatus::Hit,
+            GatewayCacheStatus::Miss => CacheStatus::Miss,
+            GatewayCacheStatus::Bypass => CacheStatus::Bypass,
+            GatewayCacheStatus::Unknown => CacheStatus::Unknown,
+        } as i32,
+        gateway_fallback: reason.is_some(),
+        gateway_reason: match reason {
+            None => Reason::None,
+            Some(GatewayReason::Timeout) => Reason::Timeout,
+            Some(GatewayReason::Unavailable) => Reason::Unavailable,
+            Some(GatewayReason::TransportError) => Reason::TransportError,
+        } as i32,
+        gateway_may_bill: may_bill,
+    })
+}
 fn usage_estimated(c: &Completion, estimated: bool) -> Option<pb::Usage> {
     Some(pb::Usage {
         estimated,
@@ -178,6 +213,7 @@ fn usage_estimated(c: &Completion, estimated: bool) -> Option<pb::Usage> {
         cache_write_tokens: c.cache_write_tokens,
         cache_read_tokens: c.cache_read_tokens,
         usage_unavailable: c.usage_unavailable,
+        openrouter_transport: openrouter_transport(c.transport),
         ..Default::default()
     })
 }
@@ -525,6 +561,7 @@ fn attempt_usage(a: &engine_core::credits::Attempt) -> pb::Usage {
         delivered: a.delivered,
         usage_unavailable: a.usage_unavailable,
         error_code: a.error_code.clone().unwrap_or_default(),
+        openrouter_transport: openrouter_transport(a.transport),
         ..Default::default()
     }
 }
@@ -765,6 +802,7 @@ impl EngineService for Service {
             fallback_used: o.fallback_used,
             latency_ms: o.latency_ms,
             cost_nanos: o.transcription.cost_nanos,
+            openrouter_transport: openrouter_transport(o.transcription.transport),
         }))
     }
     async fn map_character(
@@ -1919,16 +1957,20 @@ impl EngineService for Service {
         self.live_model("SetupChat", "setup_chat")?;
         struct RouterModelAdapter<'a> {
             router: &'a ProviderRouter,
+            usage: std::sync::Mutex<Option<Completion>>,
         }
         #[tonic::async_trait]
         impl engine_core::accounts::ModelProvider for RouterModelAdapter<'_> {
             async fn complete(&self, prompt: &str) -> anyhow::Result<String> {
-                let c = self.router.complete("setup_chat", prompt).await?;
-                Ok(c.text)
+                let mut completion = self.router.complete("setup_chat", prompt).await?;
+                let text = std::mem::take(&mut completion.text);
+                *self.usage.lock().expect("setup chat usage lock") = Some(completion);
+                Ok(text)
             }
         }
         let adapter = RouterModelAdapter {
             router: &self.router,
+            usage: Default::default(),
         };
         let mut state = engine_core::accounts::SetupState::default();
         if let Some(p) = req.profile {
@@ -1987,20 +2029,28 @@ impl EngineService for Service {
             next_step: result.next_step.as_str().into(),
             is_follow_up: result.is_follow_up,
             is_complete: result.is_complete,
-            usage: Some(pb::Usage {
-                provider: self.router.primary.name().into(),
-                model: self
-                    .router
-                    .models
-                    .tasks
-                    .get("setup_chat")
-                    .map(|m| m.model.clone())
-                    .unwrap_or_default(),
-                input_tokens: 100,
-                output_tokens: 50,
-                latency_ms: 0,
-                ..Default::default()
-            }),
+            usage: adapter
+                .usage
+                .into_inner()
+                .expect("setup chat usage lock")
+                .as_ref()
+                .and_then(usage)
+                .or_else(|| {
+                    Some(pb::Usage {
+                        provider: self.router.primary.name().into(),
+                        model: self
+                            .router
+                            .models
+                            .tasks
+                            .get("setup_chat")
+                            .map(|m| m.model.clone())
+                            .unwrap_or_default(),
+                        input_tokens: 100,
+                        output_tokens: 50,
+                        latency_ms: 0,
+                        ..Default::default()
+                    })
+                }),
         }))
     }
 }

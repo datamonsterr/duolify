@@ -116,7 +116,7 @@ func (s *Service) screen(ctx context.Context, owner, topic, text string) (*pb.Sc
 	}
 	for _, a := range verdict.Attempts {
 		if a != nil {
-			s.emit(owner, "$ai_generation", map[string]any{"feature": "steer_screen", "provider": a.Provider, "model": a.Model, "input_tokens": int(a.InputTokens), "output_tokens": int(a.OutputTokens), "latency_ms": int(a.LatencyMs), "succeeded": true, "fallback_used": a.FallbackUsed})
+			s.emit(owner, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{"feature": "steer_screen", "provider": a.Provider, "model": a.Model, "input_tokens": int(a.InputTokens), "output_tokens": int(a.OutputTokens), "latency_ms": int(a.LatencyMs), "succeeded": true, "fallback_used": a.FallbackUsed}, a.GetOpenrouterTransport()))
 		}
 	}
 	if !verdict.Allowed {

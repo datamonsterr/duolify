@@ -80,6 +80,9 @@ func CalculateSettlement(q pricing.Quote, usage []*enginev1.Usage) (Reservation,
 				cost = attemptCost(q)
 			}
 		}
+		if u.Component == "content" && u.GetOpenrouterTransport().GetGatewayMayBill() {
+			cost = sumProducts([2]int64{cost, 1}, [2]int64{attemptCost(q), 1})
+		}
 		if cost < 0 || cost > q.Bounds["max_cost_nanos"]-result.CostNanos {
 			return result, ErrUsage
 		}

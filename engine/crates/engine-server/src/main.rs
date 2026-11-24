@@ -6,7 +6,7 @@ use tonic::transport::Server;
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .json()
-        .with_env_filter("engine_server=info")
+        .with_env_filter("engine_server=info,engine_providers::openrouter_gateway=warn")
         .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .init();
 
