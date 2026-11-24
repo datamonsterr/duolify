@@ -13,6 +13,9 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Motion HTML** | HTML + CSS + JS animation content, rendered live in a sandboxed webview. Never rendered to MP4. |
 | **Slide manifest** | JSON that lists a lesson's slides, durations, assets and checkpoints. |
 | **Lesson test** | Quiz at the end of a lesson. The learner passes only by answering every question correctly. A wrong answer shows the correction, then a *retry variant* is queued. |
+| **Review** | Daily session of due questions from earlier lessons across courses, scheduled per topic (successive relearning). Uses stored questions only; no Credits. |
+| **Interaction card** | Native, skippable card at a slide checkpoint: Guess first, Explain why or Free recall. Never gating. |
+| **Motion timeline** | Declarative per-slide list of animation steps (closed effects, element ids, narration cues) played by the trusted player runtime. |
 | **Retry variant** | A paraphrased question on the same topic as a missed question, with paraphrased answer choices. Asked later in the same lesson test; it must be answered correctly to pass. |
 | **Gated generation** | The engine generates lesson N+1 only after the learner passes lesson N's test. |
 | **Course preview** | Example slides and a sample outline shown before the learner commits to generating a course. |
