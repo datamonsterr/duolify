@@ -11,6 +11,7 @@ import { AppLink, navigateTo } from "../../lib/navigation";
 import { ExampleCourses } from "./ExampleCourses";
 import { StatIcon } from "./StatIcon";
 import { useStreak, useWallet } from "../shell/SidebarStats";
+import { useMobileLayout } from "../shell/AdaptiveLayouts";
 import { useUiPreferences } from "./localization/Preferences";
 
 function subscribeOnline(notify: () => void) {
@@ -20,6 +21,35 @@ function subscribeOnline(notify: () => void) {
     window.removeEventListener("online", notify);
     window.removeEventListener("offline", notify);
   };
+}
+
+/** Phone only: the sidebar stats block (from 48rem) already shows these. */
+function CourseChips() {
+  const { t, number } = useUiPreferences();
+  const streak = useStreak("courses");
+  const wallet = useWallet("courses");
+  return (
+    <>
+      <Badge role="streak">
+        <AppLink
+          href="/streak"
+          aria-label={`${t("nav.streak")} ${streak.data ? number(streak.data.current_days) : "-"}`}
+        >
+          <StatIcon name="flame" />
+          {streak.data ? number(streak.data.current_days) : "-"}
+        </AppLink>
+      </Badge>
+      <Badge role="credit">
+        <AppLink
+          href="/credits"
+          aria-label={`${t("nav.credits")} ${wallet.data ? number(wallet.data.available) : "-"}`}
+        >
+          <StatIcon name="gem" />
+          {wallet.data ? number(wallet.data.available) : "-"}
+        </AppLink>
+      </Badge>
+    </>
+  );
 }
 
 export function Courses({
@@ -32,9 +62,8 @@ export function Courses({
     () => window.navigator.onLine,
     () => true,
   );
-  const { t, number } = useUiPreferences();
-  const streak = useStreak("courses");
-  const wallet = useWallet("courses");
+  const { t } = useUiPreferences();
+  const mobile = useMobileLayout();
   const [search, setSearch] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const shell = useShellSession();
@@ -115,24 +144,7 @@ export function Courses({
           >
             <StatIcon name="refresh" />
           </button>
-          <Badge role="streak">
-            <AppLink
-              href="/streak"
-              aria-label={`${t("nav.streak")} ${streak.data ? number(streak.data.current_days) : "-"}`}
-            >
-              <StatIcon name="flame" />
-              {streak.data ? number(streak.data.current_days) : "-"}
-            </AppLink>
-          </Badge>
-          <Badge role="credit">
-            <AppLink
-              href="/credits"
-              aria-label={`${t("nav.credits")} ${wallet.data ? number(wallet.data.available) : "-"}`}
-            >
-              <StatIcon name="gem" />
-              {wallet.data ? number(wallet.data.available) : "-"}
-            </AppLink>
-          </Badge>
+          {mobile && <CourseChips />}
           <span className="courses-create-bar">{create}</span>
         </div>
       </div>

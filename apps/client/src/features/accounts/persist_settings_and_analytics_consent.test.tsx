@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
 import { emptySettings, profileApi } from "./learner-context";
@@ -41,29 +47,32 @@ beforeEach(() => {
 it("loads saved settings, persists changes, and applies analytics consent", async () => {
   render(<Settings />);
   await screen.findByRole("heading", { name: "Settings" });
-  expect(await screen.findByLabelText("Appearance")).toHaveValue("system");
-  fireEvent.change(screen.getByLabelText("Appearance"), {
-    target: { value: "dark" },
-  });
+  const group = await screen.findByRole("radiogroup", { name: "Appearance" });
+  expect(within(group).getByRole("radio", { name: "System" })).toBeChecked();
+  fireEvent.click(within(group).getByRole("radio", { name: "Dark" }));
+  // The theme saves on tap, without the Save button.
+  await waitFor(() =>
+    expect(profileApi.saveSettings).toHaveBeenCalledWith({
+      appearance: "dark",
+    }),
+  );
   fireEvent.click(screen.getByLabelText("Analytics"));
   fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
   await waitFor(() =>
-    expect(profileApi.saveSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ appearance: "dark", analytics_opt_out: true }),
-    ),
+    expect(profileApi.saveSettings).toHaveBeenLastCalledWith({
+      analytics_opt_out: true,
+    }),
   );
   expect(analytics.setAnalyticsConsent).toHaveBeenCalledWith(false);
-  expect(analytics.trackAppearanceChanged).not.toHaveBeenCalled();
+  // Tapped while still opted in; the later opt-out only affects the Save.
+  expect(analytics.trackAppearanceChanged).toHaveBeenCalledTimes(1);
   expect(await screen.findByText("Settings saved")).toBeVisible();
 });
 
 it("emits only the stable appearance value after an opted-in save", async () => {
   render(<Settings />);
   await screen.findByRole("heading", { name: "Settings" });
-  fireEvent.change(await screen.findByLabelText("Appearance"), {
-    target: { value: "dark" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+  fireEvent.click(await screen.findByRole("radio", { name: "Dark" }));
   await waitFor(() =>
     expect(analytics.trackAppearanceChanged).toHaveBeenCalledWith("dark"),
   );

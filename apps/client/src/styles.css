@@ -726,9 +726,6 @@ progress::-moz-progress-bar {
   }
   /* Phone: the Slide is the primary content. Tighten the framed header so the
      16:9 stage sits above the fold; Settings stays reachable from its own page. */
-  .app-main:has(.player) > .app-bar-controls {
-    display: none;
-  }
   .player h1 {
     margin-block: var(--space-2);
     font-size: 1.25rem;

@@ -83,6 +83,63 @@ test.describe("desktop 1280 by 800", () => {
     await expect(page.getByRole("button", { name: "Shortcuts" })).toBeVisible();
   });
 
+  test("no top bar: the main panel starts with page content", async ({
+    page,
+  }) => {
+    await seed(page);
+    await page.goto("/courses");
+    await expect(page.locator(".app-bar-row")).toHaveCount(0);
+    const main = page.locator("main");
+    const heading = main.getByRole("heading", { level: 1 });
+    await expect(heading).toBeVisible();
+    const m = (await main.boundingBox())!;
+    const h = (await heading.boundingBox())!;
+    // Only the page's own padding sits above the heading.
+    expect(h.y - m.y).toBeLessThanOrEqual(56);
+  });
+
+  test("sidebar tools: language menu, theme, shortcuts", async ({ page }) => {
+    await seed(page);
+    await page.goto("/courses");
+    const tools = page.locator(".sidebar-tools");
+    const buttons = tools.getByRole("button");
+    await expect(buttons).toHaveCount(3);
+    for (const name of ["Language", "Dark theme", "Shortcuts"]) {
+      const b = tools.getByRole("button", { name, exact: true });
+      await expect(b).toHaveText("");
+      const box = (await b.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    const language = tools.getByRole("button", { name: "Language" });
+    await language.click();
+    await expect(
+      page.getByRole("menuitemradio", { name: "English" }),
+    ).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(language).toBeFocused();
+    await language.click();
+    await page.getByRole("menuitemradio", { name: "العربية" }).click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ar");
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await page.evaluate(() => localStorage.clear());
+  });
+
+  test("sidebar tools: theme toggles and shortcuts overlay opens", async ({
+    page,
+  }) => {
+    await seed(page);
+    await page.goto("/courses");
+    const theme = page.getByRole("button", { name: "Dark theme", exact: true });
+    await theme.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.getByRole("button", { name: "Shortcuts", exact: true }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Keyboard shortcuts" }),
+    ).toBeVisible();
+  });
+
   test("a failed read shows a dash and no sentence", async ({ page }) => {
     await seed(page);
     await page.route("**/v1/gamification/streak", (route) =>
@@ -108,5 +165,54 @@ test.describe("phone 390 by 844", () => {
       page.getByRole("group", { name: "Your progress" }),
     ).toHaveCount(0);
     await expect(page.locator(".credit-shortcut")).toContainText("120 credits");
+    // Owner 2026-11-24: nothing but the logo and credits in the phone header.
+    await expect(page.locator(".mobile-header select")).toHaveCount(0);
+    await expect(
+      page.locator(".mobile-header").getByRole("button"),
+    ).toHaveCount(0);
+  });
+
+  test("settings: Appearance is a segmented control that applies on tap", async ({
+    page,
+  }) => {
+    await seed(page);
+    const settings = {
+      learner_id: learner.id,
+      analytics_opt_out: true,
+      appearance: "system",
+      motion: "system",
+      narration: true,
+      narration_speed: 1,
+      captions: true,
+      text_size: 1,
+      ui_sounds: false,
+      haptics: "system",
+      locale: "en",
+      time_zone: "UTC",
+      daily_minutes: null,
+      daily_xp: null,
+      reminder_enabled: null,
+      reminder_time: "",
+      fullscreen_on_rotate: true,
+      autoplay: true,
+      auto_send_after_dictation: true,
+      single_key_shortcuts: true,
+    };
+    await page.route("**/v1/me/settings", (route) =>
+      route.fulfill({
+        json: route.request().postDataJSON()
+          ? { ...settings, ...route.request().postDataJSON().fields }
+          : settings,
+      }),
+    );
+    await page.goto("/settings#look");
+    const group = page.getByRole("radiogroup", { name: "Appearance" });
+    await expect(group).toBeVisible();
+    const dark = group.getByRole("radio", { name: "Dark" });
+    const box = (await dark.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    await dark.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(dark).toHaveAttribute("aria-checked", "true");
   });
 });
