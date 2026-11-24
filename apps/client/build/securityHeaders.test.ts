@@ -45,13 +45,19 @@ describe("security headers (infra/deploy/security-headers.caddy)", () => {
     const web = headersFor("web", env);
     const csp = directives(web["Content-Security-Policy"]!);
     expect(csp["default-src"]).toEqual(["'self'"]);
-    expect(csp["script-src"]).toEqual(["'self'"]);
+    expect(csp["script-src"]).toEqual([
+      "'self'",
+      "https://challenges.cloudflare.com",
+    ]);
     expect(web["Content-Security-Policy"]).not.toContain("unsafe-eval");
     expect(csp["frame-ancestors"]).toEqual(["'none'"]);
     expect(csp["object-src"]).toEqual(["'none'"]);
     expect(csp["base-uri"]).toEqual(["'self'"]);
     expect(csp["form-action"]).toEqual(["'self'"]);
-    expect(csp["frame-src"]).toEqual(["'self'"]);
+    expect(csp["frame-src"]).toEqual([
+      "'self'",
+      "https://challenges.cloudflare.com",
+    ]);
     for (const d of ["img-src", "media-src", "connect-src"])
       expect(csp[d]).toContain("https://assets.example.test");
     expect(web["Strict-Transport-Security"]).toBe(

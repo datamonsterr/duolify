@@ -250,6 +250,10 @@ services:
       <<: [*app-env, *backup-writer]
       API_ADDR: :8080
       OPERATIONS_ADDR: :9091
+      TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-false}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_ALLOWED_HOSTNAMES: ${TURNSTILE_ALLOWED_HOSTNAMES:-}
       # Soft heap target: about 80% of the 384M container limit, so the GC works before the OOM killer.
       GOMEMLIMIT: 300MiB
       # SIGTERM: stop accepting, fail /readyz, let in-flight requests and queue jobs finish this long.

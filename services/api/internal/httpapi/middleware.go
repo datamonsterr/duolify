@@ -93,7 +93,7 @@ func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.M
 			if allowed {
 				rw.Header().Set("Access-Control-Allow-Origin", origin)
 				rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Quote-ID, X-App-Version, X-Platform, If-None-Match")
+				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Quote-ID, X-App-Version, X-Platform, If-None-Match, X-Turnstile-Token")
 				rw.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, ETag, Cache-Control")
 			} else {
 				writeJSON(rw, http.StatusForbidden, map[string]string{"error": "origin not allowed"})

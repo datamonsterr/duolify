@@ -543,7 +543,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		public := false
 		if r.Method == http.MethodGet {
 			switch r.URL.Path {
-			case "/healthz", "/readyz", "/v1/pricing", "/v1/features", "/v1/courses/shared-demo", "/v1/characters/default-cast", "/v1/stream-check", "/v1/auth/sso/config":
+			case "/healthz", "/readyz", "/v1/pricing", "/v1/features", "/v1/courses/shared-demo", "/v1/characters/default-cast", "/v1/stream-check", "/v1/auth/sso/config", "/v1/auth/turnstile/config":
 				public = true
 			}
 		}

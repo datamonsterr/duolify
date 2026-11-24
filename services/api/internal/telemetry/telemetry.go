@@ -85,6 +85,7 @@ type Monitor struct {
 	mu         sync.Mutex
 	operations map[string]counts
 	alerts     map[string]uint64
+	turnstile  map[[3]string]uint64
 	incidents  map[string]time.Time
 }
 
@@ -93,7 +94,29 @@ func New(logger *slog.Logger) *Monitor {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Monitor{logger: logger, operations: map[string]counts{}, alerts: map[string]uint64{}, incidents: map[string]time.Time{}}
+	return &Monitor{logger: logger, operations: map[string]counts{}, alerts: map[string]uint64{}, turnstile: map[[3]string]uint64{}, incidents: map[string]time.Time{}}
+}
+
+// RecordTurnstile increments an aggregate counter without request or learner identifiers.
+func (m *Monitor) RecordTurnstile(surface, outcome, reason string) {
+	switch surface {
+	case "email_code", "sign_up", "share_preview":
+	default:
+		return
+	}
+	switch outcome {
+	case "passed", "rejected", "unavailable":
+	default:
+		return
+	}
+	switch reason {
+	case "none", "missing", "invalid", "expired_or_duplicate", "mismatch", "provider_unavailable":
+	default:
+		return
+	}
+	m.mu.Lock()
+	m.turnstile[[3]string{surface, outcome, reason}]++
+	m.mu.Unlock()
 }
 
 // FromContext shares the monitor of the originating action across internal calls.
@@ -215,7 +238,16 @@ func (m *Monitor) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	for op, count := range m.operations {
 		operations[op] = count
 	}
+	turnstile := make([]string, 0, len(m.turnstile))
+	for labels, count := range m.turnstile {
+		turnstile = append(turnstile, fmt.Sprintf("duolify_turnstile_verification_total{surface=%q,outcome=%q,reason_code=%q} %d", labels[0], labels[1], labels[2], count))
+	}
 	m.mu.Unlock()
+	_, _ = fmt.Fprintln(w, "# TYPE duolify_turnstile_verification_total counter")
+	sort.Strings(turnstile)
+	for _, line := range turnstile {
+		_, _ = fmt.Fprintln(w, line)
+	}
 	_, _ = fmt.Fprintln(w, "# TYPE duolify_alerts_total counter")
 	for _, kind := range []string{"backup", "queue", "dependency"} {
 		_, _ = fmt.Fprintf(w, "duolify_alerts_total{kind=%q} %d\n", kind, alerts[kind])

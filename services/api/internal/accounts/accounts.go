@@ -60,6 +60,7 @@ type Service struct {
 	deletionLedger DeletionLedger
 	setupChat      SetupChatOptions
 	webOrigins     []string
+	turnstile      *Turnstile
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes. Clerk SSO stays
@@ -71,6 +72,7 @@ func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
 	s := &Service{pool: pool, key: authKey(secret, "jwt"), otpKey: authKey(secret, "otp-hash"), oauthKey: authKey(secret, "oauth-hash"), rateKey: authKey(secret, "rate-hash"), sealKey: authKey(secret, "credential-encryption"), mail: mailer, mux: http.NewServeMux(), limits: DefaultRateLimits()}
 	s.mux.HandleFunc("POST /v1/auth/code", s.requestCode)
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
+	s.mux.HandleFunc("GET /v1/auth/turnstile/config", s.turnstileConfig)
 	s.mux.HandleFunc("GET /v1/auth/sso/config", s.ssoConfig)
 	s.mux.HandleFunc("POST /v1/auth/sso/start", s.ssoStart)
 	s.mux.HandleFunc("POST /v1/auth/sso/handoff", s.ssoHandoff)
@@ -116,6 +118,7 @@ type codeInput struct {
 	Locale          string `json:"locale"`
 	TimeZone        string `json:"time_zone"`
 	AnalyticsOptOut bool   `json:"analytics_opt_out"`
+	TurnstileToken  string `json:"turnstile_token"`
 }
 
 func decode(w http.ResponseWriter, r *http.Request, value any) bool {
@@ -221,6 +224,10 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 			failure(w, err)
 			return
 		}
+	}
+	tx, ok = s.requireCodeProof(w, r, tx, in.TurnstileToken, TurnstileEmailCode)
+	if !ok {
+		return
 	}
 	// Serialize even the first insert, when no code row exists to lock yet.
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", in.Email); err != nil {
@@ -331,6 +338,10 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
+	tx, ok = s.requireCodeProof(w, r, tx, in.TurnstileToken, TurnstileSignUp)
+	if !ok {
+		return
+	}
 	var hash string
 	var active bool
 	var attempts int
@@ -410,6 +421,7 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 	if created {
 		s.captureSignup(learnerID, "email")
 	}
+	s.turnstile.capture(learnerID, TurnstileSignUp, TurnstileOK)
 	respondTokens(w, web, tokens, expiry)
 }
 

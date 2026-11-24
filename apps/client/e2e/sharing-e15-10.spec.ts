@@ -548,6 +548,7 @@ test("a person without the moderator role sees nothing", async ({
   await expect(
     page.getByRole("heading", { name: "This page isn't available" }),
   ).toBeVisible();
+  await page.unrouteAll({ behavior: "wait" });
   await context.close();
 });
 

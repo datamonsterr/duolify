@@ -3,6 +3,12 @@
 # SITE_ADDRESS="learn.example.com" turns on automatic HTTPS (ports 80+443 must be public).
 {
 	admin off
+	log {
+		format filter {
+			wrap json
+			request>headers>X-Turnstile-Token delete
+		}
+	}
 }
 
 # Security headers (snippets web_headers, sso_bridge_headers, lesson_frame_headers). Same file feeds the
@@ -77,6 +83,9 @@ http://:8081 {
 
 	log {
 		output stdout
-		format json
+		format filter {
+			wrap json
+			request>headers>X-Turnstile-Token delete
+		}
 	}
 }

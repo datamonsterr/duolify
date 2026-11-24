@@ -3,6 +3,9 @@ import { apiBase, resetAuthRateLimits, webBase } from "./servers";
 import type { Tokens } from "../src/features/accounts/secure-store";
 
 test.use({ hasTouch: true });
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+});
 
 // These scenarios use the real authenticated API and Postgres. Browser requests
 // are transparently forwarded to the real API instance; no mock data is supplied.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   fetchPreview,
   linkFailure,
@@ -8,6 +8,11 @@ import {
 } from "./links";
 import { EnrollPanel } from "./EnrollPanel";
 import { session } from "../accounts/session";
+import {
+  isTurnstileFailure,
+  useTurnstile,
+  useTurnstileSiteKey,
+} from "../accounts/turnstile";
 import "./sharing.css";
 
 type State =
@@ -19,10 +24,22 @@ const appScheme = import.meta.env.VITE_APP_SCHEME || "duolify";
 
 /** Anonymous course link preview. Safe sample slides only; no sign-in needed. */
 export function PublicPreviewPage({ token }: { token: string }) {
+  return <PublicPreview key={token} token={token} />;
+}
+
+function PublicPreview({ token }: { token: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [slide, setSlide] = useState(0);
   const [outline, setOutline] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const { siteKey, reload } = useTurnstileSiteKey(true);
+  const { widget, ready, consume, fail, reset } = useTurnstile(
+    siteKey,
+    "share_preview",
+    state.kind === "loading",
+    false,
+    reload,
+  );
 
   // The public read stays anonymous; the session only decides whether Enroll or Sign in is offered.
   useEffect(() => {
@@ -47,28 +64,39 @@ export function PublicPreviewPage({ token }: { token: string }) {
     return () => meta.remove();
   }, []);
 
-  const load = useCallback(() => {
-    let active = true;
-    fetchPreview(token)
-      .then((preview) => active && setState({ kind: "ready", preview }))
-      .catch(
-        (error: unknown) =>
-          active && setState({ kind: "failed", failure: linkFailure(error) }),
-      );
-    return () => {
-      active = false;
-    };
-  }, [token]);
-  useEffect(() => load(), [load]);
+  useEffect(() => {
+    if (state.kind !== "loading" || !ready) return;
+    const proof = consume();
+    if (proof === null) return;
+    const controller = new AbortController();
+    void fetchPreview(token, proof, controller.signal)
+      .then((preview) => {
+        if (!controller.signal.aborted) setState({ kind: "ready", preview });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        if (isTurnstileFailure((error as { details?: unknown }).details))
+          fail();
+        else setState({ kind: "failed", failure: linkFailure(error) });
+      });
+    return () => controller.abort();
+  }, [consume, fail, ready, state.kind, token]);
   const retry = () => {
+    reset();
     setState({ kind: "loading" });
-    load();
   };
+  const loading = state.kind === "loading" && (siteKey === null || ready);
 
   return (
-    <main className="share-preview" aria-busy={state.kind === "loading"}>
+    <main
+      className={
+        widget ? "share-preview share-preview-checking" : "share-preview"
+      }
+      aria-busy={loading}
+    >
       <header className="share-preview-brand">duolify</header>
-      {state.kind === "loading" && (
+      {widget}
+      {loading && (
         <p role="status">
           <span className="sharing-spinner" aria-hidden="true" />
           Loading preview…

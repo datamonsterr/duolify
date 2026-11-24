@@ -26,7 +26,7 @@ from `CLERK_PUBLISHABLE_KEY` (base64 of the Frontend API host).
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | `accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()` (microphone for voice input, ADR 0021) |
-| `Content-Security-Policy` | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ASSET; media-src 'self' blob: ASSET; font-src 'self'; connect-src 'self' API ASSET POSTHOG; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` |
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ASSET; media-src 'self' blob: ASSET; font-src 'self'; connect-src 'self' API ASSET POSTHOG; frame-src 'self' https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` |
 
 No `unsafe-eval`, no inline script: the Vite build has none (checked by the Playwright suite under the policy).
 
@@ -36,7 +36,8 @@ Why each origin is there:
   `API_ORIGIN` is empty unless the client is built with a separate `VITE_API_URL`.
 - **`LESSON_ASSET_ORIGIN`** (`connect-src`, `img-src`, `media-src`): lesson assets, narration audio and the offline cache are read from the asset origin (R2 behind Cloudflare).
 - **PostHog (`POSTHOG_HOST`, `connect-src`)**: `posthog-js` (the `module.no-external` build, so it loads no remote script) posts events to the ingestion host and reads its remote config from the assets host (`POSTHOG_ASSETS_HOST`, default `https://us-assets.i.posthog.com`; set `https://eu-assets.i.posthog.com` with an EU `POSTHOG_HOST`). Cloudflare's own Web Analytics beacon (`static.cloudflareinsights.com`), injected at the edge, is blocked by this policy on purpose; switch it off in the zone's Web Analytics settings to silence the console. `autocapture` and session recording are off.
-- **Clerk, `/sso-bridge` only**: that page is the only place Clerk runs (ADR 0016), so its CSP adds `CLERK_FAPI_ORIGIN`, `https://challenges.cloudflare.com` and `https://*.protect.clerk.com` (script, connect with `:*`, frame), `https://img.clerk.com` (images) and `worker-src blob:`, as in Clerk's CSP guide. Other pages have no Clerk origin. Sign-in with an email code needs none.
+- Turnstile uses `https://challenges.cloudflare.com` for scripts and frames in the web and native client. When enabled, email code, email sign-up and share preview load the script on demand. [Cloudflare CSP requirements](https://developers.cloudflare.com/turnstile/reference/content-security-policy/).
+- Clerk runs on `/sso-bridge` (ADR 0016). Its separate CSP permits `CLERK_FAPI_ORIGIN`, `https://*.protect.clerk.com`, `https://img.clerk.com` and `worker-src blob:` for the bridge alongside Turnstile.
 - **`style-src 'unsafe-inline'`**: the one loosening of the app policy. Clerk injects CSS-in-JS and the UI libraries set `<style>`; style injection is a much smaller risk than script injection. Revisit with nonces if the build can emit them.
 - **`form-action 'self'`**: Clerk redirects by navigation, not form post, so no Clerk entry is needed.
 

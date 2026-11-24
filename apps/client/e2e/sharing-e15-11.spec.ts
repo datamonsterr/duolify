@@ -328,6 +328,7 @@ for (const mobile of [false, true]) {
       page.getByRole("heading", { name: "This course was removed" }),
     ).toBeVisible();
     await noOverflow(page);
+    await page.unrouteAll({ behavior: "wait" });
     await context.close();
   });
 }

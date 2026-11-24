@@ -8,12 +8,18 @@ import {
   trackSignIn,
 } from "../../lib/analytics";
 import {
+  AuthError,
   analyticsOptOut,
   authRequest,
   safeReturnTo,
   session,
   setAnalyticsOptOut,
 } from "./session";
+import {
+  isTurnstileFailure,
+  useTurnstile,
+  useTurnstileSiteKey,
+} from "./turnstile";
 import type { Tokens } from "./secure-store";
 import {
   SSO_REDIRECT_URI,
@@ -50,6 +56,21 @@ export function SignIn({
     recovery || new URLSearchParams(location.search).get("returning") === "true"
       ? "email"
       : "welcome",
+  );
+  const { siteKey, reload } = useTurnstileSiteKey(step !== "welcome");
+  const emailCheck = useTurnstile(
+    siteKey,
+    "email_code",
+    !guided && step !== "welcome",
+    step === "code",
+    reload,
+  );
+  const signupCheck = useTurnstile(
+    siteKey,
+    "sign_up",
+    !guided && step === "code",
+    false,
+    reload,
   );
   const [returning, setReturning] = useState(
     recovery ||
@@ -114,15 +135,23 @@ export function SignIn({
     setNotice("");
   }
   async function send() {
+    const proof = emailCheck.consume();
+    if (proof === null) return;
     setPending(true);
     setError("");
     try {
-      await authRequest("/v1/auth/code", { email, age_confirmed: age });
+      await requestEmailCode(email, age, proof);
+      if (step === "code") emailCheck.reset();
       setCode("");
       setStep("code");
       setNotice("Check your email. The code expires in 10 minutes.");
       field.current?.focus();
     } catch (cause) {
+      if (cause instanceof AuthError && isTurnstileFailure(cause.details)) {
+        emailCheck.fail();
+        return;
+      }
+      emailCheck.reset();
       setError(
         cause instanceof Error
           ? cause.message
@@ -133,24 +162,18 @@ export function SignIn({
     }
   }
   async function verify() {
+    const proof = signupCheck.consume();
+    if (proof === null) return;
     setPending(true);
     setError("");
     try {
-      const tokens = await authRequest<Tokens>("/v1/auth/verify", {
-        email,
-        code,
-        age_confirmed: age,
-        locale: navigator.language || "en",
-        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-        analytics_opt_out: optOut,
-      });
-      setAnalyticsOptOut(optOut);
-      await session.accept(tokens);
-      trackAuthScreen("sign_in");
-      trackSignIn();
-      if (onSignedIn) onSignedIn(destination);
-      else location.assign(destination);
+      await verifyEmailCode(email, code, age, proof);
     } catch (cause) {
+      if (cause instanceof AuthError && isTurnstileFailure(cause.details)) {
+        signupCheck.fail();
+        return;
+      }
+      signupCheck.reset();
       setError(
         cause instanceof Error
           ? cause.message
@@ -160,45 +183,38 @@ export function SignIn({
       setPending(false);
     }
   }
-  async function chatRequestCode(address: string, confirmed: boolean) {
-    try {
-      await authRequest("/v1/auth/code", {
-        email: address,
-        age_confirmed: confirmed,
-      });
-      return null;
-    } catch (cause) {
-      return cause instanceof Error
-        ? cause.message
-        : "Sign-in is unavailable. Please retry.";
-    }
+  async function requestEmailCode(
+    address: string,
+    confirmed: boolean,
+    proof?: string,
+  ) {
+    await authRequest("/v1/auth/code", {
+      email: address,
+      age_confirmed: confirmed,
+      turnstile_token: proof,
+    });
   }
-  async function chatVerify(
+  async function verifyEmailCode(
     address: string,
     value: string,
     confirmed: boolean,
+    proof?: string,
   ) {
-    try {
-      const tokens = await authRequest<Tokens>("/v1/auth/verify", {
-        email: address,
-        code: value,
-        age_confirmed: confirmed,
-        locale: navigator.language || "en",
-        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-        analytics_opt_out: optOut,
-      });
-      setAnalyticsOptOut(optOut);
-      await session.accept(tokens);
-      trackAuthScreen("sign_in");
-      trackSignIn();
-      if (onSignedIn) onSignedIn(destination);
-      else location.assign(destination);
-      return null;
-    } catch (cause) {
-      return cause instanceof Error
-        ? cause.message
-        : "Sign-in is unavailable. Please retry.";
-    }
+    const tokens = await authRequest<Tokens>("/v1/auth/verify", {
+      email: address,
+      code: value,
+      age_confirmed: confirmed,
+      locale: navigator.language || "en",
+      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      analytics_opt_out: optOut,
+      turnstile_token: proof,
+    });
+    setAnalyticsOptOut(optOut);
+    await session.accept(tokens);
+    trackAuthScreen("sign_in");
+    trackSignIn();
+    if (onSignedIn) onSignedIn(destination);
+    else location.assign(destination);
   }
   function finishOAuthCancel() {
     if (!oauthState.current || oauthCompleting.current) return;
@@ -424,8 +440,10 @@ export function SignIn({
               {guided ? (
                 <Suspense fallback={<p role="status" aria-busy="true" />}>
                   <GuidedSignIn
-                    requestCode={chatRequestCode}
-                    verifyCode={chatVerify}
+                    siteKey={siteKey}
+                    reload={reload}
+                    requestCode={requestEmailCode}
+                    verifyCode={verifyEmailCode}
                   />
                 </Suspense>
               ) : (
@@ -465,10 +483,16 @@ export function SignIn({
                           />
                           I am 16 or older
                         </label>
+                        {emailCheck.widget}
                         <Button
                           type="submit"
                           pending={pending}
-                          disabled={!age || !email.trim() || !online}
+                          disabled={
+                            !age ||
+                            !email.trim() ||
+                            !online ||
+                            !emailCheck.ready
+                          }
                         >
                           Send code
                         </Button>
@@ -493,20 +517,24 @@ export function SignIn({
                             }
                           />
                         </label>
+                        {signupCheck.widget}
                         <Button
                           type="submit"
                           pending={pending}
-                          disabled={code.length !== 6 || !online}
+                          disabled={
+                            code.length !== 6 || !online || !signupCheck.ready
+                          }
                         >
                           Sign in
                         </Button>
                         <Button
                           variant="secondary"
-                          disabled={pending || !online}
+                          disabled={pending || !online || !emailCheck.ready}
                           onClick={() => void send()}
                         >
                           Resend code
                         </Button>
+                        {emailCheck.widget}
                         <Button
                           variant="quiet"
                           disabled={pending}

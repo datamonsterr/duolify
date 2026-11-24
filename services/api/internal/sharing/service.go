@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/examples"
 	"github.com/datamonsterr/duolify/services/api/internal/narration"
@@ -59,8 +60,9 @@ type Service struct {
 	// push is the notification adapter for invites (E15-06); nil means disabled (in-app only).
 	push PushSender
 	// assets purges released published objects (E15-11); ledger records severe blocks outside the database.
-	assets AssetStore
-	ledger BlockLedger
+	assets    AssetStore
+	ledger    BlockLedger
+	turnstile *accounts.Turnstile
 }
 
 // NewService wires the service behind the central fail-closed analytics consent gate.

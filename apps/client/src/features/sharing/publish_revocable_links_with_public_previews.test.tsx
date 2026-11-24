@@ -214,7 +214,13 @@ describe("public preview", () => {
   const respond = (status: number, body: unknown = {}) =>
     vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify(body), { status }));
+      .mockImplementation((input) =>
+        Promise.resolve(
+          String(input).endsWith("/v1/auth/turnstile/config")
+            ? Response.json({ enabled: false })
+            : Response.json(body, { status }),
+        ),
+      );
 
   it("shows creator, version, disclosure and pages sample slides", async () => {
     respond(200, payload());
@@ -259,7 +265,10 @@ describe("public preview", () => {
         .querySelector('meta[name="robots"]')
         ?.getAttribute("content"),
     ).toMatch(/noindex/);
-    const init = spy.mock.calls[0]![1] as RequestInit | undefined;
+    const previewCall = spy.mock.calls.find(([url]) =>
+      String(url).includes("/v1/public/shares/"),
+    );
+    const init = previewCall?.[1];
     expect(init?.credentials).toBe("omit");
     unmount();
     expect(document.head.querySelector('meta[name="robots"]')).toBeNull();

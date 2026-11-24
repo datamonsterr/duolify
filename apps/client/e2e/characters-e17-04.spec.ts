@@ -59,9 +59,15 @@ for (const mobile of [false, true]) {
     await expect(
       page.getByText(/Pricing version: usd-dev-character-create-unapproved/),
     ).toBeVisible();
+    const confirmed = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/v1/characters/jobs/${job.id}/confirm`) &&
+        response.request().method() === "POST",
+    );
     await page
       .getByRole("button", { name: "Confirm character credits" })
       .click();
+    expect((await confirmed).ok()).toBeTruthy();
     await page.reload();
     await expect(
       page.locator(".character-create").getByRole("status"),
