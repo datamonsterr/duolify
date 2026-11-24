@@ -586,9 +586,25 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Restore Playwright apt archives
+        id: playwright-apt
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/playwright-apt-archives
+            ~/.cache/playwright-apt-lists
+          key: apt-playwright-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageVersion }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: mise run ci:playwright-deps
         run: mise run ci:playwright-deps
         timeout-minutes: 8
+      - name: Save Playwright apt archives
+        if: steps.playwright-apt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cache/playwright-apt-archives
+            ~/.cache/playwright-apt-lists
+          key: ${{ steps.playwright-apt.outputs.cache-primary-key }}
       - name: mise run client:e2e-setup
         if: steps.browsers.outputs.cache-hit != 'true'
         run: mise run client:e2e-setup
@@ -865,9 +881,25 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Restore Playwright apt archives
+        id: playwright-apt
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/playwright-apt-archives
+            ~/.cache/playwright-apt-lists
+          key: apt-playwright-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageVersion }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: mise run ci:playwright-deps
         run: mise run ci:playwright-deps
         timeout-minutes: 8
+      - name: Save Playwright apt archives
+        if: steps.playwright-apt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cache/playwright-apt-archives
+            ~/.cache/playwright-apt-lists
+          key: ${{ steps.playwright-apt.outputs.cache-primary-key }}
       - name: mise run client:e2e-setup
         if: steps.browsers.outputs.cache-hit != 'true'
         run: mise run client:e2e-setup

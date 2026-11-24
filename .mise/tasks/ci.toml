@@ -61,15 +61,44 @@ dir = "{{config_root}}/apps/client"
 run = '''
 set -eu
 
+archives="$HOME/.cache/playwright-apt-archives"
+lists="$HOME/.cache/playwright-apt-lists"
+mkdir -p "$archives/partial"
 apt_config=/etc/apt/apt.conf.d/99duolify-playwright-timeouts
 printf '%s\n' \
   'Acquire::Retries "3";' \
   'Acquire::http::Timeout "30";' \
-  'Acquire::https::Timeout "30";' | sudo tee "$apt_config" >/dev/null
+  'Acquire::https::Timeout "30";' \
+  'APT::Sandbox::User "root";' \
+  "Dir::Cache::archives \"$archives\";" | sudo tee "$apt_config" >/dev/null
 trap 'sudo rm -f "$apt_config"' EXIT
 
+# Playwright's dry run reports the packages apt would install. Try those from
+# the runner-image-specific archive first, without updating package indexes.
+missing=$(mktemp)
+trap 'rm -f "$missing"; sudo rm -f "$apt_config"; sudo chmod -R a+rX "$archives" "$lists" 2>/dev/null || true' EXIT
+if [ -d "$lists" ]; then
+  sudo cp -a "$lists/." /var/lib/apt/lists/
+fi
+if pnpm exec playwright install-deps --dry-run chromium >"$missing"; then
+  cat "$missing"
+  exit 0
+fi
+cat "$missing"
+if grep -q '^Missing system dependencies (' "$missing"; then
+  packages=$(sed -n '/^Missing system dependencies (/,$s/^ \([^ ]\+\)$/\1/p' "$missing")
+  if [ -n "$packages" ] && sudo timeout --kill-after=10s 30s apt-get install -y --no-install-recommends --no-download $packages &&
+    pnpm exec playwright install-deps --dry-run chromium; then
+    exit 0
+  fi
+  echo 'Cached apt packages were incomplete; falling back to the network.'
+fi
+
 for attempt in 1 2 3; do
-  if timeout 150s pnpm exec playwright install-deps chromium; then
+  # Run timeout as root: it can signal the entire process group, including apt.
+  if sudo env "PATH=$PATH" "HOME=$HOME" timeout --kill-after=10s 120s pnpm exec playwright install-deps chromium; then
+    mkdir -p "$lists"
+    sudo cp -a /var/lib/apt/lists/. "$lists/"
     exit 0
   else
     status=$?
