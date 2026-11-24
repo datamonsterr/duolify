@@ -132,7 +132,7 @@ How: Cloudflare dashboard > the zone > Rules > Transform Rules > Modify Response
 The landing page video (`landing.mp4`, `landing.webm`) is not in git and not in the Tauri bundle. It lives in the application bucket under `landing/<version>/` and is read from the asset origin above (`media-src` already allows it). The poster (`landing-poster-960.webp`) and captions (`landing.en.vtt`) are small and ship in `apps/client/public/landing`.
 
 1. Upload by hand (an outward action; never from CI), with `S3_*` set for the target: `mise run infra:landing-media-upload <dir> v1`. It sets the content types and `Cache-Control: public, max-age=31536000, immutable`; new media means a new version.
-2. Build the web client with `VITE_LANDING_MEDIA_BASE=$LESSON_ASSET_ORIGIN/landing/v1`. Without it the landing shows the poster and no player.
+2. Build the web client with `VITE_LANDING_MEDIA_BASE=$LESSON_ASSET_ORIGIN/landing/v1`: the `web` Dockerfile has the build arg, compose passes it from `.env`, and `pr-ready` passes the `LANDING_MEDIA_BASE` repository variable. Without it the landing shows the poster and no player.
 
 ## Troubleshooting
 
