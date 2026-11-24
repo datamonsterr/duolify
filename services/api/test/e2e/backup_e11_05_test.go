@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,6 +22,13 @@ func TestRestoreDrillRestoresSyntheticDumpAndFailsInjectedCorruption(t *testing.
 	options := fixture.DrillOptions(t, time.Date(2026, 11, 12, 20, 0, 0, 0, time.UTC))
 	status := 0
 	options.Inspect = func(ctx context.Context, restored *pgxpool.Pool) error {
+		var enabled bool
+		if err := restored.QueryRow(ctx, "SELECT single_key_shortcuts FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'").Scan(&enabled); err != nil {
+			return err
+		}
+		if enabled {
+			return errors.New("restored single-key shortcuts preference changed")
+		}
 		server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Postgres: restored.Ping}, fixture.Logger))
 		defer server.Close()
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/healthz", nil)

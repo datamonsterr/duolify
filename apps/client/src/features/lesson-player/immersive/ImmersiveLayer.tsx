@@ -14,6 +14,7 @@ import {
   type immersiveVias,
 } from "../../../lib/analytics";
 import { AUTO_HIDE_MS, canAutoHide, createAutoHide } from "./autohide";
+import { Icon } from "../../design/Icon";
 import { useImmersiveExtensions } from "./extensions";
 import { clientToStage } from "./geometry";
 import { createGestureRecognizer } from "./gestures";
@@ -179,7 +180,11 @@ export default function ImmersiveLayer({
   // Show the layer when a keyboard user starts tabbing while it is hidden.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || latest.current.locked) return;
+      if (e.key !== "Tab" || latest.current.locked || e.defaultPrevented)
+        return;
+      // Inside the composer or answer panel Tab keeps its normal order.
+      if ((e.target as Element | null)?.closest?.(".imm-answer-ui, .imm-notes"))
+        return;
       focusMemory.set({ keyboard: true });
       setAssistive(true);
       if (!controlsVisibleRef.current) {
@@ -438,7 +443,8 @@ export default function ImmersiveLayer({
                       () => actions.setAutoAdvance(!view.autoAdvance),
                     )}
                   >
-                    {view.autoAdvance ? "⏩ Auto" : "⏩ Manual"}
+                    <Icon name="autoplay" />{" "}
+                    {view.autoAdvance ? "Auto" : "Manual"}
                   </Btn>
                   <Btn
                     id="speed"
@@ -465,7 +471,7 @@ export default function ImmersiveLayer({
                     onFocus={remember("narration")}
                     onClick={act("narration", actions.toggleMute)}
                   >
-                    {view.muted ? "🔇" : "🔊"}
+                    <Icon name={view.muted ? "mute" : "volume"} />
                   </Btn>
                   <Btn
                     id="slides"
@@ -501,7 +507,7 @@ export default function ImmersiveLayer({
                       dispatchControls({ type: "lock" }),
                     )}
                   >
-                    🔒
+                    <Icon name="lock" />
                   </Btn>
                 </div>
               </div>
@@ -533,13 +539,17 @@ export default function ImmersiveLayer({
                 </div>
               )}
             </div>
-            {view.ended && view.autoAdvance && !lastSlide && !view.failed && (
-              <EndCountdown
-                reducedMotion={view.reducedMotion}
-                onDone={actions.next}
-                onCancel={bump}
-              />
-            )}
+            {view.ended &&
+              view.autoAdvance &&
+              !ext.busy &&
+              !lastSlide &&
+              !view.failed && (
+                <EndCountdown
+                  reducedMotion={view.reducedMotion}
+                  onDone={actions.next}
+                  onCancel={bump}
+                />
+              )}
             <SideRail open={railOpen} onToggle={() => setRailOpen((o) => !o)}>
               {ext.sideRail}
             </SideRail>
@@ -668,7 +678,7 @@ function UnlockTarget({ onUnlock }: { onUnlock: () => void }) {
       onBlur={stop}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <span aria-hidden="true">🔒</span>
+      <Icon name="lock" />
       <span className="imm-unlock-hint" aria-hidden="true">
         Hold to unlock
       </span>

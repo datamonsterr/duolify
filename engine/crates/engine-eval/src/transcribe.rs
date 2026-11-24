@@ -298,8 +298,10 @@ pub async fn recorded(input: &Value) -> Result<Scored> {
     };
     let router = ProviderRouter::new(provider("primary"), provider("fallback"))?;
     let len = input["audio_bytes"].as_u64().unwrap_or(2048) as usize;
-    // Constant bytes stand in for quiet audio; `audio_kind: "speech"` for a recording with sound.
-    let audio = if input["audio_kind"] == "speech" {
+    // Constant bytes stand in for quiet audio (`audio_kind: "quiet"`, or no spoken reference);
+    // any other case gets a recording with sound, because digital silence never yields text.
+    let spoken = !stt::normalized(input["reference"].as_str().unwrap_or_default()).is_empty();
+    let audio = if input["audio_kind"] == "speech" || (spoken && input["audio_kind"] != "quiet") {
         let mut x = 0x9E37_79B9_7F4A_7C15u64;
         (0..len)
             .map(|_| {

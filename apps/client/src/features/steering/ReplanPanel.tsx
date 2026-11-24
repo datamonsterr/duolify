@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { AuthError, session } from "../accounts/session";
@@ -201,11 +202,8 @@ export function ReplanPanel({
   }
 
   function handleDialogKeys(event: React.KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      setConfirmOpen(false);
-    } else if (event.key === "Tab" && dialogRef.current) {
+    if (closeOnEscape(event, () => setConfirmOpen(false))) return;
+    if (event.key === "Tab" && dialogRef.current) {
       const items = [
         ...dialogRef.current.querySelectorAll<HTMLElement>(
           "button:not([disabled])",

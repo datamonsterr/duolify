@@ -87,7 +87,12 @@ x-api-image: &api-image
 services:
   proxy:
     image: ${WEB_IMAGE:-${IMAGE_REGISTRY:-duolify}/web:${IMAGE_TAG:-local}}
-    build: {context: ../.., dockerfile: apps/client/Dockerfile, target: web}
+    build:
+      context: ../..
+      dockerfile: apps/client/Dockerfile
+      target: web
+      args:
+        VITE_LANDING_MEDIA_BASE: ${VITE_LANDING_MEDIA_BASE:-}
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       # Origins of the web Content-Security-Policy (security-headers.caddy). API_ORIGIN stays empty while the

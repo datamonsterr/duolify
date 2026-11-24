@@ -47,11 +47,15 @@ export const browserPlatform: VoicePlatform = {
         analyser = context.createAnalyser();
         analyser.fftSize = 512;
         context.createMediaStreamSource(stream).connect(analyser);
+        // WebKit starts a context created after a permission prompt suspended.
+        void context.resume?.().catch(() => {});
       } catch {
         /* No meter: the recording itself still works. */
       }
       const samples = new Uint8Array(analyser?.fftSize ?? 0);
       let top = 0;
+      // Without a running meter the silence gate has nothing to judge: report a full level.
+      let metered = false;
       const close = () => {
         release();
         void context?.close().catch(() => {});
@@ -60,6 +64,7 @@ export const browserPlatform: VoicePlatform = {
       return {
         level() {
           if (!analyser) return 0;
+          if (context?.state === "running") metered = true;
           analyser.getByteTimeDomainData(samples);
           let peak = 0;
           for (const s of samples) peak = Math.max(peak, Math.abs(s - 128));
@@ -67,7 +72,7 @@ export const browserPlatform: VoicePlatform = {
           top = Math.max(top, value);
           return value;
         },
-        peak: () => top,
+        peak: () => (metered ? top : 1),
         stop: () =>
           new Promise<Blob>((resolve) => {
             recorder.onstop = () => {

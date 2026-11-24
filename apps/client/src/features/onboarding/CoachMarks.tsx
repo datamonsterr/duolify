@@ -1,3 +1,4 @@
+import { matchesShortcut } from "../hotkeys/matcher";
 import {
   useEffect,
   useLayoutEffect,
@@ -177,11 +178,15 @@ export function CoachMarks({
       stepIndex={index + 1}
       total={steps.length}
       onKey={(event) => {
-        if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        const next = matchesShortcut("tour_next", event);
+        if (next || matchesShortcut("tour_previous", event)) {
           event.preventDefault();
-          move(event.key === "ArrowRight" ? "next" : "back");
+          move(next ? "next" : "back");
         }
-        if (event.key === "Enter" && event.target === heading.current) {
+        if (
+          matchesShortcut("tour_activate", event) &&
+          event.target === heading.current
+        ) {
           event.preventDefault();
           move("next");
         }

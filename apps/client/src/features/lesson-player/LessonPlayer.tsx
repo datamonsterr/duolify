@@ -1,3 +1,4 @@
+import "./lesson-player.css";
 import { PlayerCompanion } from "../../components/mascot";
 import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { NarrationControl } from "../narration/NarrationControl";

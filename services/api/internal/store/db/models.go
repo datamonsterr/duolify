@@ -948,6 +948,7 @@ type LearnerProfile struct {
 	Autoplay               bool               `json:"autoplay"`
 	AutoSendAfterDictation bool               `json:"auto_send_after_dictation"`
 	Mascot                 []byte             `json:"mascot"`
+	SingleKeyShortcuts     bool               `json:"single_key_shortcuts"`
 }
 
 type LearnerSocialSetting struct {

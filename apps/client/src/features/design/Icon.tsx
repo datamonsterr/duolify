@@ -1,6 +1,8 @@
 // One icon set for the whole app (human-factors rule: same function, same icon, same place).
 // Icon-only controls are limited to `iconOnlyAllowlist`; every other icon needs a visible label.
 const paths = {
+  sun: "M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5.6 5.6 7 7 M17 17l1.4 1.4 M18.4 5.6 17 7 M7 17l-1.4 1.4 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+  moon: "M20 15.5A8 8 0 0 1 8.5 4 8 8 0 1 0 20 15.5z",
   home: "M3 11 12 4l9 7v9h-6v-6H9v6H3z",
   courses: "m2 8 10-5 10 5-10 5z M2 13l10 5 10-5 M2 18l10 5 10-5",
   friends:
@@ -41,11 +43,14 @@ const paths = {
   stop: "M6 6h12v12H6z",
   select: "M4 8V4h4 M16 4h4v4 M20 16v4h-4 M8 20H4v-4",
   ask: "M4 5h16v11H9l-5 4z M9 10h.01 M12 10h.01 M15 10h.01",
+  autoplay: "m5 6 6 6-6 6 M12 6l6 6-6 6",
 } as const;
 export type IconName = keyof typeof paths;
 
 /** Icon-only controls may use only these (spec: universal set). */
 export const iconOnlyAllowlist: readonly IconName[] = [
+  "sun",
+  "moon",
   "play",
   "pause",
   "previous",

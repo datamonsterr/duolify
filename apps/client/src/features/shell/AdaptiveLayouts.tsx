@@ -1,3 +1,4 @@
+import { closeOnEscape, useEscapeLayer } from "../hotkeys/escape";
 import {
   useEffect,
   useId,
@@ -39,6 +40,12 @@ export function ResponsivePanel({
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const close = useRef(onClose);
+  useEscapeLayer(
+    mobile ? "sheet" : "side_panel",
+    open ? onClose : undefined,
+    undefined,
+    () => panel.current,
+  );
   useEffect(() => {
     close.current = onClose;
   }, [onClose]);
@@ -92,11 +99,7 @@ export function ResponsivePanel({
           ? event.target.closest("dialog[open]")
           : null;
       if (nested && nested !== node && node.contains(nested)) return;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        close.current();
-      }
+      if (closeOnEscape(event, close.current)) return;
       if (event.key === "Tab") {
         const items = controls(),
           first = items[0],
