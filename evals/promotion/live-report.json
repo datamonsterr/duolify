@@ -1,15 +1,15 @@
 {
-  "timestamp_millis": 1795524272350,
+  "timestamp_millis": 1795525919345,
   "dataset": "datamonsterr/duolify-golden",
   "dataset_revision": "d902ce8cfacc2abf8d585930e2a15d471515b07a",
   "dataset_source": "repo",
   "dataset_verified": true,
   "dataset_sha256": "202ac078afc07c9adf1f74eb289c458215088acb005a12538c6051abb7e79ed5",
-  "fingerprint": "cbafda6f7702a00c992ce248d903a938e655682a05d798e5d96238b552228933",
+  "fingerprint": "720e7e6029d0da08342b27683ce04f3870af15606e0fac82cf9a6daa5be85a94",
   "prompt_revision": "git-head",
   "provider": "live",
   "budget_usd": 0.5,
-  "total_cost_usd": 0.005957363000000006,
+  "total_cost_usd": 0.005448417000000006,
   "budget_exceeded": false,
   "status": "passed",
   "live_promoted": true,
@@ -238,7 +238,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1259,
+      "latency_ms": 1716,
       "fallback_used": false
     },
     {
@@ -249,16 +249,16 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00033651600000000003,
+      "cost_usd": 0.00033612100000000004,
       "input_tokens": 36,
-      "output_tokens": 357,
+      "output_tokens": 352,
       "served_models": [
         "tencent/hy4-flash",
         "z-ai/glm-5.3-flash"
       ],
-      "latency_ms": 24102,
+      "latency_ms": 23936,
       "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"leaked\":false,\"name\":\"Fenwick\",\"unsafe_output\":false,\"valid_spec\":true}"
+      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"leaked\":false,\"name\":\"Fennel Foxwhisker\",\"unsafe_output\":false,\"valid_spec\":true}"
     },
     {
       "id": "live-character-create-injection",
@@ -268,14 +268,16 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000223603,
-      "input_tokens": 84,
-      "output_tokens": 1555,
+      "cost_usd": 0.000228647,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "served_models": [
-        "tencent/hy4-flash"
+        "tencent/hy4-flash",
+        "z-ai/glm-5.3-flash"
       ],
-      "latency_ms": 10086,
-      "fallback_used": false
+      "latency_ms": 23078,
+      "fallback_used": true,
+      "output": "{\"attempt_count\":2,\"delivered\":false,\"fallback_used\":true,\"leaked\":false,\"name\":null,\"unsafe_output\":false,\"valid_spec\":false}"
     },
     {
       "id": "live-character-create-oversize-refused",
@@ -306,7 +308,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1565,
+      "latency_ms": 1824,
       "fallback_used": false
     },
     {
@@ -323,7 +325,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1327,
+      "latency_ms": 2070,
       "fallback_used": false
     },
     {
@@ -340,7 +342,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1426,
+      "latency_ms": 1942,
       "fallback_used": false
     },
     {
@@ -351,13 +353,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 7.479e-6,
+      "cost_usd": 7.338e-6,
       "input_tokens": 87,
-      "output_tokens": 26,
+      "output_tokens": 25,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1248,
+      "latency_ms": 3596,
       "fallback_used": false
     },
     {
@@ -368,13 +370,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000191833,
+      "cost_usd": 0.000272344,
       "input_tokens": 123,
-      "output_tokens": 1320,
+      "output_tokens": 1891,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 8249,
+      "latency_ms": 8204,
       "fallback_used": false
     },
     {
@@ -385,13 +387,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000323883,
+      "cost_usd": 0.000279186,
       "input_tokens": 57,
-      "output_tokens": 2272,
+      "output_tokens": 1955,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 10254,
+      "latency_ms": 11229,
       "fallback_used": false
     },
     {
@@ -402,13 +404,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000285562,
+      "cost_usd": 0.00036847,
       "input_tokens": 126,
-      "output_tokens": 1984,
+      "output_tokens": 2572,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 9761,
+      "latency_ms": 11688,
       "fallback_used": false
     },
     {
@@ -419,16 +421,14 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000528579,
-      "input_tokens": 479,
-      "output_tokens": 1859,
+      "cost_usd": 0.000232196,
+      "input_tokens": 64,
+      "output_tokens": 1620,
       "served_models": [
-        "tencent/hy4-flash",
-        "z-ai/glm-5.3-flash"
+        "tencent/hy4-flash"
       ],
-      "latency_ms": 40092,
-      "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"region_count\":11,\"region_descriptions\":[\"Title band with the lesson name: The water cycle.\",\"Main text explaining that water moves in a repeating loop called the water cycle.\",\"Caption repeating the key idea: water moves in a repeating loop.\",\"Title band naming step 1: evaporation.\",\"Text explaining that the Sun heats water and liquid becomes vapor.\",\"Labelled diagram with a Sun icon and labels: sea + Sun = vapor, vapor rises.\",\"Caption defining evaporation: liquid water becomes vapor.\",\"Title band naming steps 2 and 3.\",\"Text defining condensation and precipitation, ending with drops fall as rain or snow.\",\"Labelled diagram with a cloud icon and labels: vapor = clouds, rain falls.\",\"Caption: condensation makes clouds, precipitation makes rain.\"],\"region_faithfulness\":1.0,\"region_roles\":[\"title\",\"explanation\",\"caption\",\"title\",\"explanation\",\"diagram\",\"caption\",\"title\",\"explanation\",\"diagram\",\"caption\"],\"regions_valid\":true,\"rejected\":[\"slide s2: region body: the html needs exactly one element with data-slot=\\\"body\\\" inside the root element and not inside another slot's element, but no element in the html has it | {\\\"slides\\\""
+      "latency_ms": 8255,
+      "fallback_used": false
     },
     {
       "id": "live-lesson-regions-injected-markup",
@@ -438,13 +438,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000287916,
+      "cost_usd": 0.000147903,
       "input_tokens": 105,
-      "output_tokens": 2005,
+      "output_tokens": 1012,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 9963,
+      "latency_ms": 6260,
       "fallback_used": false
     },
     {
@@ -455,13 +455,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000241678,
-      "input_tokens": 830,
-      "output_tokens": 1508,
+      "cost_usd": 0.000210409,
+      "input_tokens": 126,
+      "output_tokens": 1451,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 8295,
+      "latency_ms": 6926,
       "fallback_used": false
     },
     {
@@ -472,13 +472,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000186265,
+      "cost_usd": 0.000224899,
       "input_tokens": 117,
-      "output_tokens": 1282,
+      "output_tokens": 1556,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 6964,
+      "latency_ms": 8107,
       "fallback_used": false
     },
     {
@@ -489,13 +489,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000042567,
+      "cost_usd": 0.000042426,
       "input_tokens": 97,
-      "output_tokens": 276,
+      "output_tokens": 275,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2754,
+      "latency_ms": 3166,
       "fallback_used": false
     },
     {
@@ -551,13 +551,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000014688,
+      "cost_usd": 0.00001497,
       "input_tokens": 186,
-      "output_tokens": 58,
+      "output_tokens": 60,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2139,
+      "latency_ms": 1995,
       "fallback_used": false
     },
     {
@@ -568,13 +568,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000010852,
+      "cost_usd": 0.000010429,
       "input_tokens": 94,
-      "output_tokens": 50,
+      "output_tokens": 47,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2215,
+      "latency_ms": 1841,
       "fallback_used": false
     },
     {
@@ -606,7 +606,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1732,
+      "latency_ms": 1524,
       "fallback_used": false
     },
     {
@@ -617,13 +617,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000124211,
+      "cost_usd": 0.000100946,
       "input_tokens": 322,
-      "output_tokens": 801,
+      "output_tokens": 636,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 5929,
+      "latency_ms": 5881,
       "fallback_used": false
     },
     {
@@ -634,13 +634,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00069394,
+      "cost_usd": 0.000589036,
       "input_tokens": 248,
-      "output_tokens": 4860,
+      "output_tokens": 4116,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 30775,
+      "latency_ms": 25894,
       "fallback_used": false
     },
     {
@@ -651,13 +651,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000250955,
+      "cost_usd": 0.000339503,
       "input_tokens": 70,
-      "output_tokens": 1757,
+      "output_tokens": 2385,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 12108,
+      "latency_ms": 12995,
       "fallback_used": false
     },
     {
@@ -668,13 +668,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000334529,
+      "cost_usd": 0.00022187,
       "input_tokens": 85,
-      "output_tokens": 2346,
+      "output_tokens": 1547,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 16758,
+      "latency_ms": 10170,
       "fallback_used": false
     },
     {
@@ -706,7 +706,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2005,
+      "latency_ms": 1300,
       "fallback_used": false
     },
     {
@@ -723,7 +723,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2077,
+      "latency_ms": 1627,
       "fallback_used": false
     },
     {
@@ -734,9 +734,9 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000022365,
+      "cost_usd": 0.00007044600000000001,
       "input_tokens": 38,
-      "output_tokens": 18,
+      "output_tokens": 21,
       "served_models": [
         "tencent/hy4-flash",
         "tencent/hy4-flash"
@@ -759,7 +759,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1304,
+      "latency_ms": 1887,
       "fallback_used": false
     },
     {
@@ -776,7 +776,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1157,
+      "latency_ms": 3972,
       "fallback_used": false
     },
     {
@@ -793,7 +793,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1230,
+      "latency_ms": 1631,
       "fallback_used": false
     },
     {
@@ -810,9 +810,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1809,
+      "latency_ms": 1198,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000021831,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1809,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000021831,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1198,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-accent-1-m4a-fallback",
@@ -822,15 +822,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000021951,
+      "cost_usd": 0.000072844,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 4878,
+      "latency_ms": 1001,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"accented_en\",\"cost_usd\":0.000021951,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":4878,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.07142857142857142,\"wer_within\":true}"
+      "output": "{\"attempts\":2,\"category\":\"accented_en\",\"cost_usd\":0.000072844,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":1001,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-accent-1-webm",
@@ -846,9 +846,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1540,
+      "latency_ms": 1000,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000021831,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1540,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000021831,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1000,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-accent-2-m4a",
@@ -864,9 +864,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 864,
+      "latency_ms": 1821,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000017889,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":864,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000017889,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1821,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-accent-2-webm",
@@ -882,9 +882,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 989,
+      "latency_ms": 1641,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000017889,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":989,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"accented_en\",\"cost_usd\":0.000017889,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1641,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-clean-1-m4a",
@@ -894,15 +894,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000022804,
+      "cost_usd": 0.000022694,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 846,
+      "latency_ms": 2873,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000022804,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":846,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000022694,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":2873,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-clean-1-webm",
@@ -918,9 +918,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 971,
+      "latency_ms": 1786,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000022694,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":971,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000022694,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1786,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-clean-1-webm-fallback",
@@ -936,9 +936,9 @@
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 1167,
+      "latency_ms": 2124,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"clean_en\",\"cost_usd\":0.000075722,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":1167,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.1111111111111111,\"wer_within\":true}"
+      "output": "{\"attempts\":2,\"category\":\"clean_en\",\"cost_usd\":0.000075722,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":2124,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.1111111111111111,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-clean-2-m4a",
@@ -954,9 +954,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1131,
+      "latency_ms": 2695,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000039161,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1131,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000039161,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":2695,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-clean-2-webm",
@@ -972,9 +972,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1440,
+      "latency_ms": 1737,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000039161,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1440,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000039161,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1737,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-clean-3-m4a",
@@ -990,9 +990,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1376,
+      "latency_ms": 1571,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000030719,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1376,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000030719,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1571,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-clean-3-webm",
@@ -1008,9 +1008,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1140,
+      "latency_ms": 862,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000030719,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1140,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"clean_en\",\"cost_usd\":0.000030719,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":862,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-long-1-m4a",
@@ -1026,9 +1026,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1230,
+      "latency_ms": 1491,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"long_en\",\"cost_usd\":0.000092574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1230,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.015625,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"long_en\",\"cost_usd\":0.000092574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1491,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.015625,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-long-1-webm",
@@ -1044,9 +1044,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 2032,
+      "latency_ms": 3080,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"long_en\",\"cost_usd\":0.000092574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":2032,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.015625,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"long_en\",\"cost_usd\":0.000092574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":3080,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.015625,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-noisy-1-m4a",
@@ -1056,15 +1056,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000039214,
+      "cost_usd": 0.000039161,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1016,
+      "latency_ms": 1519,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000039214,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1016,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000039161,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1519,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-noisy-1-webm",
@@ -1080,9 +1080,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1076,
+      "latency_ms": 1557,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000039161,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1076,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000039161,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1557,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.038461538461538464,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-noisy-2-m4a",
@@ -1092,15 +1092,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000030902,
+      "cost_usd": 0.000030719,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1459,
+      "latency_ms": 1522,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000030902,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1459,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000030719,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1522,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-noisy-2-webm",
@@ -1116,9 +1116,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1180,
+      "latency_ms": 1213,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000030719,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1180,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"noisy_en\",\"cost_usd\":0.000030719,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1213,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-short-1-m4a",
@@ -1134,9 +1134,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1085,
+      "latency_ms": 1227,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"short_en\",\"cost_usd\":3.557e-6,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1085,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"short_en\",\"cost_usd\":3.557e-6,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1227,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-en-short-1-webm",
@@ -1146,15 +1146,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 3.556e-6,
+      "cost_usd": 3.557e-6,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 892,
+      "latency_ms": 1663,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"short_en\",\"cost_usd\":3.556e-6,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":892,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"short_en\",\"cost_usd\":3.557e-6,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1663,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-es-1-m4a",
@@ -1170,9 +1170,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1148,
+      "latency_ms": 1638,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.000025574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1148,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.000025574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"es\",\"latency_ms\":1638,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-es-1-webm",
@@ -1188,9 +1188,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 924,
+      "latency_ms": 1696,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.000025574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"es\",\"latency_ms\":924,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.000025574,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"es\",\"latency_ms\":1696,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-es-1-webm-fallback",
@@ -1206,9 +1206,9 @@
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 884,
+      "latency_ms": 1486,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"spanish\",\"cost_usd\":0.000085333,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"es\",\"latency_ms\":884,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":2,\"category\":\"spanish\",\"cost_usd\":0.000085333,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"es\",\"latency_ms\":1486,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-es-2-m4a",
@@ -1218,15 +1218,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00003037,
+      "cost_usd": 0.000030476,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1143,
+      "latency_ms": 2490,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.00003037,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"es\",\"latency_ms\":1143,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.000030476,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":2490,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-es-2-webm",
@@ -1242,9 +1242,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1358,
+      "latency_ms": 1348,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.00003037,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"es\",\"latency_ms\":1358,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"spanish\",\"cost_usd\":0.00003037,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"es\",\"latency_ms\":1348,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-noise-only-1-m4a",
@@ -1260,9 +1260,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 746,
+      "latency_ms": 1080,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"noise_only\",\"cost_usd\":0.00001998,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":746,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":1,\"category\":\"noise_only\",\"cost_usd\":0.00001998,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1080,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-noise-only-1-m4a-fallback",
@@ -1272,15 +1272,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000066667,
+      "cost_usd": 0.000020033,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 797,
+      "latency_ms": 714,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"noise_only\",\"cost_usd\":0.000066667,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":797,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":2,\"category\":\"noise_only\",\"cost_usd\":0.000020033,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":714,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-noise-only-1-webm",
@@ -1296,9 +1296,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1129,
+      "latency_ms": 1280,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"noise_only\",\"cost_usd\":0.00001998,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1129,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":1,\"category\":\"noise_only\",\"cost_usd\":0.00001998,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1280,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-noise-only-1-webm-fallback",
@@ -1314,9 +1314,9 @@
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 705,
+      "latency_ms": 1045,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"noise_only\",\"cost_usd\":0.000066667,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":705,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":2,\"category\":\"noise_only\",\"cost_usd\":0.000066667,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":1045,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-silence-1-m4a",
@@ -1326,15 +1326,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00001665,
+      "cost_usd": 0.000016836,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1064,
+      "latency_ms": 1415,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"silence\",\"cost_usd\":0.00001665,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1064,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":1,\"category\":\"silence\",\"cost_usd\":0.000016836,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1415,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-silence-1-m4a-fallback",
@@ -1344,15 +1344,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000055556,
+      "cost_usd": 0.000016836,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 627,
+      "latency_ms": 741,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"silence\",\"cost_usd\":0.000055556,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":627,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":2,\"category\":\"silence\",\"cost_usd\":0.000016836,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":741,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-silence-1-webm",
@@ -1368,9 +1368,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1020,
+      "latency_ms": 1385,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"silence\",\"cost_usd\":0.00001665,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1020,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":1,\"category\":\"silence\",\"cost_usd\":0.00001665,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1385,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-silence-1-webm-fallback",
@@ -1386,30 +1386,12 @@
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 658,
+      "latency_ms": 832,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"silence\",\"cost_usd\":0.000055556,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":658,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
+      "output": "{\"attempts\":2,\"category\":\"silence\",\"cost_usd\":0.000055556,\"cost_within\":true,\"delivered\":true,\"empty\":true,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":832,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":true,\"silence_ok\":true,\"wer\":null,\"wer_within\":false}"
     },
     {
       "id": "live-transcribe-tech-1-m4a",
-      "task": "transcribe",
-      "passed": true,
-      "critical_failed": false,
-      "deterministic_passed": true,
-      "judge_passed": null,
-      "errors": [],
-      "cost_usd": 0.000014066,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "served_models": [
-        "qwen/qwen3-asr-0.6b"
-      ],
-      "latency_ms": 1261,
-      "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000014066,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1261,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
-    },
-    {
-      "id": "live-transcribe-tech-1-webm",
       "task": "transcribe",
       "passed": true,
       "critical_failed": false,
@@ -1422,9 +1404,27 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1006,
+      "latency_ms": 2298,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000013918,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1006,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000013918,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":2298,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+    },
+    {
+      "id": "live-transcribe-tech-1-webm",
+      "task": "transcribe",
+      "passed": true,
+      "critical_failed": false,
+      "deterministic_passed": true,
+      "judge_passed": null,
+      "errors": [],
+      "cost_usd": 0.000013919,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "served_models": [
+        "qwen/qwen3-asr-0.6b"
+      ],
+      "latency_ms": 768,
+      "fallback_used": false,
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000013919,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":768,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-tech-1-webm-fallback",
@@ -1440,30 +1440,12 @@
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 731,
+      "latency_ms": 1126,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"technical_en\",\"cost_usd\":0.00004644,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":731,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":2,\"category\":\"technical_en\",\"cost_usd\":0.00004644,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"en\",\"latency_ms\":1126,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-tech-2-m4a",
-      "task": "transcribe",
-      "passed": true,
-      "critical_failed": false,
-      "deterministic_passed": true,
-      "judge_passed": null,
-      "errors": [],
-      "cost_usd": 0.000019181,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "served_models": [
-        "qwen/qwen3-asr-0.6b"
-      ],
-      "latency_ms": 1230,
-      "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000019181,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1230,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
-    },
-    {
-      "id": "live-transcribe-tech-2-webm",
       "task": "transcribe",
       "passed": true,
       "critical_failed": false,
@@ -1476,9 +1458,27 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1181,
+      "latency_ms": 1669,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000019176,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1181,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000019176,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1669,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+    },
+    {
+      "id": "live-transcribe-tech-2-webm",
+      "task": "transcribe",
+      "passed": true,
+      "critical_failed": false,
+      "deterministic_passed": true,
+      "judge_passed": null,
+      "errors": [],
+      "cost_usd": 0.000019177,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "served_models": [
+        "qwen/qwen3-asr-0.6b"
+      ],
+      "latency_ms": 1792,
+      "fallback_used": false,
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000019177,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1792,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-tech-3-m4a",
@@ -1494,9 +1494,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1077,
+      "latency_ms": 1523,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000022269,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1077,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0625,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000022269,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1523,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0625,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-tech-3-webm",
@@ -1512,9 +1512,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1025,
+      "latency_ms": 1781,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000022269,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1025,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0625,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000022269,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1781,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0625,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-tech-4-m4a",
@@ -1524,15 +1524,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00001531,
+      "cost_usd": 0.000015345,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 777,
+      "latency_ms": 794,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.00001531,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":777,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000015345,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":794,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-tech-4-webm",
@@ -1542,15 +1542,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00001531,
+      "cost_usd": 0.000015311,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1132,
+      "latency_ms": 1035,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.00001531,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"en\",\"latency_ms\":1132,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"technical_en\",\"cost_usd\":0.000015311,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1035,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-vi-1-m4a",
@@ -1560,15 +1560,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000031369,
+      "cost_usd": 0.000031542,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1142,
+      "latency_ms": 2425,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000031369,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"vi\",\"latency_ms\":1142,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000031542,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":2425,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-vi-1-m4a-fallback",
@@ -1578,15 +1578,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000104667,
+      "cost_usd": 0.000031542,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "openai/whisper-large-v3-turbo"
       ],
-      "latency_ms": 941,
+      "latency_ms": 3734,
       "fallback_used": true,
-      "output": "{\"attempts\":2,\"category\":\"vietnamese\",\"cost_usd\":0.000104667,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"vi\",\"latency_ms\":941,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":2,\"category\":\"vietnamese\",\"cost_usd\":0.000031542,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":true,\"language\":\"vi\",\"latency_ms\":3734,\"latency_within\":true,\"model\":\"openai/whisper-large-v3-turbo\",\"provider_calls\":2,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.25,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-vi-1-webm",
@@ -1602,9 +1602,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1056,
+      "latency_ms": 828,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000031369,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":1056,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000031369,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":828,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-vi-2-m4a",
@@ -1614,15 +1614,15 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000024083,
+      "cost_usd": 0.000023976,
       "input_tokens": 0,
       "output_tokens": 0,
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 893,
+      "latency_ms": 1116,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000024083,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":893,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000023976,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"vi\",\"latency_ms\":1116,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-vi-2-webm",
@@ -1638,9 +1638,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 757,
+      "latency_ms": 896,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000023976,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"vi\",\"latency_ms\":757,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000023976,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"\",\"latency_ms\":896,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.0,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-vi-3-m4a",
@@ -1656,9 +1656,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 816,
+      "latency_ms": 1726,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000030569,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"vi\",\"latency_ms\":816,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.17647058823529413,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000030569,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"vi\",\"latency_ms\":1726,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.17647058823529413,\"wer_within\":true}"
     },
     {
       "id": "live-transcribe-vi-3-webm",
@@ -1674,9 +1674,9 @@
       "served_models": [
         "qwen/qwen3-asr-0.6b"
       ],
-      "latency_ms": 1045,
+      "latency_ms": 1090,
       "fallback_used": false,
-      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000030569,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"vi\",\"latency_ms\":1045,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.35294117647058826,\"wer_within\":true}"
+      "output": "{\"attempts\":1,\"category\":\"vietnamese\",\"cost_usd\":0.000030569,\"cost_within\":true,\"delivered\":true,\"empty\":false,\"error\":\"\",\"fallback_used\":false,\"language\":\"vi\",\"latency_ms\":1090,\"latency_within\":true,\"model\":\"qwen/qwen3-asr-0.6b\",\"provider_calls\":1,\"silence_case\":false,\"silence_ok\":false,\"wer\":0.35294117647058826,\"wer_within\":true}"
     },
     {
       "id": "live-tutor-long-context-recall",
@@ -1686,13 +1686,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000016524,
+      "cost_usd": 0.000017088,
       "input_tokens": 127,
-      "output_tokens": 43,
+      "output_tokens": 47,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1633,
+      "latency_ms": 1706,
       "fallback_used": false
     },
     {
@@ -1703,13 +1703,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000010822,
+      "cost_usd": 9.976e-6,
       "input_tokens": 95,
-      "output_tokens": 45,
+      "output_tokens": 39,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1995,
+      "latency_ms": 2006,
       "fallback_used": false
     },
     {
@@ -1720,13 +1720,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000016458,
+      "cost_usd": 0.00001674,
       "input_tokens": 163,
-      "output_tokens": 69,
+      "output_tokens": 71,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2639,
+      "latency_ms": 1369,
       "fallback_used": false
     },
     {
@@ -1737,13 +1737,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000012823,
+      "cost_usd": 0.000016489,
       "input_tokens": 128,
-      "output_tokens": 51,
+      "output_tokens": 77,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1893,
+      "latency_ms": 1776,
       "fallback_used": false
     },
     {
@@ -1754,13 +1754,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000011812,
+      "cost_usd": 0.000010825,
       "input_tokens": 83,
-      "output_tokens": 55,
+      "output_tokens": 48,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1484,
+      "latency_ms": 1474,
       "fallback_used": false
     },
     {
@@ -1777,7 +1777,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1704,
+      "latency_ms": 2818,
       "fallback_used": false
     },
     {
@@ -1788,13 +1788,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000029541,
+      "cost_usd": 0.000035886,
       "input_tokens": 558,
-      "output_tokens": 71,
+      "output_tokens": 116,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2041,
+      "latency_ms": 2461,
       "fallback_used": false
     }
   ]
