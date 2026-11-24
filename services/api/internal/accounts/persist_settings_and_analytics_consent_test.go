@@ -16,6 +16,7 @@ func TestSettingsPatchValidation(t *testing.T) {
 		{`{"appearance":"neon"}`, false}, {`{"motion":"fast"}`, false},
 		{`{"narration_speed":8}`, false}, {`{"text_size":0.5}`, false},
 		{`{"haptics":"always"}`, false},
+		{`{"single_key_shortcuts":false}`, true}, {`{"single_key_shortcuts":null}`, false}, {`{"single_key_shortcuts":"false"}`, false},
 		{`{"fullscreen_on_rotate":false,"autoplay":false,"auto_send_after_dictation":false}`, true},
 		{`{"fullscreen_on_rotate":"yes"}`, false}, {`{"autoplay":null}`, false}, {`{"auto_send_after_dictation":1}`, false}, {`{"analytics_opt_out":true}`, true},
 	} {

@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef } from "react";
 import { Button } from "../design/Button";
 
@@ -29,11 +30,8 @@ export function ForkWarning({
     root.current?.focus();
   }, []);
   function keys(event: React.KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      onCancel();
-    } else if (event.key === "Tab" && root.current) {
+    if (closeOnEscape(event, () => onCancel())) return;
+    if (event.key === "Tab" && root.current) {
       const items = [...root.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
       const first = items[0];
       const last = items[items.length - 1];

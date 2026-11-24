@@ -467,7 +467,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
  '{"draft_id":"c7222222-2222-4222-8222-222222222222","revision":3,"content_hash":"%s","outline":[{"id":"fixture-unit","title":"Moon","lessons":[{"id":"fixture-lesson","title":"Phases","goal":"Recognize phases"}]}]}'
  FROM course_brief_revisions WHERE expires_at>now()`, outline.Hash()),
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
-		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_voice='fixture-warm',narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off', fullscreen_on_rotate=false, autoplay=false, auto_send_after_dictation=false, mascot='{\"mode\":\"default\",\"palette\":{\"body\":\"#2F8FE8\",\"bodyEdge\":\"#2271BD\",\"trim\":\"#1A5490\",\"visor\":\"#0E2606\",\"eye\":\"#DDF1FF\",\"accent\":\"#FFC233\"},\"accessories\":[\"bowtie\"],\"companion_visible\":false}' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
+		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_voice='fixture-warm',narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off', fullscreen_on_rotate=false, autoplay=false, auto_send_after_dictation=false, single_key_shortcuts=false, mascot='{\"mode\":\"default\",\"palette\":{\"body\":\"#2F8FE8\",\"bodyEdge\":\"#2271BD\",\"trim\":\"#1A5490\",\"visor\":\"#0E2606\",\"eye\":\"#DDF1FF\",\"accent\":\"#FFC233\"},\"accessories\":[\"bowtie\"],\"companion_visible\":false}' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('clerk','user_synthetic-clerk-subject','a1111111-1111-4111-8111-111111111111','synthetic@example.test')",
 		"INSERT INTO auth_oauth_attempts (state_hash,code_challenge,redirect_uri,learner_id,clerk_user_id,handed_off_at,expires_at) VALUES (repeat('d',64),repeat('f',43),'duolify://sso/callback','a1111111-1111-4111-8111-111111111111','user_synthetic-clerk-subject',now(),now()+interval '5 minutes')",
@@ -1054,6 +1054,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	f.AssertPlayerObjectsRestored(t)
 	f.AssertPlaybackPositionRestored(t, restored.Pool)
 	f.AssertNarrationRestored(t, restored.Pool)
+	var singleKeyShortcuts bool
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT single_key_shortcuts FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'").Scan(&singleKeyShortcuts); err != nil || singleKeyShortcuts {
+		t.Fatalf("single-key shortcuts preference not restored: %v %v", singleKeyShortcuts, err)
+	}
 	var version, learners, entries, balance, riverVersions int64
 	var name, birthDate string
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
@@ -1386,8 +1390,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "INSERT INTO learners(display_name) VALUES('Synthetic erasure check') RETURNING id::text").Scan(&erasedID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out)
- SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out,single_key_shortcuts)
+ SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out,single_key_shortcuts FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES($1::uuid,'{"topic":"Erased brief"}',repeat('c',64))`, erasedID); err != nil {

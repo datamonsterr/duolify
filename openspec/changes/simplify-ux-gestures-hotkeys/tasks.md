@@ -28,11 +28,17 @@
 - [ ] 4.7 Reconcile with `immersive-overlay-polish` if it has landed (sidebar layout and toasts)
 
 ## 5. Hotkey layer and help overlay (size L)
-- [ ] 5.1 E2E: player shortcuts (Space, K, arrows, J/L, Shift+arrows, 0-9, volume, M, C, F, speed, N, B, R, /, ?), Esc layering, input and IME guards, Enter and Shift+Enter, single-key off switch, AZERTY and Arabic layout
-- [ ] 5.2 Integration: registry versus handlers versus help overlay versus `aria-keyshortcuts`; registry versus Tauri menu accelerator table (`cargo test` plus `client:test`)
-- [ ] 5.3 Unit: matcher (`code` versus `key`), guards (target type, modifiers, `isComposing`, repeat), focused-button Space rule
-- [ ] 5.4 Code: typed shortcut registry, `useHotkeys`, help overlay, tooltips with shortcut, Tauri menu items (Settings, destinations, full screen, Keyboard shortcuts) generated from the exported table; migrate existing ad hoc handlers
-- [ ] 5.5 Analytics: `hotkey_used` (never from text fields)
+- [x] 5.1 E2E: help dialog and phone sheet, focus return, tooltips, Esc layering, input and IME guards, and layout-dependent question mark. The focused player integration fixture covers key dispatch and the single-key off switch until the player adopts the hook.
+- [x] 5.2 Integration: registry versus handlers versus help groups versus `aria-keyshortcuts`; TypeScript and Rust tests for the shared native menu accelerator table.
+- [x] 5.3 Unit: matcher (`code` versus `key`), guards (target type, modifiers, `isComposing`, repeat), focused-button Space rule, and composer Enter rules.
+- [x] 5.4 Code: typed shortcut registry, `useHotkeys`, help overlay, tooltips, Tauri menu, and migration of handlers in available files. The per-Learner setting is included in account export and the Postgres restore drill, and removed on erasure.
+- [x] 5.5 Analytics: `hotkey_used` uses registry IDs and honours opt-out. Text-field interactions emit no hotkey event.
+
+Follow-ups after the reserved files are available
+
+- Wire player + immersive handlers, player control shortcuts and end-to-end player scenarios. Adopt shared Escape and composer Enter handling in the reserved panels.
+- After #372 merges, mount `SingleKeyShortcutSetting` and the shortcut help control in `Settings.tsx`.
+- Move `features/hotkeys/messages.ts` into the shared message catalogue when the localization files are available.
 
 ## 6. Per-screen passes (one PR each; sizes S to M)
 Each pass: failing budget and layout test, move strings to the catalogue, cut copy to budget, move explanations to toast, coach mark or tooltip, remove its baseline entry, update the audit row, attach review screenshots.

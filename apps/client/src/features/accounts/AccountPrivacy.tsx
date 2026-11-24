@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { trackPrivacyControl } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
 import { profileApi } from "./learner-context";
 import { AuthError, credentialStore, session } from "./session";
 import { encryptAccountExport } from "./encrypted-export";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedAccountData = lazy(() =>
+  import("./GuidedAccountData").then((m) => ({ default: m.GuidedAccountData })),
+);
 
 export function AccountPrivacy() {
   const [exportOpen, setExportOpen] = useState(false);
@@ -89,6 +94,13 @@ export function AccountPrivacy() {
     }
   }
 
+  const guided = guidedEnabled("rest");
+  const closeDialogs = () => {
+    setExportOpen(false);
+    setDeletionOpen(false);
+    setExportPassphrase("");
+    setConfirmation("");
+  };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       setExportOpen(false);
@@ -133,7 +145,16 @@ export function AccountPrivacy() {
         </div>
       </section>
 
-      {exportOpen && (
+      {guided && (exportOpen || deletionOpen) && (
+        <Suspense fallback={null}>
+          <GuidedAccountData
+            mode={exportOpen ? "export" : "delete"}
+            onClose={closeDialogs}
+          />
+        </Suspense>
+      )}
+
+      {!guided && exportOpen && (
         <div className="settings-scrim" onClick={() => setExportOpen(false)}>
           <section
             role="dialog"
@@ -174,7 +195,7 @@ export function AccountPrivacy() {
         </div>
       )}
 
-      {deletionOpen && (
+      {!guided && deletionOpen && (
         <div
           className="settings-scrim"
           onClick={() => {
