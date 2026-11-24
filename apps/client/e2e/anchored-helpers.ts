@@ -157,3 +157,18 @@ export const overlap = (
   b.x < a.x + a.width &&
   a.y < b.y + b.height &&
   b.y < a.y + a.height;
+
+/** A toast must never sit over the player's title bar: their boxes do not intersect. */
+export async function expectToastClearOfTitle(page: Page) {
+  const toast = await page.getByTestId("toast").boundingBox();
+  const title = await page.locator(".imm-title").first().boundingBox();
+  expect(toast && title).toBeTruthy();
+  const t = toast!;
+  const b = title!;
+  const apart =
+    t.x >= b.x + b.width ||
+    b.x >= t.x + t.width ||
+    t.y >= b.y + b.height ||
+    b.y >= t.y + t.height;
+  expect(apart, "toast overlaps the title bar").toBe(true);
+}

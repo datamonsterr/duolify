@@ -10,6 +10,7 @@ import {
   VIEWPORTS,
   clock,
   enterImmersive,
+  expectToastClearOfTitle,
   openLesson,
   openRail,
   setup,
@@ -98,6 +99,8 @@ for (const vp of [VIEWPORTS[0], VIEWPORTS[1]]) {
         await expect(page.getByTestId("immersive-note-composer")).toHaveCount(
           0,
         );
+        await expectToastClearOfTitle(page);
+        await page.waitForTimeout(500); // past the toast's fade-in
         await snap(page, info, vp, scheme, "3-saved-toast");
         // Playback resumes after release.
         await expect.poll(() => clock(page)).toBeGreaterThan(frozen);

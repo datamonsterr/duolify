@@ -1,7 +1,11 @@
 .ui-toast-host {
   position: fixed;
   inset-inline: 0;
-  inset-block-start: calc(var(--sa-t, env(safe-area-inset-top, 0px)) + 12px);
+  /* Below any top bar a surface sets in --toast-top; never over it. */
+  inset-block-start: var(
+    --toast-top,
+    calc(var(--sa-t, env(safe-area-inset-top, 0px)) + 12px)
+  );
   display: flex;
   justify-content: center;
   padding-inline: var(--space-3);
@@ -16,9 +20,12 @@
   max-inline-size: min(28rem, 100%);
   border: 2px solid var(--line);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  /* Opaque: text behind a toast must never show through. */
+  background-color: var(--surface);
+  background-image: linear-gradient(var(--surface), var(--surface));
   color: var(--text);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  opacity: 1;
   pointer-events: auto;
 }
 .ui-toast[data-tone="error"] {
