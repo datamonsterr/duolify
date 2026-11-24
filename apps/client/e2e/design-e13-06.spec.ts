@@ -139,6 +139,8 @@ for (const width of [1280, 360]) {
 
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    // Phones group controls into sections; a hash opens one.
+    await page.goto("/settings#audio");
 
     // Check UI sounds and Haptics controls
     const soundToggle = page.getByLabel("UI sounds", { exact: true });
@@ -192,6 +194,7 @@ for (const width of [1280, 360]) {
     expect(audioRequests).toHaveLength(0);
 
     // Reduced motion test: select reduce motion and verify static data-motion attribute after saving
+    await page.goto("/settings#look");
     const motionToggle = page.getByLabel(/Reduce motion/i);
     await motionToggle.check();
     await saveButton.click();
@@ -199,6 +202,7 @@ for (const width of [1280, 360]) {
     await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
 
     // Keyboard navigation parity: test tab focus and keyboard toggle
+    await page.goto("/settings#audio");
     await soundToggle.focus();
     await expect(soundToggle).toBeFocused();
     await page.keyboard.press("Space");

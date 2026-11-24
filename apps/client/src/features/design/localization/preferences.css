@@ -56,15 +56,6 @@
     scroll-behavior: auto !important;
   }
 }
-.appearance-menu {
-  margin-block-end: var(--space-4);
-}
-.appearance-menu > summary {
-  cursor: pointer;
-  min-block-size: var(--size-target);
-  padding: var(--space-2);
-  overflow-wrap: anywhere;
-}
 .preference-select {
   display: flex;
   flex-wrap: wrap;

@@ -142,7 +142,7 @@ for (const mobile of [false, true]) {
     await expect(add).toBeFocused();
 
     // Settings: rename, cooldown, hold.
-    await page.goto("/settings");
+    await page.goto("/settings#account");
     await page.getByRole("button", { name: "Change username" }).click();
     const rename = page.getByRole("textbox", { name: "New username" });
     await rename.fill(`${p}.mina2`);
@@ -168,6 +168,7 @@ for (const mobile of [false, true]) {
     expect((await heldRename.json()).code).toBe("username_taken");
 
     // Privacy: failed save keeps the previous value; success hides from prefix search.
+    await page.goto("/settings#privacy");
     const findable = page.getByRole("checkbox", {
       name: "Findable by username",
     });

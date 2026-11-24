@@ -5,7 +5,7 @@ import { apiBase } from "./servers";
 test("settings checkboxes retain a usable label and native interaction", async ({
   page,
 }) => {
-  await page.goto("/settings");
+  await page.goto("/settings#audio");
   const checkbox = page.getByTestId("setting-auto-send");
   await expect(checkbox).toBeVisible();
   const label = checkbox.locator("xpath=ancestor::label");

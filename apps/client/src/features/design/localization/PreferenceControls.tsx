@@ -7,10 +7,16 @@ export function PreferenceControls({
   testLocales = false,
   value,
   onChange,
+  onReset,
+  hideReset = false,
 }: {
   testLocales?: boolean;
   value?: Preferences;
   onChange?: (patch: Partial<Preferences>) => void;
+  /** Settings page: reset also clears the unsaved form. */
+  onReset?: () => void;
+  /** The caller renders its own reset button at the end of its section. */
+  hideReset?: boolean;
 }) {
   const languageId = useId();
   const appearanceId = useId();
@@ -66,15 +72,12 @@ export function PreferenceControls({
         />
         {t("settings.motion")}
       </label>
-      <p>{t("settings.motion_hint")}</p>
-      {!persisted && (
-        <>
-          <Button data-control="reset" variant="quiet" onClick={reset}>
-            {t("settings.reset")}
-          </Button>
-          <p>{t("settings.local")}</p>
-        </>
+      {!hideReset && (!persisted || onReset) && (
+        <Button data-control="reset" variant="quiet" onClick={onReset ?? reset}>
+          {t("settings.reset")}
+        </Button>
       )}
+      {!persisted && <p>{t("settings.local")}</p>}
       {!persisted && saveError && (
         <div role="alert">
           <p>{t("settings.error")}</p>

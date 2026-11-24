@@ -32,6 +32,7 @@ const profile = {
 beforeEach(() => {
   // The old dialogs stay one release behind the flag; these tests cover them.
   localStorage.setItem("duolify.guided.rest", "off");
+  window.location.hash = "#privacy";
   vi.clearAllMocks();
   vi.mocked(profileApi.readSettings).mockResolvedValue(profile);
   vi.mocked(profileApi.saveSettings).mockResolvedValue(profile);

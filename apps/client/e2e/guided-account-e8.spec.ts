@@ -13,7 +13,7 @@ for (const [width, height] of [
     page,
   }, info) => {
     await page.setViewportSize({ width, height });
-    await page.goto("/settings");
+    await page.goto("/settings#privacy");
     await page.getByRole("button", { name: "Export data" }).click();
     const dialog = page.getByRole("dialog", { name: "Export data" });
     const pass = dialog.getByLabel("Export passphrase");

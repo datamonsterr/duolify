@@ -133,7 +133,7 @@ for (const mobile of [false, true]) {
       ),
     ).toBe(true);
 
-    await page.goto("/settings");
+    await page.goto("/settings#account");
     await expect(page.getByText("@Maya_Learns")).toBeVisible();
   });
 }

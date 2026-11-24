@@ -425,7 +425,11 @@ func (s *Service) effectiveCast(ctx context.Context, owner, course string) (Less
 			out.FallbackUsed = true
 		}
 		_, provisional := builtIn(r.ID)
-		out.Speakers[key] = PinnedSpeaker{SpeakerKey: key, Role: role, CharacterID: r.ID, CharacterVersion: r.Version, Spec: r.Spec, IsProvisional: provisional}
+		speaker := PinnedSpeaker{SpeakerKey: key, Role: role, CharacterID: r.ID, CharacterVersion: r.Version, Spec: r.Spec, IsProvisional: provisional}
+		if r.Checksum != "" && !r.ReadOnly {
+			speaker.Document = r.Document
+		}
+		out.Speakers[key] = speaker
 	}
 	return out, nil
 }

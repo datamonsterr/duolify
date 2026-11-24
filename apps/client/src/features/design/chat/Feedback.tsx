@@ -36,6 +36,14 @@ export function Field({
   );
 }
 
+// Colour is never the only signal: every tone carries its own glyph.
+const toneGlyph = {
+  info: "i",
+  warning: "!",
+  danger: "\u2715",
+  success: "\u2713",
+};
+
 export function Feedback({
   tone = "info",
   title,
@@ -56,7 +64,12 @@ export function Feedback({
       className={`guided-feedback ${tone}`}
       role={blocking ? "alert" : "status"}
     >
-      <strong>{title}</strong>
+      <strong>
+        <span>{title}</span>{" "}
+        <span aria-hidden="true" data-icon={tone}>
+          {toneGlyph[tone]}
+        </span>
+      </strong>
       {children && <div>{children}</div>}
       {action && (
         <Button variant="quiet" onClick={onAction}>

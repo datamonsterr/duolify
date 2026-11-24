@@ -1,5 +1,38 @@
-import type { LessonCastSnapshot, SlideManifest, Expression } from "./types";
+import type {
+  LessonCastSnapshot,
+  SlideManifest,
+  Expression,
+  PinnedSpeaker,
+} from "./types";
 import { compileRigSvg, getBundledFallbackSvg } from "./rig";
+import type { Pose } from "./types-v2";
+
+/** The v2 compiler is a lazy chunk; callers pass it once loaded. */
+export type CompileV2 = typeof import("./rig-v2").compileV2;
+
+/** v1 segments carry no pose; derive one from the expression. */
+export const POSE_FOR_EXPRESSION: Record<Expression, Pose> = {
+  idle: "idle",
+  happy: "talk",
+  sad: "shrug",
+  thinking: "think",
+  celebrate: "celebrate",
+};
+
+function speakerSvg(
+  speaker: PinnedSpeaker,
+  exp: Expression,
+  compileV2?: CompileV2,
+): string {
+  if (speaker.document && compileV2) {
+    try {
+      return compileV2(speaker.document, "body", POSE_FOR_EXPRESSION[exp], exp);
+    } catch {
+      // Fall through to the v1 projection.
+    }
+  }
+  return compileRigSvg(speaker.spec, exp);
+}
 
 function escapeHtml(str: string): string {
   return str
@@ -24,6 +57,7 @@ const SLIDE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 export interface MotionSlideOptions {
   reducedMotion?: boolean;
   offline?: boolean;
+  compileV2?: CompileV2;
 }
 
 export function generateMotionSlideHtml(
@@ -50,13 +84,13 @@ export function generateMotionSlideHtml(
 
   if (guideSpeaker) {
     for (const exp of expressions) {
-      guideSvgs[exp] = compileRigSvg(guideSpeaker.spec, exp);
+      guideSvgs[exp] = speakerSvg(guideSpeaker, exp, options.compileV2);
     }
   }
 
   if (supporterSpeaker) {
     for (const exp of expressions) {
-      supporterSvgs[exp] = compileRigSvg(supporterSpeaker.spec, exp);
+      supporterSvgs[exp] = speakerSvg(supporterSpeaker, exp, options.compileV2);
     }
   }
 
@@ -138,7 +172,9 @@ export function generateMotionSlideHtml(
         justify-content: center;
         align-items: center;
         gap: 24px;
-        height: 160px;
+        height: 34vh;
+        min-height: 150px;
+        max-height: 300px;
         width: 100%;
       }
       .speaker-avatar {
@@ -154,8 +190,11 @@ export function generateMotionSlideHtml(
         transform: scale(1.05);
       }
       .speaker-avatar svg {
-        width: 130px;
-        height: 130px;
+        height: 34vh;
+        min-height: 150px;
+        max-height: 300px;
+        width: auto;
+        max-width: 42vw;
       }
       .dialogue-card {
         background: var(--color-card);
