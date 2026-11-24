@@ -57,9 +57,10 @@ for (const size of sizes)
         .not.toBe(before);
       await answer(page, "Looks good");
       await expect(page.getByText("Pick their outfit.").first()).toBeVisible();
+      // Dispatch the click: the pinned preview may sit over the tile at this scroll position.
       await page
         .getByRole("checkbox", { name: "Scarf" })
-        .check({ force: true });
+        .dispatchEvent("click");
       await shot(page, "create", "mid");
       await answer(page, "Looks good");
       // Name: inline error with role=alert, then the Send arrow.

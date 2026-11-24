@@ -294,7 +294,7 @@
   padding: 4px;
   border: 2px solid var(--line);
   border-radius: var(--radius-lg);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   text-align: center;
   cursor: pointer;
 }
@@ -458,5 +458,46 @@
 .gc-character .cv2-tile input,
 .gc-character .cv2-swatch input,
 .gc-character .cv2-text input {
-  scroll-margin-top: 130px;
+  scroll-margin-top: 180px;
+}
+
+/* Text-only chips (pronouns): readable size, wrap, 44px targets. */
+.cv2-tiles.cv2-chips {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+}
+.cv2-tile.cv2-chip {
+  min-height: 44px;
+  padding: 8px 12px;
+  align-content: center;
+  font-size: 0.9rem;
+}
+/* Desktop chat: previews live in their own column so nothing scrolls under them. */
+@media (min-width: 900px) {
+  .gc-character:has(> .cv2-stage-pair) {
+    grid-template-columns: 132px minmax(0, 1fr);
+    align-items: start;
+  }
+  .gc-character > .cv2-stage-pair {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    flex-direction: column;
+    align-items: center;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+    padding: var(--space-2);
+  }
+  .gc-character:has(> .cv2-stage-pair) > :not(.cv2-stage-pair) {
+    grid-column: 2;
+  }
+  .gc-character .cv2-field,
+  .gc-character .cv2-tile input,
+  .gc-character .cv2-swatch input,
+  .gc-character .cv2-text input {
+    scroll-margin-top: 0;
+  }
+}
+
+.gc-character .cv2-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
 }
