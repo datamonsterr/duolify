@@ -127,6 +127,10 @@ async fn enrich_note_returns_real_attempts_and_enforces_limits() {
             idle_timeout_ms: 0,
         }),
         allowed_lessons: vec![],
+        course_title: "Astronomy".into(),
+        lesson_title: "Stars".into(),
+        slide_title: "Rotation".into(),
+        dictated: true,
     };
 
     let response = client

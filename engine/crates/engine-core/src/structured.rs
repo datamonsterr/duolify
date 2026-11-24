@@ -93,10 +93,12 @@ pub fn response_format(task: &str) -> Option<Value> {
         "note" => schema(
             "note_enrichment",
             json!({"type":"object","properties":{
+                "title":{"type":"string"},
+                "formatted_body":{"type":"string"},
                 "summary":{"type":"string"},
                 "tags":{"type":"array","items":{"type":"string"}},
                 "links":{"type":"array","items":{"type":"string"}}},
-                "required":["summary","tags","links"],"additionalProperties":false}),
+                "required":["title","formatted_body","summary","tags","links"],"additionalProperties":false}),
         ),
         "preview" => schema(
             "course_preview",

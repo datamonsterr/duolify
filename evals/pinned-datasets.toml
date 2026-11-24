@@ -20,3 +20,5 @@
 "ef44a169c654d8e01d7719a5b632522824292b40" = "fe1b8fdd99802a661c96855edf7839668d65d72f115b41d1b47b9f43644ca59f"
 # Adds 49 `transcribe` cases and their 40 recordings under audio/ (immersive-mobile-lesson-player 6.7); the first 41 rows are unchanged.
 "d902ce8cfacc2abf8d585930e2a15d471515b07a" = "202ac078afc07c9adf1f74eb289c458215088acb005a12538c6051abb7e79ed5"
+# Adds three voice quick note `note_enrich` formatting cases (voice-quick-note C2); the first 90 rows are unchanged.
+"37e6ba473f97c04021b0a16d51dc7ef33f8046e1" = "b63e3143a07705d1489ae635464998b3755ef912c2c6adbf59e658f54188a803"

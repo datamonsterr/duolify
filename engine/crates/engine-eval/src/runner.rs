@@ -1657,12 +1657,19 @@ async fn evaluate_note_enrich(input: &serde_json::Value) -> Result<String> {
         .and_then(|a| serde_json::from_value(a.clone()).ok())
         .unwrap_or_default();
 
-    let outcome = engine_core::notes::enrich(
+    let context = engine_core::notes::NoteContext {
+        course_title: input["course_title"].as_str().unwrap_or_default().into(),
+        lesson_title: input["lesson_title"].as_str().unwrap_or_default().into(),
+        slide_title: input["slide_title"].as_str().unwrap_or_default().into(),
+        dictated: input["dictated"].as_bool().unwrap_or_default(),
+    };
+    let outcome = engine_core::notes::enrich_with_context(
         &router,
         note,
         lesson.as_ref(),
         learner.as_ref(),
         &allowed_lessons,
+        &context,
         &limits,
     )
     .await?;
@@ -1671,6 +1678,8 @@ async fn evaluate_note_enrich(input: &serde_json::Value) -> Result<String> {
     let mut val = if let Some(r) = res {
         serde_json::json!({
             "delivered": true,
+            "title": r.title,
+            "formatted_body": r.formatted_body,
             "summary": r.summary,
             "tags": r.tags,
             "links": r.links,
@@ -1678,6 +1687,8 @@ async fn evaluate_note_enrich(input: &serde_json::Value) -> Result<String> {
     } else {
         serde_json::json!({
             "delivered": false,
+            "title": "",
+            "formatted_body": "",
             "summary": "",
             "tags": [],
             "links": [],

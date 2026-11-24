@@ -469,6 +469,8 @@ impl LlmProvider for MockProvider {
                 .unwrap_or_default();
             if note.contains("Trái Đất") || input.contains("vi-VN") {
                 serde_json::json!({
+                    "title": "Trái Đất tự quay",
+                    "formatted_body": note,
                     "summary": "Trái Đất tự quay quanh trục từ tây sang đông.",
                     "tags": ["thiên-văn", "trái-đất"],
                     "links": []
@@ -476,6 +478,8 @@ impl LlmProvider for MockProvider {
                 .to_string()
             } else if note == "example" || note.is_empty() {
                 serde_json::json!({
+                    "title": "Sample note",
+                    "formatted_body": "Sample note",
                     "summary": "Sample note",
                     "tags": ["sample"],
                     "links": []
@@ -483,6 +487,8 @@ impl LlmProvider for MockProvider {
                 .to_string()
             } else {
                 serde_json::json!({
+                    "title": "Star motion",
+                    "formatted_body": note,
                     "summary": "Apparent star motion comes from Earth rotation; Polaris barely moves.",
                     "tags": ["rotation", "polaris"],
                     "links": ["valid-lesson-id", "lesson-2", "foreign-hallucinated-lesson", "unknown-foreign-lesson"]

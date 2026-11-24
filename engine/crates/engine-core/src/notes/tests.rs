@@ -414,3 +414,42 @@ async fn enrich_repairs_an_instruction_echo_with_the_corrective_retry() {
     assert!(result.summary.starts_with("Unbuffered channels"));
     assert_eq!(outcome.attempts.len(), 2);
 }
+
+#[test]
+fn prompt_carries_course_context_and_dictation_flag_but_only_when_given() {
+    let plain = super::prompt("n", None, None, &[]);
+    assert!(!plain.contains("\"context\""));
+    let ctx = super::NoteContext {
+        course_title: "Go".into(),
+        lesson_title: "Channels".into(),
+        slide_title: "Unbuffered".into(),
+        dictated: true,
+    };
+    let with = super::prompt_with_context("n", None, None, &[], &ctx);
+    let v: serde_json::Value = serde_json::from_str(&with).unwrap();
+    assert_eq!(v["learner_data"]["context"]["course"], "Go");
+    assert_eq!(v["learner_data"]["context"]["slide"], "Unbuffered");
+    assert_eq!(v["learner_data"]["context"]["dictated"], true);
+}
+
+#[test]
+fn formatting_fields_are_optional_but_bounded_and_never_an_echo() {
+    let ok = |extra: serde_json::Value| {
+        let mut v = serde_json::json!({"summary": "s", "tags": [], "links": []});
+        v.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        check_enrichment("note", &v.to_string())
+    };
+    assert_eq!(ok(serde_json::json!({})), Ok(()));
+    assert_eq!(
+        ok(serde_json::json!({"title": "T", "formatted_body": "B"})),
+        Ok(())
+    );
+    assert!(ok(serde_json::json!({"title": "x".repeat(81)})).is_err());
+    assert!(ok(serde_json::json!({"title": " "})).is_err());
+    assert!(ok(serde_json::json!({"formatted_body": ""})).is_err());
+    assert!(ok(serde_json::json!({"formatted_body": "x".repeat(4001)})).is_err());
+    let echo = ok(serde_json::json!({"formatted_body": INSTRUCTION}));
+    assert!(echo.unwrap_err().contains("instructions"));
+}

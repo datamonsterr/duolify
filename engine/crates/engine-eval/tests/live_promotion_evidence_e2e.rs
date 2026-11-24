@@ -7,8 +7,8 @@ use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const REV: &str = "d902ce8cfacc2abf8d585930e2a15d471515b07a";
-const SHA: &str = "202ac078afc07c9adf1f74eb289c458215088acb005a12538c6051abb7e79ed5";
+const REV: &str = "37e6ba473f97c04021b0a16d51dc7ef33f8046e1";
+const SHA: &str = "b63e3143a07705d1489ae635464998b3755ef912c2c6adbf59e658f54188a803";
 
 fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
