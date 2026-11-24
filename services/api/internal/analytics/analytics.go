@@ -117,7 +117,8 @@ func allowlisted(event string) bool {
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled",
 		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created",
 		"voice_transcription_succeeded", "voice_transcription_failed",
-		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used":
+		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used",
+		"input_guard_decision":
 		return true
 	default:
 		return false
@@ -659,6 +660,18 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		boolean("fallback_used", "empty")
 		ids("served_model", "model")
+	case "input_guard_decision":
+		// ADR 0025: closed enums and a flag only. The guarded text, even redacted, never leaves the API.
+		closed := func(key string, allowed ...string) {
+			if v, ok := input[key].(string); ok && slices.Contains(allowed, v) {
+				out[key] = v
+			}
+		}
+		closed("surface", "course_topic", "steer", "outline_chat", "character", "course_publish", "review", "quick_note", "tutor_chat")
+		closed("reason_code", "", "prompt_injection", "unsafe_content", "self_harm", "pii", "off_topic_for_course", "too_long")
+		closed("guard_source", "pre_filter", "model", "failure", "disabled")
+		boolean("allowed")
+		numeric("latency_ms")
 	case "lesson_anchored_note_created":
 		// Identifiers, a closed enum and a flag; never the note text or the region contents.
 		ids("course_id", "lesson_id")

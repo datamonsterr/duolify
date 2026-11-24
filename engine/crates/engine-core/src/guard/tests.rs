@@ -143,3 +143,33 @@ async fn failures_follow_the_surface_rule() {
 fn tutor_chat_holds_at_most_one_second() {
     assert_eq!(Surface::TutorChat.budget(), Duration::from_millis(1000));
 }
+
+/// The deterministic rows of `evals/datasets/duolify-golden/pending-prompt-skills.jsonl` that need no
+/// model: they must decide at the pre-filter, so the live eval and the unit suite cannot drift apart.
+#[test]
+fn pending_golden_prefilter_rows_decide_without_a_model() {
+    let rows =
+        include_str!("../../../../../evals/datasets/duolify-golden/pending-prompt-skills.jsonl");
+    let mut seen = 0;
+    for line in rows.lines() {
+        let v: serde_json::Value = serde_json::from_str(line).unwrap();
+        if v["task"] != "input_guard" {
+            continue;
+        }
+        let surface = Surface::from_code(v["input"]["surface"].as_str().unwrap()).unwrap();
+        let text = v["input"]["text"].as_str().unwrap();
+        let expect_prefilter = v["checks"].as_array().unwrap().iter().any(|c| {
+            c["value"]
+                .as_str()
+                .is_some_and(|s| s.contains("\"pre_filter\""))
+        });
+        let got = pre_filter(surface, text);
+        assert_eq!(got.is_some(), expect_prefilter, "{}", v["id"]);
+        // Benign rows must never be stopped before the classifier.
+        if v["id"].as_str().unwrap().contains("benign") {
+            assert!(got.is_none(), "{}", v["id"]);
+        }
+        seen += 1;
+    }
+    assert!(seen >= 10);
+}

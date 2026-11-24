@@ -15,6 +15,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -341,6 +342,19 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	streamCtx, cancelDeadline := context.WithDeadline(streamCtx, job.DeadlineAt)
 	defer cancelDeadline()
 	stream, err := s.opts.Engine.Chat(streamCtx, req)
+	if blocked, ok := engine.Blocked(err); ok {
+		// ADR 0025: the input guard refused the message before any main-model call. Release the
+		// hold (no Credits), leave no message behind and keep the thread usable.
+		abort()
+		cleanup = !s.tombstone(turn, "input_blocked", job.ID)
+		s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_failed", map[string]any{"course_id": course, "class": in.Class, "error_code": "input_blocked", "interrupted": false, "retryable": false, "latency_ms": int64(0)})
+		body := map[string]any{"error": "input_blocked", "reason_code": blocked.ReasonCode, "retryable": false}
+		if blocked.SafeResponse() {
+			body["safe_response"] = SafeResponseCopy(r.Header.Get("Accept-Language"))
+		}
+		respond(w, http.StatusUnprocessableEntity, body)
+		return
+	}
 	var reply strings.Builder
 	var reported *enginev1.Usage
 	var streamErr, typedErr error

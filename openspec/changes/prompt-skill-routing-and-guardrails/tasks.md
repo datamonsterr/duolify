@@ -41,10 +41,10 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 ## 5. Input guardrail consolidation (L)
 
 - [ ] 5.1 E2E: attack set blocked on every surface; self-harm text returns the safe response without a main call or charge; benign look-alikes pass.
-- [ ] 5.2 Integration: `input_guard` core plus surface skills `steer`, `character`, `course_publish`, `review`; existing screen RPCs keep contracts and thresholds; fail-closed on creation surfaces, fail-open with 1000 ms hold on tutor chat, notes and transcripts; deterministic pre-filter; PII placeholders.
-- [ ] 5.3 Integration (API): safe-response path for `self_harm` with approved localised resources, no Credits, thread stays usable; API stops calling four screen tasks separately only after parity is proven on the golden set.
-- [ ] 5.4 Unit: pre-filter patterns, verdict parser, reason-code enum, per-surface failure table, cost ceiling.
-- [ ] 5.5 Choose the guard model with the guard golden set (candidates in `design.md`); record it in `models.toml` `[guard]`.
+- [ ] 5.2 (done: core, classifier task, `GuardInput` RPC, API client wiring behind `INPUT_GUARD_ENABLED`, analytics; open: surface skills for steer, character, course_publish, review used by the four screens, per-surface HTTP messages beyond tutor chat) Integration: `input_guard` core plus surface skills `steer`, `character`, `course_publish`, `review`; existing screen RPCs keep contracts and thresholds; fail-closed on creation surfaces, fail-open with 1000 ms hold on tutor chat, notes and transcripts; deterministic pre-filter; PII placeholders.
+- [ ] 5.3 (done: tutor-chat safe response with placeholder copy; open: approved copy #423, parity run, switching the four screens) Integration (API): safe-response path for `self_harm` with approved localised resources, no Credits, thread stays usable; API stops calling four screen tasks separately only after parity is proven on the golden set.
+- [x] 5.4 Unit: pre-filter patterns, verdict parser, reason-code enum, per-surface failure table, cost ceiling.
+- [ ] 5.5 (model chosen for parity, measured cost from the existing screens, own measurement pending the first live run) Choose the guard model with the guard golden set (candidates in `design.md`); record it in `models.toml` `[guard]`.
 
 ## 6. Caching layout and cost gate (S)
 

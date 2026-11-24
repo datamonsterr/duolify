@@ -18,7 +18,8 @@ pub struct Live {
 }
 
 /// Tasks whose live cases go through production builders here (screens run in the runner).
-pub const TASKS: [&str; 12] = [
+pub const TASKS: [&str; 13] = [
+    "input_guard",
     "course_preview",
     "course_outline",
     "lesson_slides",
@@ -636,6 +637,47 @@ pub async fn evaluate(
                     "name": parsed["info"]["name"],
                 }),
             ))
+        }
+        "input_guard" => {
+            // The same order as the engine RPC: pre-filter without a model, then the classifier,
+            // then the surface failure rule. The text is data, never echoed into the result.
+            use engine_core::guard::{self, Decision, Source, Surface, classifier};
+            let surface = Surface::from_code(input["surface"].as_str().unwrap_or_default())
+                .context("unknown guard surface")?;
+            let text = input["text"].as_str().unwrap_or_default();
+            let topic = input["course_topic"].as_str().unwrap_or_default();
+            let (decision, outcome) = if let Some(r) = guard::pre_filter(surface, text) {
+                (
+                    Decision::block(r, Source::PreFilter),
+                    engine_core::credits::Outcome {
+                        completion: None,
+                        attempts: vec![],
+                    },
+                )
+            } else {
+                let o = classifier::run(router, surface, text, topic).await?;
+                let verdict = o
+                    .completion
+                    .as_ref()
+                    .and_then(|c| guard::parse_verdict(&c.text).ok());
+                (Decision::from_verdict(surface, verdict), o)
+            };
+            let result = json!({
+                "allowed": decision.allowed,
+                "reason_code": decision.reason.map(|r| r.code()).unwrap_or(""),
+                "source": decision.source.code(),
+                "safe_response": decision.safe_response(),
+                "surface": input["surface"],
+                "arm": "guard",
+            });
+            let has_completion = outcome.completion.is_some();
+            let mut live = bounded(outcome, result);
+            // A pre-filter decision makes no model call, so there is no completion to price.
+            if !has_completion && let Ok(mut v) = serde_json::from_str::<Value>(&live.text) {
+                v["delivered"] = json!(true);
+                live.text = v.to_string();
+            }
+            Ok(live)
         }
         "lesson_narration" => narration(input).await,
         other => anyhow::bail!("no live evaluator for {other}"),

@@ -26,6 +26,7 @@ type Client struct {
 	conn    *grpc.ClientConn
 	rpc     enginev1.EngineServiceClient
 	timeout time.Duration
+	guard   *guardState
 }
 
 // quoted bounds a quote-priced generation call. The caller's quote/reservation deadline (minutes
@@ -79,6 +80,9 @@ func (c *Client) MapCharacter(ctx context.Context, r *enginev1.MapCharacterReque
 
 // OutlineChatChange uses the same private transport and bounded request context.
 func (c *Client) OutlineChatChange(ctx context.Context, r *enginev1.OutlineChatChangeRequest) (*enginev1.OutlineChatChangeResponse, error) {
+	if err := c.check(ctx, SurfaceOutlineChat, r.GetRequest(), ""); err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return c.rpc.OutlineChatChange(ctx, r)
@@ -87,6 +91,9 @@ func (c *Client) OutlineChatChange(ctx context.Context, r *enginev1.OutlineChatC
 // Chat opens the tutor stream. The caller's context carries the reservation deadline, so no
 // extra timeout is applied here and cancelling it ends the stream.
 func (c *Client) Chat(ctx context.Context, r *enginev1.ChatRequest) (enginev1.EngineService_ChatClient, error) {
+	if err := c.check(ctx, SurfaceTutorChat, lastUser(r.GetMessages()), ""); err != nil {
+		return nil, err
+	}
 	cor := telemetry.CorrelationFrom(ctx)
 	md, _ := metadata.FromOutgoingContext(ctx)
 	md = md.Copy()
@@ -155,7 +162,7 @@ func New(addr string, timeout time.Duration) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create engine client: %w", err)
 	}
-	return &Client{conn: conn, rpc: enginev1.NewEngineServiceClient(conn), timeout: timeout}, nil
+	return &Client{conn: conn, rpc: enginev1.NewEngineServiceClient(conn), timeout: timeout, guard: &guardState{}}, nil
 }
 
 // correlate forwards safe metadata only and records status without request/error bodies.
@@ -196,6 +203,9 @@ func (c *Client) Providers(ctx context.Context) ([]string, error) {
 
 // PreviewCourse forwards the supplied context and bounds engine execution time.
 func (c *Client) PreviewCourse(ctx context.Context, request *enginev1.PreviewCourseRequest) (*enginev1.PreviewCourseResponse, error) {
+	if err := c.check(ctx, SurfaceCourseTopic, previewText(request), ""); err != nil {
+		return nil, err
+	}
 	ctx, cancel := c.quoted(ctx)
 	defer cancel()
 	return c.rpc.PreviewCourse(ctx, request)
@@ -203,6 +213,11 @@ func (c *Client) PreviewCourse(ctx context.Context, request *enginev1.PreviewCou
 
 // SetupChat forwards the setup turn with a bounded context.
 func (c *Client) SetupChat(ctx context.Context, request *enginev1.SetupChatRequest) (*enginev1.SetupChatResponse, error) {
+	if !request.GetSkipped() {
+		if err := c.check(ctx, SurfaceCourseTopic, request.GetAnswer(), ""); err != nil {
+			return nil, err
+		}
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return c.rpc.SetupChat(ctx, request)
@@ -210,6 +225,11 @@ func (c *Client) SetupChat(ctx context.Context, request *enginev1.SetupChatReque
 
 // CourseBriefChat forwards request-local intent with the API deadline.
 func (c *Client) CourseBriefChat(ctx context.Context, request *enginev1.CourseBriefChatRequest) (*enginev1.CourseBriefChatResponse, error) {
+	if !request.GetSkipped() {
+		if err := c.check(ctx, SurfaceCourseTopic, request.GetAnswer(), request.GetBrief().GetTopic()); err != nil {
+			return nil, err
+		}
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return c.rpc.CourseBriefChat(ctx, request)
@@ -222,6 +242,9 @@ func (c *Client) RPC() enginev1.EngineServiceClient {
 
 // EnrichNote forwards note enrichment within the context deadline.
 func (c *Client) EnrichNote(ctx context.Context, request *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
+	if err := c.check(ctx, SurfaceQuickNote, request.GetNote(), ""); err != nil {
+		return nil, err
+	}
 	return c.rpc.EnrichNote(ctx, request)
 }
 
