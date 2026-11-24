@@ -9,6 +9,7 @@ import { webBase } from "./servers";
 import {
   VIEWPORTS,
   enterImmersive,
+  expectToastClearOfTitle,
   openLesson,
   openRail,
   setup,
@@ -149,6 +150,11 @@ for (const vp of [VIEWPORTS[0], VIEWPORTS[1]]) {
         await expect(page.getByTestId("toast")).toContainText(/Saved/i);
         await expect(page.getByTestId("toast-action")).toHaveText("Format");
         expect(formatted).toHaveLength(0);
+        await expectToastClearOfTitle(page);
+        // One line on a 390 px screen: the message and its action share a row.
+        const row = await page.getByTestId("toast").boundingBox();
+        expect(row!.height).toBeLessThan(64);
+        await page.waitForTimeout(500); // past the toast's fade-in
         await snap(page, info, vp, scheme, "7-toast-format");
         await page.getByTestId("toast-action").click();
         await expect.poll(() => formatted.length).toBe(1);

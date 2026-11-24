@@ -151,6 +151,9 @@ func (s *Service) FormatNote(ctx context.Context, learnerID, noteID string) (*No
 }
 
 func (s *Service) emitFormatGranted(ctx context.Context, learnerID, noteID, kind string) {
+	if s.events == nil {
+		return
+	}
 	left := -1
 	if t, err := s.FormatTurns(ctx, learnerID); err == nil {
 		left = t.Left

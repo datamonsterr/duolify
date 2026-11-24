@@ -433,7 +433,7 @@ export const ar: Record<MessageId, Message> = {
     many: "{count} تنسيقًا مجانيًا متبقيًا",
     other: "{count} تنسيق مجاني متبقٍ",
   },
-  "imm.saved_format": "تم الحفظ كملاحظة سريعة. تنسيقها بالأرصدة؟",
+  "imm.saved_format": "تم الحفظ · تنسيق (بالأرصدة)",
   "imm.format": "تنسيق",
   "imm.formatting": "جارٍ تنسيق ملاحظتك",
   "imm.format_failed": "تعذّر التنسيق. لم يتم الخصم.",

@@ -1240,173 +1240,184 @@ export function NotesPage() {
                 )}
               </div>
 
-              {/* AI additions card */}
-              <div
-                style={{
-                  background: "#FBF8FF",
-                  border: "2px solid #DCC9FB",
-                  borderRadius: "18px",
-                  padding: "18px 20px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                }}
-              >
-                <b style={{ color: "#5B2BB5", fontSize: "16px" }}>
-                  AI additions
-                </b>
-                {selectedNote.status === "enrichment_failed" ? (
-                  <div
-                    style={{
-                      background: "#FFF4F2",
-                      border: "2px solid #FCDAD7",
-                      borderRadius: "14px",
-                      padding: "14px 16px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                    }}
-                  >
-                    <p
+              {/* AI additions card: not shown for a note that finished enriching with nothing to add (a formatted Voice note). */}
+              {!(
+                selectedNote.status === "enriched" &&
+                !selectedNote.summary &&
+                !selectedNote.tags?.length &&
+                !selectedNote.links?.length
+              ) && (
+                <div
+                  style={{
+                    background: "#FBF8FF",
+                    border: "2px solid #DCC9FB",
+                    borderRadius: "18px",
+                    padding: "18px 20px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  <b style={{ color: "#5B2BB5", fontSize: "16px" }}>
+                    AI additions
+                  </b>
+                  {selectedNote.status === "enrichment_failed" ? (
+                    <div
                       style={{
-                        margin: 0,
-                        fontWeight: 700,
-                        fontSize: "14px",
-                        color: "#D32F2F",
-                        lineHeight: 1.4,
+                        background: "#FFF4F2",
+                        border: "2px solid #FCDAD7",
+                        borderRadius: "14px",
+                        padding: "14px 16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
                       }}
                     >
-                      Couldn't add the AI summary. Your note is safe. No credits
-                      were charged.
-                    </p>
-                    <button
-                      type="button"
-                      className="duo-button primary"
-                      disabled={retryingId === selectedNote.id}
-                      onClick={() =>
-                        void handleRetryEnrichment(selectedNote.id)
-                      }
-                      style={{
-                        alignSelf: "flex-start",
-                        padding: "8px 16px",
-                        fontSize: "13px",
-                        fontWeight: 800,
-                        borderRadius: "12px",
-                        border: "none",
-                        background: "#58CC02",
-                        color: "#fff",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {
-                        retryingId === selectedNote.id
-                          ? "Retrying..."
-                          : "Retry enrichment · 2 credits" /* @noncommercial-number */
-                      }
-                    </button>
-                  </div>
-                ) : selectedNote.summary ? (
-                  <>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "14px",
-                        lineHeight: 1.5,
-                        color: "#2B2B2B",
-                      }}
-                    >
-                      <b>Summary:</b> {selectedNote.summary}
-                    </p>
-                    {selectedNote.tags && selectedNote.tags.length > 0 && (
-                      <div
+                      <p
                         style={{
-                          display: "flex",
-                          gap: "6px",
-                          flexWrap: "wrap",
+                          margin: 0,
+                          fontWeight: 700,
+                          fontSize: "14px",
+                          color: "#D32F2F",
+                          lineHeight: 1.4,
                         }}
                       >
-                        {selectedNote.tags.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() => setSelectedTag(tag)}
-                            style={{
-                              padding: "3px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              fontWeight: 800,
-                              background: "#F1F1F1",
-                              color: "#444",
-                              border: "none",
-                              cursor: "pointer",
-                            }}
-                          >
-                            #{tag}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {selectedNote.links && selectedNote.links.length > 0 && (
-                      <div
+                        Couldn't add the AI summary. Your note is safe. No
+                        credits were charged.
+                      </p>
+                      <button
+                        type="button"
+                        className="duo-button primary"
+                        disabled={retryingId === selectedNote.id}
+                        onClick={() =>
+                          void handleRetryEnrichment(selectedNote.id)
+                        }
                         style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "6px",
-                          marginTop: "6px",
+                          alignSelf: "flex-start",
+                          padding: "8px 16px",
+                          fontSize: "13px",
+                          fontWeight: 800,
+                          borderRadius: "12px",
+                          border: "none",
+                          background: "#58CC02",
+                          color: "#fff",
+                          cursor: "pointer",
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 800,
-                            color: "#5B2BB5",
-                          }}
-                        >
-                          Related:
-                        </span>
+                        {
+                          retryingId === selectedNote.id
+                            ? "Retrying..."
+                            : "Retry enrichment · 2 credits" /* @noncommercial-number */
+                        }
+                      </button>
+                    </div>
+                  ) : selectedNote.summary ? (
+                    <>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "14px",
+                          lineHeight: 1.5,
+                          color: "#2B2B2B",
+                        }}
+                      >
+                        <b>Summary:</b> {selectedNote.summary}
+                      </p>
+                      {selectedNote.tags && selectedNote.tags.length > 0 && (
                         <div
                           style={{
                             display: "flex",
-                            gap: "8px",
+                            gap: "6px",
                             flexWrap: "wrap",
                           }}
                         >
-                          {selectedNote.links.map((link) => (
-                            <AppLink
-                              key={link}
-                              href="/courses"
+                          {selectedNote.tags.map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setSelectedTag(tag)}
                               style={{
-                                padding: "4px 10px",
-                                borderRadius: "10px",
+                                padding: "3px 8px",
+                                borderRadius: "12px",
                                 fontSize: "12px",
-                                fontWeight: 700,
-                                background: "#EBF5FF",
-                                color: "#1667AB",
-                                textDecoration: "none",
+                                fontWeight: 800,
+                                background: "#F1F1F1",
+                                color: "#444",
+                                border: "none",
+                                cursor: "pointer",
                               }}
                             >
-                              Lesson {link}
-                            </AppLink>
+                              #{tag}
+                            </button>
                           ))}
                         </div>
-                      </div>
-                    )}
-                  </>
-                ) : selectedNote.status === "enriching" ? (
-                  <p style={{ margin: 0, fontSize: "14px", color: "#0369A1" }}>
-                    Enriching note with AI summary and tags...
-                  </p>
-                ) : selectedNote.status === "raw_only" ? (
-                  <p style={{ margin: 0, fontSize: "14px", color: "#555" }}>
-                    Raw note saved without AI enrichment.
-                  </p>
-                ) : (
-                  <p style={{ margin: 0, fontSize: "14px", color: "#704400" }}>
-                    Enrichment pending. The AI summary and tags appear here once
-                    enriched.
-                  </p>
-                )}
-              </div>
+                      )}
+                      {selectedNote.links && selectedNote.links.length > 0 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "6px",
+                            marginTop: "6px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: 800,
+                              color: "#5B2BB5",
+                            }}
+                          >
+                            Related:
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "8px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {selectedNote.links.map((link) => (
+                              <AppLink
+                                key={link}
+                                href="/courses"
+                                style={{
+                                  padding: "4px 10px",
+                                  borderRadius: "10px",
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  background: "#EBF5FF",
+                                  color: "#1667AB",
+                                  textDecoration: "none",
+                                }}
+                              >
+                                Lesson {link}
+                              </AppLink>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : selectedNote.status === "enriching" ? (
+                    <p
+                      style={{ margin: 0, fontSize: "14px", color: "#0369A1" }}
+                    >
+                      Enriching note with AI summary and tags...
+                    </p>
+                  ) : selectedNote.status === "raw_only" ? (
+                    <p style={{ margin: 0, fontSize: "14px", color: "#555" }}>
+                      Raw note saved without AI enrichment.
+                    </p>
+                  ) : (
+                    <p
+                      style={{ margin: 0, fontSize: "14px", color: "#704400" }}
+                    >
+                      Enrichment pending. The AI summary and tags appear here
+                      once enriched.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Action buttons */}
               <div

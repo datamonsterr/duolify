@@ -262,7 +262,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 			if refundErr != nil {
 				resultErr = errors.Join(resultErr, refundErr)
 			}
-			if refunded {
+			if refunded && s.events != nil {
 				_ = s.events.Capture(learnerID, "quick_note_format_refunded", map[string]any{"source": "api", "note_id": noteID, "kind": "free"})
 			}
 		}

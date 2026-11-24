@@ -473,7 +473,7 @@ export const en = {
     one: "{count} free format left",
     other: "{count} free formats left",
   },
-  "imm.saved_format": "Saved as Quick note. Format it with credits?",
+  "imm.saved_format": "Saved · Format (credits)",
   "imm.format": "Format",
   "imm.formatting": "Formatting your note",
   "imm.format_failed": "Couldn't format. Nothing charged.",
