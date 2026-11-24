@@ -1,0 +1,48 @@
+# Prompt skills for course_preview (ADR 0025, group 3b). All rule-routed from the brief (no model
+# call, no router cost). `prompt_mode` stays "monolithic" until the task's rollout PR.
+task = "course_preview"
+prompt_mode = "monolithic"
+
+[routing]
+max_skills = 3
+budget_tokens = 360
+
+[[skill]]
+id = "depth_and_scope"
+description = "The brief states topics to include or skip, a level or a lesson length."
+tasks = ["course_preview"]
+version = 1
+order = 10
+tokens = 101
+default = false
+body = """Skill depth_and_scope: size the sample to the learner. Cover included topics first and leave skipped topics out; match depth to level (a beginner gets definitions and one worked step, an advanced learner skips basics); one concrete outcome per lesson goal, fewer ideas for a short lesson length. Example: level beginner, skip history -> goal "Add two fractions with unlike denominators", no history unit."""
+
+[[skill]]
+id = "maths_course"
+description = "The course topic is mathematics or numeric problem solving."
+tasks = ["course_preview"]
+version = 1
+order = 11
+tokens = 79
+default = false
+body = """Skill maths_course: order units from concept to worked example to practice; each lesson goal names the skill practised. Write formulas with Unicode (x², √, ≤, ×, ÷), never LaTeX, one step per line, and match the amount of maths to the maths preference in the brief. Example slide: <p>Slope = Δy ÷ Δx = 6 ÷ 3 = 2</p>"""
+
+[[skill]]
+id = "code_course"
+description = "The course topic is programming, a query language or other code."
+tasks = ["course_preview"]
+version = 1
+order = 12
+tokens = 75
+default = false
+body = """Skill code_course: order units from running one small program to using it on a real task; goals are things the learner can run or write. Show code in <pre><code>, at most 6 lines, no URLs. Example goal: "Print every name in a list with a loop"; slide: <pre><code>for n in names: print(n)</code></pre>"""
+
+[[skill]]
+id = "language_course"
+description = "The course topic is learning a spoken or written language."
+tasks = ["course_preview"]
+version = 1
+order = 13
+tokens = 84
+default = false
+body = """Skill language_course: teach through short phrases the learner can say. Units move from greetings and survival phrases to everyday situations; each lesson goal is a situation (order food, ask the way). A slide shows the phrase, its meaning in the learner's language and a pronunciation hint. Example: <p>Bonjour = Hello (bon-ZHOOR)</p>"""

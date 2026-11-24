@@ -1,0 +1,9 @@
+# Prompt skills for outline_chat_change (ADR 0025, group 3b). No skills: the answer is a strict
+# operations list, validated against the draft; the routed arm splits instructions (system) from
+# the draft and request (user). `prompt_mode` stays "monolithic" until the task's rollout PR.
+task = "outline_chat_change"
+prompt_mode = "monolithic"
+
+[routing]
+max_skills = 1
+budget_tokens = 150

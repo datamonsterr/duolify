@@ -110,6 +110,23 @@ pub async fn run_validated_checked<F: Fn(&str) -> std::result::Result<(), String
     crate::eval::run_bounded_checked(router, task, &[input], l, validate, true).await
 }
 
+/// A routed prompt (ADR 0025): `system` is the byte-stable prefix, `input` the data; the
+/// validator explains a rejection for the one repair. `None` is today's single user message.
+pub async fn run_validated_routed<F: Fn(&str) -> std::result::Result<(), String>>(
+    router: &ProviderRouter,
+    task: &str,
+    system: Option<String>,
+    input: &str,
+    l: &Limits,
+    validate: F,
+) -> Result<Outcome> {
+    let shape = crate::eval::Shape {
+        system,
+        ..Default::default()
+    };
+    crate::eval::run_bounded_formatted(router, task, &[input], l, shape, validate, true).await
+}
+
 /// Attempt 1 uses `inputs[0]`; the evaluated fallback attempt uses `inputs[1]`.
 pub async fn run_validated_inputs<F: Fn(&str) -> bool>(
     router: &ProviderRouter,

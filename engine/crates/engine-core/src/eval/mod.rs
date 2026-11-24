@@ -225,7 +225,11 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
 ) -> Result<Outcome> {
     validate_limits(l)?;
     anyhow::ensure!(!inputs.is_empty(), "input required");
-    if inputs.iter().any(|i| i.len() > l.input_tokens as usize) {
+    let prefix = shape.system.as_ref().map_or(0, String::len);
+    if inputs
+        .iter()
+        .any(|i| i.len() + prefix > l.input_tokens as usize)
+    {
         bail!("input exceeds API envelope")
     }
     let model = router
@@ -497,9 +501,32 @@ pub async fn stream_bounded_routed(
     first_token_timeout: Duration,
     idle_timeout: Duration,
 ) -> Result<(CompletionStream, StreamRoute)> {
+    stream_bounded_system(
+        router,
+        task,
+        None,
+        input,
+        limits,
+        first_token_timeout,
+        idle_timeout,
+    )
+    .await
+}
+
+/// [`stream_bounded_routed`] for a routed prompt: `system` is the byte-stable prefix (core and
+/// skills), `input` the data. The envelope check counts both.
+pub async fn stream_bounded_system(
+    router: &ProviderRouter,
+    task: &str,
+    system: Option<String>,
+    input: &str,
+    limits: Option<&Limits>,
+    first_token_timeout: Duration,
+    idle_timeout: Duration,
+) -> Result<(CompletionStream, StreamRoute)> {
     if let Some(l) = limits {
         validate_limits(l)?;
-        if input.len() > l.input_tokens as usize {
+        if input.len() + system.as_ref().map_or(0, String::len) > l.input_tokens as usize {
             bail!("input exceeds API envelope");
         }
         let worst = u64::from(l.input_tokens)
@@ -522,6 +549,11 @@ pub async fn stream_bounded_routed(
     }
 
     let model = router.models.tasks.get(task).context("unknown task")?;
+    let route = |fallback: bool| {
+        let mut r = model.attempt_route(fallback);
+        r.system = system.clone();
+        r
+    };
     let deadline_unix_ms = limits.map(|l| l.deadline_unix_ms).unwrap_or(0);
 
     let effective_first_to = if deadline_unix_ms != 0 {
@@ -532,10 +564,7 @@ pub async fn stream_bounded_routed(
         first_token_timeout
     };
 
-    let primary_res = router
-        .primary
-        .stream_route(&model.attempt_route(false), input)
-        .await;
+    let primary_res = router.primary.stream_route(&route(false), input).await;
 
     let primary_route = StreamRoute {
         provider: router.primary.name().into(),
@@ -553,19 +582,13 @@ pub async fn stream_bounded_routed(
                 Ok(Some(Ok(event))) => (primary_stream, Some(Ok(event)), primary_route),
                 _ => {
                     // First token timed out or failed before any delta; fall back to secondary stream
-                    let fallback_stream = router
-                        .fallback
-                        .stream_route(&model.attempt_route(true), input)
-                        .await?;
+                    let fallback_stream = router.fallback.stream_route(&route(true), input).await?;
                     (fallback_stream, None, fallback_route)
                 }
             }
         }
         Err(_) => {
-            let fallback_stream = router
-                .fallback
-                .stream_route(&model.attempt_route(true), input)
-                .await?;
+            let fallback_stream = router.fallback.stream_route(&route(true), input).await?;
             (fallback_stream, None, fallback_route)
         }
     };

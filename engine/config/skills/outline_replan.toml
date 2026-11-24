@@ -1,0 +1,18 @@
+# Prompt skills for outline_replan (ADR 0025, group 3b). One rule skill; the contract (protected
+# lessons echoed unchanged) stays in the core. `prompt_mode` stays "monolithic" until the rollout PR.
+task = "outline_replan"
+prompt_mode = "monolithic"
+
+[routing]
+max_skills = 2
+budget_tokens = 200
+
+[[skill]]
+id = "merge_vs_replace"
+description = "Every replan: keep what still fits, replace only what the new instruction makes obsolete."
+tasks = ["outline_replan"]
+version = 1
+order = 10
+tokens = 92
+default = true
+body = """Skill merge_vs_replace: treat the outline as a merge. Keep remaining lessons that still fit the new focus (retitle or reorder them), and replace only lessons the instruction makes obsolete. Prefer a few well-aimed changes over rewriting the remaining units. Example: focus "more practice" -> keep every lesson, add one practice lesson after each unit's last lesson."""

@@ -4,6 +4,7 @@ use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 pub mod outline;
+pub mod routed;
 
 pub const FIELDS: [&str; 9] = [
     "topic",

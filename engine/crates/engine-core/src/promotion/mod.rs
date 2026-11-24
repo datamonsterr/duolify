@@ -164,6 +164,26 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../../config/skills/tutor_chat.toml"),
     ),
     (
+        "engine/config/skills/course_preview.toml",
+        include_str!("../../../../config/skills/course_preview.toml"),
+    ),
+    (
+        "engine/config/skills/outline_replan.toml",
+        include_str!("../../../../config/skills/outline_replan.toml"),
+    ),
+    (
+        "engine/config/skills/course_outline.toml",
+        include_str!("../../../../config/skills/course_outline.toml"),
+    ),
+    (
+        "engine/config/skills/outline_chat_change.toml",
+        include_str!("../../../../config/skills/outline_chat_change.toml"),
+    ),
+    (
+        "engine-core/src/courses/routed.rs",
+        include_str!("../courses/routed.rs"),
+    ),
+    (
         "engine-core/src/accounts/mod.rs",
         include_str!("../accounts/mod.rs"),
     ),

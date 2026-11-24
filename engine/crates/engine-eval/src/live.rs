@@ -145,6 +145,16 @@ pub async fn preview_output_limit(url: &str) -> Result<u32> {
         .context("active pricing has no valid preview output limit")
 }
 
+/// Skill library of the arm under evaluation: the shipped one, or every task routed when
+/// `PROMPT_ARM=routed` (the shipped switch stays `monolithic` until a task's rollout PR).
+fn arm_library() -> std::borrow::Cow<'static, engine_core::skills::Library> {
+    if std::env::var("PROMPT_ARM").is_ok_and(|a| a == "routed") {
+        std::borrow::Cow::Owned(engine_core::lessontest::routed_eval_library())
+    } else {
+        std::borrow::Cow::Borrowed(engine_core::skills::bundled())
+    }
+}
+
 pub async fn evaluate(
     task: &str,
     input: &Value,
@@ -155,7 +165,11 @@ pub async fn evaluate(
         "course_preview" => {
             let brief: engine_core::courses::Brief =
                 serde_json::from_value(input["brief"].clone())?;
-            let prompt = engine_core::courses::preview_prompt(&brief, input["profile"].clone());
+            let plan = engine_core::courses::routed::plan_preview_in(
+                &arm_library(),
+                &brief,
+                input["profile"].clone(),
+            )?;
             let rejected = Rejections::new();
             let mut preview_limits = limits(
                 input,
@@ -166,10 +180,11 @@ pub async fn evaluate(
             // Never let a golden case override the active output envelope.
             preview_limits.output_tokens =
                 preview_limit.context("active preview limit required")?;
-            let outcome = engine_core::credits::run_validated_checked(
+            let outcome = engine_core::credits::run_validated_routed(
                 router,
                 "preview",
-                &prompt,
+                plan.system.clone(),
+                &plan.user,
                 &preview_limits,
                 |text| rejected.check(text, engine_core::courses::check_preview(text)),
             )
@@ -183,20 +198,31 @@ pub async fn evaluate(
                     "title": preview["title"],
                     "unit_count": preview["units"].as_array().map_or(0, Vec::len),
                     "slide_count": preview["slides"].as_array().map_or(0, Vec::len),
+                    "arm": plan.mode,
+                    "skill_count": plan.skills,
                 }),
             ))
         }
         "course_outline" => {
             use engine_core::courses::outline;
             let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
-            let prompt =
-                outline::creation_prompt(&base, input["brief"].clone(), input["profile"].clone())?;
-            let outcome = engine_core::credits::run_validated(
+            let plan = engine_core::courses::routed::plan_creation_in(
+                &arm_library(),
+                &base,
+                input["brief"].clone(),
+                input["profile"].clone(),
+            )?;
+            let outcome = engine_core::credits::run_validated_routed(
                 router,
                 "outline",
-                &prompt,
+                plan.system.clone(),
+                &plan.user,
                 &limits(input, 12000, 4000, 60000),
-                |text| outline::validate_created(&base, text),
+                |text| {
+                    outline::validate_created(&base, text)
+                        .then_some(())
+                        .ok_or_else(|| engine_core::eval::SCHEMA_MISMATCH.to_owned())
+                },
             )
             .await?;
             let units = parsed(&outcome.completion)["units"].clone();
@@ -204,7 +230,7 @@ pub async fn evaluate(
                 .is_ok_and(|u| u == base);
             Ok(bounded(
                 outcome,
-                json!({"adhered": adhered, "units": units}),
+                json!({"adhered": adhered, "units": units, "arm": plan.mode}),
             ))
         }
         "lesson_slides" => {
@@ -518,16 +544,24 @@ pub async fn evaluate(
             // engine-server `outline_chat_change`: the same prompt, validator and bounded runner.
             use engine_core::courses::outline;
             let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
-            let Ok(prompt) = outline::prompt(&base, input["request"].as_str().unwrap_or_default())
-            else {
+            let Ok(plan) = engine_core::courses::routed::plan_change_in(
+                &arm_library(),
+                &base,
+                input["request"].as_str().unwrap_or_default(),
+            ) else {
                 return Ok(refused("invalid_request"));
             };
-            let outcome = engine_core::credits::run_validated(
+            let outcome = engine_core::credits::run_validated_routed(
                 router,
                 "outline_chat_change",
-                &prompt,
+                plan.system.clone(),
+                &plan.user,
                 &limits(input, 8000, 2000, 60000),
-                |text| outline::parse(&base, text).is_ok(),
+                |text| {
+                    outline::parse(&base, text)
+                        .map(|_| ())
+                        .map_err(|_| engine_core::eval::SCHEMA_MISMATCH.to_owned())
+                },
             )
             .await?;
             let raw = outcome.completion.as_ref().map(|c| c.text.clone());
@@ -555,6 +589,7 @@ pub async fn evaluate(
                     "lessons_kept": lessons_kept(&base, &applied),
                     "leaked": raw.as_deref().is_some_and(leaks),
                     "applied": applied,
+                    "arm": plan.mode,
                 }),
             ))
         }
@@ -566,7 +601,8 @@ pub async fn evaluate(
                 serde_json::from_value(input["protected_lesson_ids"].clone()).unwrap_or_default();
             let instructions: Vec<Instruction> =
                 serde_json::from_value(input["instructions"].clone()).unwrap_or_default();
-            let outcome = match replan::propose(
+            let (outcome, arm, _) = match replan::propose_in(
+                &arm_library(),
                 router,
                 &base,
                 &protected,
@@ -605,6 +641,7 @@ pub async fn evaluate(
                         .as_deref()
                         .is_some_and(|t| leaks(t) || engine_core::steering::leaks_prompt(t, &instructions)),
                     "units": out,
+                    "arm": arm,
                 }),
             ))
         }
