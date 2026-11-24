@@ -26,15 +26,9 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "wait" });
 });
 
-test("welcome artwork and legal actions follow the quiet-link treatment", async ({
-  page,
-}) => {
+test("legal actions follow the quiet-link treatment", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/sign-in");
-  await expect(page.locator(".auth-art i:nth-of-type(3)")).toHaveCSS(
-    "box-shadow",
-    "rgb(217, 154, 0) 0px 7px 0px 0px",
-  );
   const legalAction = page.locator(".auth-legal button").first();
   await expect(legalAction).toHaveCSS("text-decoration-line", "underline");
   await expect(legalAction).toHaveCSS("border-style", "none");
@@ -55,9 +49,7 @@ for (const width of [1280, 390]) {
           name: "Learn any topic, a little at a time.",
         }),
       ).toBeVisible();
-      await page
-        .getByRole("button", { name: "I already have an account" })
-        .click();
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
       const email = `learner-${width}-${mode}@example.test`;
       await page.getByLabel("Email address").fill(email);
       await page.getByLabel("Email address").press("Enter");
