@@ -25,6 +25,8 @@ export const OFFLINE_ROUTE_MODULES = [
   "/features/design/Courses",
   // Lazy mascot art: the framed player companion and the pass screen render it offline.
   "/components/mascot/MascotArt",
+  // Lazy shell shortcuts: the shell mounts on every offline reload and fails if this chunk is missing.
+  "/features/hotkeys/ShellHotkeys",
 ];
 const APP_ENTRY = /\/index\.html$/;
 

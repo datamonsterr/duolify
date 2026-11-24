@@ -108,7 +108,7 @@ func ValidateContextPatch(fields map[string]json.RawMessage, limit int) (map[str
 			var value *bool
 			invalid = json.Unmarshal(raw, &value) != nil
 			values[name] = value
-		case "narration", "captions", "ui_sounds", "fullscreen_on_rotate", "autoplay", "auto_send_after_dictation":
+		case "narration", "captions", "ui_sounds", "fullscreen_on_rotate", "autoplay", "auto_send_after_dictation", "single_key_shortcuts":
 			var value bool
 			invalid = string(raw) == "null" || json.Unmarshal(raw, &value) != nil
 			values[name] = value

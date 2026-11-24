@@ -69,7 +69,13 @@ export function QuickNotePanel({
     const queued = noteQueue
       .getQueue()
       .filter(
-        (item) => !context.anchor || (item.anchor && item.status !== "synced"),
+        (item) =>
+          !context.anchor ||
+          (item.anchor &&
+            item.status !== "synced" &&
+            item.anchor.playbackMs === context.anchor.playbackMs &&
+            JSON.stringify(item.anchor.rect ?? null) ===
+              JSON.stringify(context.anchor.rect ?? null)),
       );
     return (
       queued.find((item) => {
@@ -128,10 +134,19 @@ export function QuickNotePanel({
     id?: string;
   } | null>(null);
 
+  const saving = useRef(false);
   const handleSave = async (dictation?: string) => {
     const body = dictation ?? noteText;
     const trimmed = body.trim();
-    if (!trimmed) return;
+    if (!trimmed || saving.current) return;
+    saving.current = true;
+    try {
+      await save(body, dictation);
+    } finally {
+      saving.current = false;
+    }
+  };
+  const save = async (body: string, dictation?: string) => {
     quickNoteDrafts.delete(draftKey);
     const anchor: NoteAnchor | undefined =
       dictation !== undefined && context.anchor
@@ -335,7 +350,10 @@ export function QuickNotePanel({
                 entry_point: "quick_note",
                 edited: false,
               });
-              void handleSave(text.slice(0, 2000));
+              // Typed text is never replaced by a dictation: the transcript joins it.
+              if (noteText.trim())
+                setNoteText(`${noteText.trimEnd()} ${text}`.slice(0, 2000));
+              else void handleSave(text.slice(0, 2000));
             }}
           />
         )}
@@ -417,7 +435,7 @@ export function QuickNotePanel({
               type="button"
               className="duo-button primary"
               onClick={() => void handleSave()}
-              disabled={!noteText.trim()}
+              disabled={!noteText.trim() || isSyncing}
               style={{
                 display: "flex",
                 alignItems: "center",

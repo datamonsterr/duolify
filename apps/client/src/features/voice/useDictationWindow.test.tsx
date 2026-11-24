@@ -5,8 +5,8 @@ const track = vi.hoisted(() => vi.fn());
 vi.mock("../../lib/analytics", () => ({ trackVoice: track }));
 import { useDictationWindow } from "./useDictationWindow";
 
-function setup(draft = "") {
-  const send = vi.fn();
+function setup(draft = "", result?: boolean) {
+  const send = vi.fn(() => result);
   const view = renderHook(
     ({ draft }: { draft: string }) =>
       useDictationWindow({ entryPoint: "answer_panel", draft, send }),
@@ -81,5 +81,16 @@ describe("dictation edit window", () => {
     act(() => result.current.begin("hello", "en"));
     act(() => void vi.advanceTimersByTime(10_000));
     expect(send).not.toHaveBeenCalled();
+  });
+  it("a send that bails (consent, offline, busy) is not reported as used and stops the countdown", () => {
+    const { result, rerender, send } = setup("", false);
+    rerender({ draft: "hello" });
+    act(() => result.current.begin("hello", "en"));
+    act(() => void vi.advanceTimersByTime(2001));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(events()).toEqual([]);
+    expect(result.current.counting).toBe(false);
+    act(() => void vi.advanceTimersByTime(10_000));
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

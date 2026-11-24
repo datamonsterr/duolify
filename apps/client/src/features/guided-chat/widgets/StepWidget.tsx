@@ -480,7 +480,7 @@ export function StepWidget(props: WidgetProps) {
             disabled={disabled || blocked}
             className="gc-danger"
           >
-            {t("guided.confirm")}
+            {t(step.actionKey ? t0(step.actionKey) : "guided.confirm")}
           </Button>
         )}
         {!inline.includes(step.widget) && showSend && (

@@ -1,3 +1,4 @@
+import { matchesShortcut } from "../../hotkeys/matcher";
 import type { MessageId } from "../localization/messages";
 import { useUiPreferences } from "../localization/Preferences";
 import {
@@ -267,13 +268,14 @@ export function OutlineEditor({
           }}
           onDrop={(event) => drop(event, item.id, parent)}
           onKeyDown={(event) => {
-            if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            const up = matchesShortcut("outline_move_up", event);
+            if (up || matchesShortcut("outline_move_down", event)) {
               event.preventDefault();
               move(
                 item.id,
                 parent,
-                index + (event.key === "ArrowUp" ? -1 : 1),
-                event.key === "ArrowUp" ? "move_up" : "move_down",
+                index + (up ? -1 : 1),
+                up ? "move_up" : "move_down",
               );
             }
           }}
