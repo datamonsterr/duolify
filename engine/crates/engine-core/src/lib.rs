@@ -604,6 +604,7 @@ pub mod chat;
 pub mod courses;
 pub mod credits;
 pub mod eval;
+pub mod guard;
 pub mod lessontest;
 pub mod narration;
 pub mod notes;

@@ -132,6 +132,11 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../../config/regions.toml"),
     ),
     ("engine-core/src/regions.rs", include_str!("../regions.rs")),
+    // Input guard (ADR 0025): pre-filter, verdict contract and per-surface failure rules.
+    (
+        "engine-core/src/guard/mod.rs",
+        include_str!("../guard/mod.rs"),
+    ),
     // Skill router (ADR 0025): decides which skills a routed prompt loads.
     (
         "engine-core/src/router/mod.rs",

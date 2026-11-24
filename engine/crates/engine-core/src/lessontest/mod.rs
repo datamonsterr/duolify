@@ -421,6 +421,22 @@ pub fn routed_lesson_prompt(
     routed_lesson_prompt_in(crate::skills::bundled(), context, ids)
 }
 
+/// The bundled skills with `lesson_slides` forced to `routed`, for the evals' routed arm (the
+/// shipped switch stays `monolithic` until the rollout PR).
+pub fn routed_eval_library() -> crate::skills::Library {
+    let sources: Vec<(&str, String)> = crate::skills::BUNDLED
+        .iter()
+        .map(|(f, t)| {
+            (
+                *f,
+                t.replace("prompt_mode = \"monolithic\"", "prompt_mode = \"routed\""),
+            )
+        })
+        .collect();
+    let refs: Vec<(&str, &str)> = sources.iter().map(|(f, t)| (*f, t.as_str())).collect();
+    crate::skills::Library::from_sources(&refs).expect("bundled skills are valid")
+}
+
 /// `routed_lesson_prompt` against an explicit library (tests, evals).
 pub fn routed_lesson_prompt_in(
     lib: &crate::skills::Library,

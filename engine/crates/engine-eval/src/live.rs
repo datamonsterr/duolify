@@ -234,12 +234,43 @@ pub async fn evaluate(
                 history: serde_json::from_value(input["history"].clone()).unwrap_or_default(),
                 ..Default::default()
             };
-            let prompt = engine_core::steering::hardened_prompt(
-                &engine_core::lessontest::lesson_prompt(&engine_core::lessontest::render_context(
-                    &context,
-                )),
-                &[],
-            )?;
+            // `PROMPT_ARM=routed` runs the skills prompt (rules, then the decision model, then
+            // the default set); anything else is today's monolithic prompt.
+            let routed = std::env::var("PROMPT_ARM").is_ok_and(|a| a == "routed");
+            let context_text = engine_core::lessontest::render_context(&context);
+            let (prompt, system, skills, router_source) = if routed {
+                let l = context.lesson.as_ref();
+                let sel = engine_core::lessontest::select_lesson_skills(
+                    input["learner"]["locale"].as_str().unwrap_or_default(),
+                    false,
+                    input["learner"]["level"].as_str().unwrap_or_default(),
+                    l.map_or("", |l| l.title.as_str()),
+                    l.map_or("", |l| l.goal.as_str()),
+                    input["learner"]["topic"].as_str().unwrap_or_default(),
+                )
+                .await;
+                let p = engine_core::lessontest::routed_lesson_prompt_in(
+                    &engine_core::lessontest::routed_eval_library(),
+                    &context_text,
+                    &sel.ids,
+                )?;
+                (
+                    engine_core::steering::hardened_prompt(&p.user, &[])?,
+                    Some(p.system),
+                    sel.ids,
+                    format!("{:?}", sel.source),
+                )
+            } else {
+                (
+                    engine_core::steering::hardened_prompt(
+                        &engine_core::lessontest::lesson_prompt(&context_text),
+                        &[],
+                    )?,
+                    None,
+                    Vec::new(),
+                    String::new(),
+                )
+            };
             let rejected = Rejections::new();
             let outcome = engine_core::eval::run_bounded_formatted(
                 router,
@@ -249,7 +280,7 @@ pub async fn evaluate(
                 engine_core::eval::Shape {
                     format: Some(engine_core::structured::lesson_format()),
                     prepare: Some(engine_core::lessontest::prepare_lesson),
-                    system: None,
+                    system,
                 },
                 |text| {
                     rejected.check(
@@ -278,10 +309,25 @@ pub async fn evaluate(
                     Err(_) => valid = false,
                 }
             }
+            // Skill-fit probes on the delivered slide HTML (golden pairs for lesson skills).
+            let html: String = lesson["slides"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|s| s["html"].as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let has = |m: &str| html.contains(m);
+            let math = ["²", "√", "≤", "×", "÷", "π"].iter().any(|m| has(m));
             Ok(bounded(
                 outcome,
                 json!({
                     "rejected": rejected.into_value(),
+                    "has_svg": has("<svg"),
+                    "has_table": has("<table"),
+                    "has_ordered_list": has("<ol"),
+                    "has_code_block": has("<pre") && has("<code"),
+                    "has_math_symbols": math,
                     "regions_valid": valid && regions > 0,
                     "region_count": regions,
                     "region_faithfulness": if regions == 0 { 0.0 } else { faithful / regions as f64 },
@@ -290,6 +336,9 @@ pub async fn evaluate(
                     "slide_count": lesson["slides"].as_array().map_or(0, Vec::len),
                     "test_count": lesson["test"].as_array().map_or(0, Vec::len),
                     "title": lesson["title"],
+                    "arm": if routed { "routed" } else { "monolithic" },
+                    "skills": skills,
+                    "router_source": router_source,
                 }),
             ))
         }
