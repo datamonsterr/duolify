@@ -64,6 +64,7 @@ export function GuidedAddFriend() {
         onEvent={(event) => trackGuidedChat(socialAddFriend, "friends", event)}
         onStepCommit={lookup}
         onSubmit={submit}
+        focusOnMount
       />
       {sent && <p role="status">{t("g.friend.done")}</p>}
       {refused && (

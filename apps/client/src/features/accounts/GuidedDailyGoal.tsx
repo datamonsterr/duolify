@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "../design/Button";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { trackGuidedChat } from "../guided-chat/analytics";
@@ -109,7 +110,8 @@ export function GuidedDailyGoal({
     },
     [onSaved],
   );
-  return (
+  // Portal: the Settings row sits inside the settings form, and a chat must not nest in it.
+  return createPortal(
     <div className="settings-scrim" onClick={onClose}>
       <section
         role="dialog"
@@ -117,6 +119,7 @@ export function GuidedDailyGoal({
         aria-label={t("g.goal.title")}
         className="settings-dialog guided-account"
         onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") onClose();
         }}
@@ -148,6 +151,7 @@ export function GuidedDailyGoal({
           </button>
         )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

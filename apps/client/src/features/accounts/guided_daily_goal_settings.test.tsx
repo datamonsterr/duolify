@@ -40,7 +40,7 @@ it("daily goal and reminder open as a chat dialog when the flag is on", async ()
   render(<Settings />);
   await screen.findByRole("heading", { name: "Settings" });
   expect(screen.queryByLabelText("Daily XP goal")).toBeNull();
-  fireEvent.click(await screen.findByRole("button", { name: "Daily goal" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Daily goal$/ }));
   const dialog = await screen.findByRole("dialog", { name: "Daily goal" });
   expect(dialog.textContent).toContain("Save your daily goal?");
 });

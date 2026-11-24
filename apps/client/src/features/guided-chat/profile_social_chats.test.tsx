@@ -7,6 +7,7 @@ import { profileApi } from "../accounts/learner-context";
 import { session } from "../accounts/session";
 import { GuidedAddFriend } from "../social/GuidedAddFriend";
 import { GuidedUsername } from "../social/GuidedUsername";
+import { trackGuidedChatEvent } from "../../lib/analytics";
 
 vi.mock("../../lib/analytics", () => ({
   trackGuidedChatEvent: vi.fn(),
@@ -62,6 +63,19 @@ describe("profile.edit", () => {
     );
     expect(commit).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Profile saved.")).toBeTruthy();
+    const events = vi
+      .mocked(trackGuidedChatEvent)
+      .mock.calls.map(([e]) => [e.scriptId, e.entryPoint, e.event]);
+    expect(events).toContainEqual([
+      "profile.edit",
+      "profile",
+      "guided_chat_resumed",
+    ]);
+    expect(events).toContainEqual([
+      "profile.edit",
+      "profile",
+      "guided_chat_completed",
+    ]);
   });
 });
 
