@@ -249,6 +249,7 @@ pub async fn evaluate(
                 engine_core::eval::Shape {
                     format: Some(engine_core::structured::lesson_format()),
                     prepare: Some(engine_core::lessontest::prepare_lesson),
+                    system: None,
                 },
                 |text| {
                     rejected.check(

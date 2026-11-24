@@ -235,6 +235,7 @@ async fn lesson_generation_overrides_the_task_format_with_the_lesson_schema() {
         Shape {
             format: Some(crate::structured::lesson_format()),
             prepare: None,
+            system: None,
         },
         |_| Ok(()),
         true,

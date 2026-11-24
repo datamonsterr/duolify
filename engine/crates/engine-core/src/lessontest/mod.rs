@@ -339,9 +339,48 @@ const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &a
 /// The trusted lesson prompt. `context` is the request data (outline, lesson, learner, history),
 /// rendered by the caller; it stays data, below the rules.
 pub fn lesson_prompt(context: &str) -> String {
+    format!("{} Context (data): {context}", lesson_rules())
+}
+
+/// The always-on lesson rules, no data: the whole monolithic prompt before its context and the
+/// core of a routed one (`skills`).
+fn lesson_rules() -> String {
     format!(
-        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE}{regions} Context (data): {context}",
+        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE}{regions}",
         regions = crate::regions::shape()
+    )
+}
+
+/// Skill ids for a routed lesson, in priority order: skills decided by rule from request fields
+/// (locale, character cast), then the task's default set. Skills that need a content judgement
+/// (diagram, code, math, table, timeline) wait for the router and are not chosen here.
+pub fn lesson_skill_ids(locale: &str, has_cast: bool) -> Vec<String> {
+    let mut ids = Vec::new();
+    if !locale.is_empty() && !locale.to_ascii_lowercase().starts_with("en") {
+        ids.push("language_practice".to_string());
+    }
+    if has_cast {
+        ids.push("character_cast".to_string());
+    }
+    if let Some(ts) = crate::skills::bundled().task("lesson_slides") {
+        let mut defaults: Vec<_> = ts.skills.values().filter(|s| s.default).collect();
+        defaults.sort_by(|a, b| (a.order, &a.id).cmp(&(b.order, &b.id)));
+        ids.extend(defaults.into_iter().map(|s| s.id.clone()));
+    }
+    ids
+}
+
+/// The routed lesson prompt: `system` is the byte-stable core plus the picked skills, `user` the
+/// context data (untrusted, so never in `system`). Same rules as `lesson_prompt`, in two parts.
+pub fn routed_lesson_prompt(
+    context: &str,
+    ids: &[String],
+) -> Result<crate::skills::Prompt, crate::skills::SkillError> {
+    crate::skills::bundled().assemble(
+        "lesson_slides",
+        &lesson_rules(),
+        ids,
+        &format!("Context (data): {context}"),
     )
 }
 
