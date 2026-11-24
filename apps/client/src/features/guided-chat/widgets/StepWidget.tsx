@@ -317,6 +317,16 @@ export function StepWidget(props: WidgetProps) {
           name={name}
           rows={3}
           dir="auto"
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
           aria-labelledby={promptId}
           aria-describedby={describedBy}
           aria-invalid={invalid}
@@ -434,9 +444,13 @@ export function StepWidget(props: WidgetProps) {
       : value !== null;
   // Chip steps answer on tap, so their Send stays out of sight until keyboard focus.
   const quiet = chipWidget && step.widget !== "multi";
-  const showSend = step.widget === "confirm" ? !destructive : quiet || hasValue;
+  const showSend =
+    step.widget === "confirm"
+      ? !destructive
+      : quiet || hasValue || step.widget === "longtext";
   const inline = [
     "text",
+    "longtext",
     "email",
     "code",
     "password",
@@ -444,6 +458,11 @@ export function StepWidget(props: WidgetProps) {
     "time",
     "date",
   ];
+  const actionsUsed =
+    destructive ||
+    (!inline.includes(step.widget) && showSend) ||
+    (!chipWidget && Boolean(props.onSkip && step.skippable && !editing)) ||
+    (editing && Boolean(props.onCancel));
   return (
     <form
       className="gc-widget"
@@ -468,7 +487,7 @@ export function StepWidget(props: WidgetProps) {
           {error}
         </p>
       )}
-      <div className="gc-actions">
+      <div className="gc-actions" hidden={!actionsUsed}>
         {destructive && props.onCancel && (
           <Button variant="secondary" data-autofocus onClick={props.onCancel}>
             {t("guided.cancel")}

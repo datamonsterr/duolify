@@ -57,15 +57,14 @@ test(
     await page.goto("/credits");
     await expect(page.getByText("+500")).toBeVisible();
     await flow.step("wallet after purchase");
-    // The shell's right rail reads the same wallet.
-    const rail = page.getByRole("complementary", { name: "Your progress" });
+    // The sidebar block reads the same wallet.
+    const stats = page
+      .locator(".sidebar")
+      .getByRole("group", { name: "Your progress" });
     await expect(
-      rail.getByText(
-        /^Daily free \d[\d,]* · Check-in \d[\d,]* · Purchased 500$/,
-      ),
+      stats.getByRole("link", { name: /^\d[\d,]* credits$/ }),
     ).toBeVisible();
-    await expect(rail.getByText(/^\d[\d,]* credits$/)).toBeVisible();
-    await expect(rail.getByText("Balance unavailable")).toHaveCount(0);
-    await flow.step("right rail shows the funded balance");
+    await expect(stats.getByText("\u2013")).not.toHaveCount(3);
+    await flow.step("sidebar shows the funded balance");
   },
 );

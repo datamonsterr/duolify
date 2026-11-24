@@ -122,3 +122,38 @@ func TestGeneratedPlayerObjectsValidateAndExcludeGrading(t *testing.T) {
 		t.Fatal("untrusted slide accepted")
 	}
 }
+
+func TestPublishedCastCarriesAndValidatesTheV2Document(t *testing.T) {
+	m, _ := characters.ProjectDefaultCastManifest("", "")
+	source := m.Cast
+	doc := characters.DefaultSpecV2()
+	source.Speakers["guide"] = characters.PinnedSpeaker{SpeakerKey: "guide", Role: "guide", CharacterID: "17111111-1111-4111-8111-111111111111", CharacterVersion: 4, Spec: characters.DefaultGuideFixture(), Document: doc}
+	exported, err := characters.ExportCast(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exported.Speakers["guide"].Document == nil {
+		t.Fatal("published snapshot dropped the v2 document")
+	}
+	plain := source
+	plain.Speakers = map[string]characters.PinnedSpeaker{"guide": {SpeakerKey: "guide", Role: "guide", CharacterID: "x", CharacterVersion: 4, Spec: characters.DefaultGuideFixture()}}
+	exportedPlain, err := characters.ExportCast(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exported.Speakers["guide"].CharacterID == exportedPlain.Speakers["guide"].CharacterID {
+		t.Fatal("document must participate in the snapshot identity")
+	}
+	raw, _ := json.Marshal(exported)
+	if err := characters.ValidateExportCast(raw); err != nil {
+		t.Fatalf("export with document must validate: %v", err)
+	}
+	tampered := strings.Replace(string(raw), `"schema_version":2`, `"schema_version":9`, 1)
+	if tampered != string(raw) && characters.ValidateExportCast([]byte(tampered)) == nil {
+		t.Fatal("tampered document accepted")
+	}
+	snapshot, _ := json.Marshal(sharing.Snapshot{Title: "Sky", Cast: &exported})
+	if err := sharing.CheckAllowlist(snapshot); err != nil {
+		t.Fatal(err)
+	}
+}

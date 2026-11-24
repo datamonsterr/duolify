@@ -17,6 +17,9 @@ const mine = {
   rules: { min: 3, max: 20 },
 };
 
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+beforeEach(() => localStorage.setItem("duolify.guided.rest", "off"));
+
 describe("username boundaries", () => {
   it.each([
     ["abc", true],

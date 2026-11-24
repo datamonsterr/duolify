@@ -3,11 +3,14 @@ import { requestReplay } from "../onboarding/handoff";
 import { navigateTo } from "../../lib/navigation";
 import { session } from "./session";
 import {
+  lazy,
+  Suspense,
   useEffect,
   useState,
   useSyncExternalStore,
   type ChangeEvent,
 } from "react";
+import { guidedEnabled } from "../guided-chat/flags";
 import {
   setAnalyticsConsent,
   trackAppearanceChanged,
@@ -34,6 +37,10 @@ import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
 import { analyticsOptOut, setAnalyticsOptOut } from "./session";
 import { applyPlaybackSettings } from "../lesson-player/immersive/settings";
 import "./settings.css";
+
+const GuidedDailyGoalRow = lazy(() =>
+  import("./GuidedDailyGoal").then((m) => ({ default: m.GuidedDailyGoalRow })),
+);
 
 const settingNames: (keyof SettingsFields)[] = [
   "analytics_opt_out",
@@ -87,6 +94,7 @@ export function Settings() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const guidedGoal = guidedEnabled("rest");
 
   useEffect(() => {
     let active = true;
@@ -428,61 +436,75 @@ export function Settings() {
                 onChange={(event) => update("time_zone", event.target.value)}
               />
             </label>
-            <label>
-              {t("settings.daily_xp")}
-              <input
-                aria-label={t("settings.daily_xp")}
-                type="number"
-                min="1"
-                max="10000"
-                value={draft.daily_xp ?? ""}
-                onChange={(event) =>
-                  update(
-                    "daily_xp",
-                    event.target.value === ""
-                      ? null
-                      : Number(event.target.value),
-                  )
-                }
-              />
-            </label>
-            <label>
-              {t("settings.daily_minutes")}
-              <input
-                aria-label={t("settings.daily_minutes")}
-                type="number"
-                min="1"
-                max="1440"
-                value={draft.daily_minutes ?? ""}
-                onChange={(event) =>
-                  update(
-                    "daily_minutes",
-                    event.target.value === ""
-                      ? null
-                      : Number(event.target.value),
-                  )
-                }
-              />
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={draft.reminder_enabled ?? false}
-                onChange={bool("reminder_enabled")}
-              />
-              {t("settings.reminders")}
-            </label>
-            <label>
-              {t("settings.reminder_time")}
-              <input
-                aria-label={t("settings.reminder_time")}
-                type="time"
-                value={draft.reminder_time}
-                onChange={(event) =>
-                  update("reminder_time", event.target.value)
-                }
-              />
-            </label>
+            {guidedGoal ? (
+              <Suspense fallback={null}>
+                <GuidedDailyGoalRow
+                  settings={draft}
+                  onSaved={(fields) => {
+                    setSaved((s) => (s ? { ...s, ...fields } : s));
+                    setDraft((d) => ({ ...d, ...fields }));
+                  }}
+                />
+              </Suspense>
+            ) : (
+              <>
+                <label>
+                  {t("settings.daily_xp")}
+                  <input
+                    aria-label={t("settings.daily_xp")}
+                    type="number"
+                    min="1"
+                    max="10000"
+                    value={draft.daily_xp ?? ""}
+                    onChange={(event) =>
+                      update(
+                        "daily_xp",
+                        event.target.value === ""
+                          ? null
+                          : Number(event.target.value),
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  {t("settings.daily_minutes")}
+                  <input
+                    aria-label={t("settings.daily_minutes")}
+                    type="number"
+                    min="1"
+                    max="1440"
+                    value={draft.daily_minutes ?? ""}
+                    onChange={(event) =>
+                      update(
+                        "daily_minutes",
+                        event.target.value === ""
+                          ? null
+                          : Number(event.target.value),
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={draft.reminder_enabled ?? false}
+                    onChange={bool("reminder_enabled")}
+                  />
+                  {t("settings.reminders")}
+                </label>
+                <label>
+                  {t("settings.reminder_time")}
+                  <input
+                    aria-label={t("settings.reminder_time")}
+                    type="time"
+                    value={draft.reminder_time}
+                    onChange={(event) =>
+                      update("reminder_time", event.target.value)
+                    }
+                  />
+                </label>
+              </>
+            )}
           </fieldset>
           <fieldset hidden={!shown("privacy")} data-section="privacy">
             <legend>{t("settings.sec_privacy")}</legend>

@@ -1,5 +1,12 @@
 import { test, expect } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits } from "./servers";
+
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
 test.use({ hasTouch: true });
 test.beforeEach(async ({ page, request }) => {
   // The old setup form stays one release for rollback; this spec covers it.

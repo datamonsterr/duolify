@@ -1,9 +1,10 @@
 import { test, expect } from "./accounts-fixture";
 test.beforeEach(({ page }) =>
   // The old setup chat stays one release for rollback; these tests cover it.
-  page.addInitScript(() =>
-    localStorage.setItem("duolify.guided.onboarding", "off"),
-  ),
+  page.addInitScript(() => {
+    localStorage.setItem("duolify.guided.onboarding", "off");
+    localStorage.setItem("duolify.guided.rest", "off");
+  }),
 );
 test.use({ hasTouch: true });
 test("settings and profile drafts persist", async ({ page }) => {

@@ -30,6 +30,9 @@ const person = (username: string) => ({
 const rejected = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
 
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+beforeEach(() => localStorage.setItem("duolify.guided.rest", "off"));
+
 describe("search query boundaries", () => {
   it.each([
     ["may", "may"],

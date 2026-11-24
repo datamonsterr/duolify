@@ -12,6 +12,8 @@ export default defineConfig({
     "guided-script-a11y.spec.ts",
     "copy-budget.spec.ts",
     "phone-layout.spec.ts",
+    "courses-credits-layout.spec.ts",
+    "shell-layout.spec.ts",
     "keyboard-shortcuts.spec.ts",
     "characters-v2-creator.spec.ts",
   ],

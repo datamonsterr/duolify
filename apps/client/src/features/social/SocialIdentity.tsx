@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { guidedEnabled } from "../guided-chat/flags";
 import { Link } from "@tanstack/react-router";
 import { session } from "../accounts/session";
 import {
@@ -8,6 +17,10 @@ import {
   validateUsername,
 } from "./username";
 import "./social.css";
+
+const GuidedUsername = lazy(() =>
+  import("./GuidedUsername").then((m) => ({ default: m.GuidedUsername })),
+);
 
 interface PublicIdentity {
   username: string;
@@ -125,13 +138,30 @@ export function SocialIdentity({ compact = false }: { compact?: boolean }) {
       </p>
     );
   const me = data.username;
+  const guided = guidedEnabled("rest");
   if (me && compact)
     return (
       <div className="social-rename-row">
         <p className="social-handle">
           <span>Username</span> <strong>@{me.username}</strong>
         </p>
-        {editing ? (
+        {editing && guided ? (
+          <Suspense fallback={null}>
+            <GuidedUsername
+              method="PATCH"
+              onSaved={(next) => {
+                setData(next);
+                setEditing(false);
+                returnFocus.current = true;
+                setNotice("Username changed.");
+              }}
+              onCancel={() => {
+                setEditing(false);
+                returnFocus.current = true;
+              }}
+            />
+          </Suspense>
+        ) : editing ? (
           <form
             className="social-claim social-rename"
             aria-label="Change username"
@@ -234,6 +264,12 @@ export function SocialIdentity({ compact = false }: { compact?: boolean }) {
       <p className="social-handle">
         <span>Username</span> <Link to="/friends">Choose a username</Link>
       </p>
+    );
+  if (guided)
+    return (
+      <Suspense fallback={null}>
+        <GuidedUsername method="PUT" onSaved={setData} />
+      </Suspense>
     );
   return (
     <form className="social-claim" onSubmit={claim} noValidate aria-busy={busy}>

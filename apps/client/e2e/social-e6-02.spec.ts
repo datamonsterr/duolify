@@ -2,6 +2,13 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { apiBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 // Real API: the browser's /v1/social calls are forwarded to the E2E API server.
 async function proxySocial(page: Page, request: APIRequestContext) {
   await page.route("**/v1/social/**", async (route) => {
