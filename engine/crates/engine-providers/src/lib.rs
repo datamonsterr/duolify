@@ -98,7 +98,15 @@ impl HttpProvider {
                 (None, _) => engine_core::steering::POLICY.to_string(),
             };
             if self.anthropic {
-                body["system"] = json!(system);
+                // A routed prefix is the cacheable part: mark it as one explicit breakpoint (the
+                // Messages API takes `cache_control` on a system text block, so the system is an
+                // array of blocks then). OpenRouter's Hy4 and GLM routes cache the prefix
+                // automatically and need no marker.
+                body["system"] = if route.system.is_some() {
+                    json!([{"type":"text","text":system,"cache_control":{"type":"ephemeral"}}])
+                } else {
+                    json!(system)
+                };
                 body["messages"] = json!([{"role":"user","content":user}]);
             } else {
                 body["messages"] =

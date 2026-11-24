@@ -489,3 +489,36 @@ async fn routed_prompts_send_the_skill_prefix_as_system_and_the_data_as_user() {
         ])
     );
 }
+
+#[tokio::test]
+async fn a_routed_prefix_is_one_cache_breakpoint_on_the_direct_anthropic_route_only() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({"content":[{"text":"{}"}],"usage":{"input_tokens":2,"output_tokens":3}}),
+        ))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::anthropic("key".into(), server.uri());
+    let routed = Route {
+        system: Some("CORE\n\nSKILL".into()),
+        ..route(HY4, &[], &[])
+    };
+    provider.complete_route(&routed, "DATA", 100).await.unwrap();
+    provider
+        .complete_route(&route(HY4, &[], &[]), "ONE PROMPT", 100)
+        .await
+        .unwrap();
+    let requests = server.received_requests().await.unwrap();
+    let body = |i: usize| requests[i].body_json::<Value>().unwrap();
+    assert_eq!(
+        body(0)["system"],
+        json!([{"type":"text","text":"CORE\n\nSKILL","cache_control":{"type":"ephemeral"}}])
+    );
+    assert_eq!(
+        body(0)["messages"],
+        json!([{"role":"user","content":"DATA"}])
+    );
+    // Monolithic: no system, no breakpoint.
+    assert!(body(1).get("system").is_none());
+}

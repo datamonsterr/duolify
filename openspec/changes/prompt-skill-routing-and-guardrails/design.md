@@ -261,3 +261,10 @@ Net: tutor chat becomes about 15 to 20 percent cheaper after guard, lessons are 
 
 1. Self-harm response: which support resources and wording per supported locale (English, Vietnamese, Spanish), and who reviews them. The engine returns a code; the API shows owner-approved copy.
 2. The Decisions API is alpha. Is a dependency on it acceptable as the first router source (with fallback to Hy4 and default sets)? The default decision, if there is no answer, is yes behind the trait, because failure cost is bounded.
+
+## 15. Caching layout (checked 2026-11-24 against OpenRouter and Anthropic docs)
+
+- OpenRouter prompt caching: OpenAI, Grok, Moonshot, DeepSeek, Z.AI (the GLM fallback) and Gemini 2.5+ cache implicitly; Anthropic, Alibaba Qwen and Gemini explicit need `cache_control` breakpoints. Hy4 is not on the docs list; the spike measured automatic hits on this route, so the engine adds no marker for it. Provider sticky routing hashes the first system message and the first non-system message of a request, so a byte-stable system prefix keeps one conversation (and one skill set) on one provider for up to 60 minutes of inactivity. Stable content first, variable content last is the documented layout and is what `Library::assemble` produces.
+- Direct Anthropic route (not in the launch route): a routed prefix is sent as one `system` text block with `cache_control: {type: ephemeral}` (the Messages API needs the array form for a block-level breakpoint; minimum cacheable length 512 tokens on current 5.x models, shorter prompts run uncached without error). Monolithic prompts send no breakpoint.
+- Cached tokens: `usage.prompt_tokens_details.cached_tokens` is read into `Attempt.cache_read_tokens` and settled at the cache-read rate (`credits::check_usage`, API settlement). Not yet measured on a routed run: task 6.1 waits for the controller's live A/B.
+- Economics (`economics.go`): protected cost prices the quote input plus the routed skill budget (`routedPrefixTokens`); output is bounded by `eval::routed_max_tokens` (lesson cap 6,000, minimum 1,200). No learner price or pricing version changes.
