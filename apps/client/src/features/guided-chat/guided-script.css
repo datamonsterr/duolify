@@ -61,6 +61,17 @@
   align-items: center;
   gap: var(--space-2);
 }
+.gc-field-row:has(textarea) {
+  align-items: flex-end;
+}
+.gc-widget .field-error {
+  background: none;
+  padding: 0;
+  font-size: var(--font-size-caption);
+}
+.gc-actions[hidden] {
+  display: none;
+}
 .gc-send {
   flex: none;
   display: inline-grid;

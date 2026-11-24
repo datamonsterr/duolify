@@ -136,8 +136,11 @@ export function GuidedScriptChat({
   const label = (k: string) => t(key(k));
   const promptId = (id: string) => `${uid}-q-${id}`;
   const complete = isComplete(script, state);
+  // A "last one" nudge only helps in flows long enough to feel long (3+ questions).
   const isLast = Boolean(
-    step && script.steps[script.steps.indexOf(step) + 1]?.widget === "confirm",
+    step &&
+    script.steps.filter((s) => s.widget !== "confirm").length >= 3 &&
+    script.steps[script.steps.indexOf(step) + 1]?.widget === "confirm",
   );
 
   const eventsRef = useRef(onEvent);
