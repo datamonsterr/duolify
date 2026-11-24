@@ -94,7 +94,8 @@
 .settings-tabs {
   display: flex;
   gap: var(--space-1);
-  overflow-x: auto;
+  /* Every tab stays visible; a narrow column wraps them to a second row. */
+  flex-wrap: wrap;
   border-block-end: 1px solid var(--line);
 }
 .settings-tabs a {
@@ -354,4 +355,10 @@
   padding: 0;
   border: 0;
   background: none;
+}
+
+.settings-page .settings-reset {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-block-start: var(--space-2);
 }

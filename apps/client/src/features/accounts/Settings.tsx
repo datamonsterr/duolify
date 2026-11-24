@@ -274,12 +274,7 @@ export function Settings() {
           <fieldset hidden={!shown("look")} data-section="look">
             <legend>{sectionTitle("look")}</legend>
             <PreferenceControls
-              onReset={() => {
-                reset();
-                update("locale", "en");
-                update("appearance", "system");
-                update("motion", "system");
-              }}
+              hideReset
               value={{
                 locale: resolveLocale(draft.locale),
                 appearance: draft.appearance,
@@ -311,6 +306,19 @@ export function Settings() {
               <summary>{t("mascot.guide")}</summary>
               <YourGuide />
             </details>
+            <Button
+              data-control="reset"
+              variant="quiet"
+              className="settings-reset"
+              onClick={() => {
+                reset();
+                update("locale", "en");
+                update("appearance", "system");
+                update("motion", "system");
+              }}
+            >
+              {t("settings.reset")}
+            </Button>
           </fieldset>
           <fieldset hidden={!shown("audio")} data-section="audio">
             <legend>{sectionTitle("audio")}</legend>

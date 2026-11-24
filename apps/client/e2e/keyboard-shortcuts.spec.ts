@@ -27,7 +27,7 @@ async function openLearn(page: Page) {
     }),
   );
   await page.goto("/");
-  await expect(page.locator(".app-bar-controls")).toBeVisible();
+  await expect(page.locator(".app-bar-language:visible")).toBeVisible();
 }
 
 test("shows shortcuts, contains focus, and dismisses one layer per Escape", async ({
