@@ -12,6 +12,7 @@ async function signIn(page: Page, email: string, request: APIRequestContext) {
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Get started" }).click();
   await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Email address").press("Enter");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Send code" }).click();
   await expect(page.getByLabel("One-time code")).toBeVisible();

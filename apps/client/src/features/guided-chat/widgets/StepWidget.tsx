@@ -134,6 +134,7 @@ export function StepWidget(props: WidgetProps) {
             ? null
             : ""),
   );
+  const [ticked, setTicked] = useState<string[]>([]);
   const text0 = typeof value === "string" ? value : "";
 
   function submit(event: FormEvent) {
@@ -367,7 +368,9 @@ export function StepWidget(props: WidgetProps) {
           inputMode={step.input?.inputMode as "email" | "numeric" | undefined}
           autoCapitalize="none"
           spellCheck={false}
-          aria-labelledby={promptId}
+          {...(step.input?.labelKey
+            ? { "aria-label": t(t0(step.input.labelKey)) }
+            : { "aria-labelledby": promptId })}
           aria-describedby={describedBy}
           aria-invalid={invalid}
           value={text0}
@@ -377,17 +380,45 @@ export function StepWidget(props: WidgetProps) {
       break;
     case "confirm":
       control = (
-        <dl className="gc-summary">
-          {summary?.map((row) => (
-            <div key={row.label}>
-              <dt>{row.label}</dt>
-              <dd dir="auto">{row.answer}</dd>
-            </div>
-          ))}
-        </dl>
+        <>
+          {summary && summary.length > 0 && (
+            <dl className="gc-summary">
+              {summary?.map((row) => (
+                <div key={row.label}>
+                  <dt>{row.label}</dt>
+                  <dd dir="auto">{row.answer}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {step.checks && (
+            <fieldset className="gc-checks" aria-labelledby={promptId}>
+              {step.checks.map((id) => (
+                <label className="gc-check" key={id}>
+                  <input
+                    type="checkbox"
+                    name={id}
+                    checked={ticked.includes(id)}
+                    onChange={(e) =>
+                      setTicked((now) =>
+                        e.target.checked
+                          ? [...now, id]
+                          : now.filter((x) => x !== id),
+                      )
+                    }
+                  />
+                  <span>{t(t0(id))}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </>
       );
       break;
   }
+  const blocked = Boolean(
+    step.checks && step.checks.some((id) => !ticked.includes(id)),
+  );
   const destructive = step.widget === "confirm" && step.destructive;
   const chipWidget = [
     "single",
@@ -426,7 +457,10 @@ export function StepWidget(props: WidgetProps) {
       >
         {control}
         {inline.includes(step.widget) && showSend && (
-          <IconSubmit label={t("guided.send")} disabled={disabled} />
+          <IconSubmit
+            label={t(step.actionKey ? t0(step.actionKey) : "guided.send")}
+            disabled={disabled}
+          />
         )}
       </div>
       {error && (
@@ -441,7 +475,11 @@ export function StepWidget(props: WidgetProps) {
           </Button>
         )}
         {destructive && (
-          <Button type="submit" disabled={disabled} className="gc-danger">
+          <Button
+            type="submit"
+            disabled={disabled || blocked}
+            className="gc-danger"
+          >
             {t("guided.confirm")}
           </Button>
         )}
@@ -450,9 +488,13 @@ export function StepWidget(props: WidgetProps) {
             quiet={quiet}
             path={step.widget === "confirm" ? CHECK_PATH : SEND_PATH}
             label={t(
-              step.widget === "confirm" ? "guided.confirm" : "guided.send",
+              step.actionKey
+                ? t0(step.actionKey)
+                : step.widget === "confirm"
+                  ? "guided.confirm"
+                  : "guided.send",
             )}
-            disabled={disabled}
+            disabled={disabled || blocked}
           />
         )}
         {!chipWidget && props.onSkip && step.skippable && !editing && (

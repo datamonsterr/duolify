@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { Badge } from "../design/Badge";
 import {
@@ -31,6 +31,10 @@ import { isTauri } from "@tauri-apps/api/core";
 import "./accounts.css";
 import { SharedDemo } from "../courses/SharedDemo";
 import { Brand } from "../design/brand/Brand";
+const GuidedSignIn = lazy(() =>
+  import("./GuidedSignIn").then((m) => ({ default: m.GuidedSignIn })),
+);
+import { guidedEnabled } from "../guided-chat/flags";
 
 export function SignIn({
   onSignedIn,
@@ -39,6 +43,7 @@ export function SignIn({
   onSignedIn?: (path: string) => void;
   recovery?: boolean;
 }) {
+  const guided = guidedEnabled("signin");
   const [demo, setDemo] = useState(false);
   const demoTrigger = useRef<HTMLButtonElement>(null);
   const [step, setStep] = useState<"welcome" | "email" | "code">(
@@ -153,6 +158,46 @@ export function SignIn({
       );
     } finally {
       setPending(false);
+    }
+  }
+  async function chatRequestCode(address: string, confirmed: boolean) {
+    try {
+      await authRequest("/v1/auth/code", {
+        email: address,
+        age_confirmed: confirmed,
+      });
+      return null;
+    } catch (cause) {
+      return cause instanceof Error
+        ? cause.message
+        : "Sign-in is unavailable. Please retry.";
+    }
+  }
+  async function chatVerify(
+    address: string,
+    value: string,
+    confirmed: boolean,
+  ) {
+    try {
+      const tokens = await authRequest<Tokens>("/v1/auth/verify", {
+        email: address,
+        code: value,
+        age_confirmed: confirmed,
+        locale: navigator.language || "en",
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        analytics_opt_out: optOut,
+      });
+      setAnalyticsOptOut(optOut);
+      await session.accept(tokens);
+      trackAuthScreen("sign_in");
+      trackSignIn();
+      if (onSignedIn) onSignedIn(destination);
+      else location.assign(destination);
+      return null;
+    } catch (cause) {
+      return cause instanceof Error
+        ? cause.message
+        : "Sign-in is unavailable. Please retry.";
     }
   }
   function finishOAuthCancel() {
@@ -376,102 +421,115 @@ export function SignIn({
                     ? "Start your learning journey"
                     : "Check your email"}
               </h1>
-              <p>
-                {step === "email"
-                  ? "Sign in with an email code. No password needed."
-                  : `Enter the six-digit code sent to ${email}.`}
-              </p>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!pending && online)
-                    void (step === "email" ? send() : verify());
-                }}
-                aria-label="Email sign-in"
-              >
-                {step === "email" ? (
-                  <>
-                    <label>
-                      Email address
-                      <input
-                        ref={field}
-                        type="email"
-                        autoComplete="email"
-                        required
-                        maxLength={254}
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                      />
-                    </label>
-                    <label className="auth-check">
-                      <input
-                        type="checkbox"
-                        checked={age}
-                        onChange={(event) => setAge(event.target.checked)}
-                      />
-                      I am 16 or older
-                    </label>
-                    <Button
-                      type="submit"
-                      pending={pending}
-                      disabled={!age || !email.trim() || !online}
-                    >
-                      Send code
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <label>
-                      One-time code
-                      <input
-                        ref={field}
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        pattern="[0-9]{6}"
-                        required
-                        maxLength={6}
-                        value={code}
-                        onChange={(event) =>
-                          setCode(event.target.value.replace(/\D/g, ""))
-                        }
-                        aria-describedby={error ? "auth-error" : "auth-notice"}
-                      />
-                    </label>
-                    <Button
-                      type="submit"
-                      pending={pending}
-                      disabled={code.length !== 6 || !online}
-                    >
-                      Sign in
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={pending || !online}
-                      onClick={() => void send()}
-                    >
-                      Resend code
-                    </Button>
-                    <Button
-                      variant="quiet"
-                      disabled={pending}
-                      onClick={() => {
-                        setStep("email");
-                        setCode("");
-                        setError("");
-                        setNotice("");
-                      }}
-                    >
-                      Change email
-                    </Button>
-                  </>
-                )}
-              </form>
+              {guided ? (
+                <Suspense fallback={<p role="status" aria-busy="true" />}>
+                  <GuidedSignIn
+                    requestCode={chatRequestCode}
+                    verifyCode={chatVerify}
+                  />
+                </Suspense>
+              ) : (
+                <>
+                  <p>
+                    {step === "email"
+                      ? "Sign in with an email code. No password needed."
+                      : `Enter the six-digit code sent to ${email}.`}
+                  </p>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (!pending && online)
+                        void (step === "email" ? send() : verify());
+                    }}
+                    aria-label="Email sign-in"
+                  >
+                    {step === "email" ? (
+                      <>
+                        <label>
+                          Email address
+                          <input
+                            ref={field}
+                            type="email"
+                            autoComplete="email"
+                            required
+                            maxLength={254}
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                          />
+                        </label>
+                        <label className="auth-check">
+                          <input
+                            type="checkbox"
+                            checked={age}
+                            onChange={(event) => setAge(event.target.checked)}
+                          />
+                          I am 16 or older
+                        </label>
+                        <Button
+                          type="submit"
+                          pending={pending}
+                          disabled={!age || !email.trim() || !online}
+                        >
+                          Send code
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <label>
+                          One-time code
+                          <input
+                            ref={field}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            pattern="[0-9]{6}"
+                            required
+                            maxLength={6}
+                            value={code}
+                            onChange={(event) =>
+                              setCode(event.target.value.replace(/\D/g, ""))
+                            }
+                            aria-describedby={
+                              error ? "auth-error" : "auth-notice"
+                            }
+                          />
+                        </label>
+                        <Button
+                          type="submit"
+                          pending={pending}
+                          disabled={code.length !== 6 || !online}
+                        >
+                          Sign in
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          disabled={pending || !online}
+                          onClick={() => void send()}
+                        >
+                          Resend code
+                        </Button>
+                        <Button
+                          variant="quiet"
+                          disabled={pending}
+                          onClick={() => {
+                            setStep("email");
+                            setCode("");
+                            setError("");
+                            setNotice("");
+                          }}
+                        >
+                          Change email
+                        </Button>
+                      </>
+                    )}
+                  </form>
+                </>
+              )}
               <Button variant="quiet" disabled={pending} onClick={cancel}>
                 Back to welcome
               </Button>
             </>
           )}
-          {!online ? (
+          {!online && !(guided && step !== "welcome") ? (
             <p role="status" className="auth-warning">
               Offline. Connect to sign in. Saved lessons open after sign-in.
             </p>

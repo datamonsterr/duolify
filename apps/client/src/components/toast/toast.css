@@ -15,7 +15,7 @@
   align-items: center;
   max-inline-size: min(28rem, 100%);
   border: 2px solid var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -35,9 +35,12 @@
 }
 .ui-toast-text {
   text-align: start;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
+  padding-block: var(--space-2);
 }
 .ui-toast-action {
+  flex: none;
+  white-space: nowrap;
   font-weight: var(--weight-strong);
   color: var(--primary);
   border-inline-start: 1px solid var(--line);
