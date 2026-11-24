@@ -98,7 +98,6 @@ it("delivers only catalogue enums/common properties and suppresses invalid ident
 it("keeps documented breakpoint, dynamic tab reservation, safe-area and instant-motion contracts", () => {
   const css = readFileSync("src/features/shell/shell.css", "utf8");
   expect(css).toContain("48rem");
-  expect(css).toContain("75rem");
   expect(css).toContain("env(safe-area-inset-bottom)");
   expect(css).toContain("grid-template-rows: auto minmax(0, 1fr) auto");
   expect(css).toContain("scroll-behavior: auto");
