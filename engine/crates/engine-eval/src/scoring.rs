@@ -71,6 +71,16 @@ pub struct CaseResult {
     pub deterministic_passed: bool,
     pub judge_passed: Option<bool>,
     pub errors: Vec<String>,
+    /// Non-failing notes, for example an earlier failed attempt whose usage is unknown and was
+    /// priced at its envelope's worst case.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
+    /// Both attempts when the gate retry re-ran this case (empty for a single attempt).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attempts: Vec<AttemptRecord>,
+    /// True when the case failed first and passed on its one retry.
+    #[serde(default)]
+    pub retried: bool,
     #[serde(default)]
     pub cost_usd: f64,
     #[serde(default)]
@@ -89,6 +99,17 @@ pub struct CaseResult {
     /// Excerpt of the scored output of a failing live case (empty otherwise).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub output: String,
+}
+
+/// One attempt of a case under the gate retry: index (1 or 2), outcome and cost.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AttemptRecord {
+    pub attempt: u32,
+    /// `passed`, `failed` or `critical_failed`.
+    pub outcome: String,
+    pub cost_usd: f64,
+    #[serde(default)]
+    pub errors: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,8 +176,23 @@ pub struct EvalReport {
     /// The `course_preview` output cap this run was scored under (None when no preview case ran).
     #[serde(default)]
     pub preview_output_limit: Option<u32>,
+    /// Cases that failed first and passed on the one gate retry.
+    #[serde(default)]
+    pub retried_cases: usize,
     pub task_reports: BTreeMap<String, TaskReport>,
     pub results: Vec<CaseResult>,
+}
+
+impl EvalReport {
+    /// Summary line for a run that used the gate retry (None when nothing was retried).
+    pub fn retry_summary(&self) -> Option<String> {
+        (self.retried_cases > 0).then(|| {
+            format!(
+                "{} case(s) passed only on retry (retried: true); review before promotion",
+                self.retried_cases
+            )
+        })
+    }
 }
 
 impl Default for EvalReport {
@@ -180,6 +216,7 @@ impl Default for EvalReport {
             critical_failure: false,
             dataset_cases: 0,
             preview_output_limit: None,
+            retried_cases: 0,
             task_reports: BTreeMap::new(),
             results: Vec::new(),
         }

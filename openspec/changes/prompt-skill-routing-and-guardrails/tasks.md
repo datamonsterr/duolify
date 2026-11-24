@@ -69,3 +69,5 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 - [ ] 9.1 For each task in spend order: run the A/B live, commit the routed live report, flip `prompt_mode = "routed"` in its own PR when the economics gate passes; otherwise leave monolithic and record the numbers.
 - [ ] 9.2 Roll back procedure documented in `docs/` and tested: flipping the switch restores the previous prompt and ignores cached decisions.
 - [x] 9.3 Update `docs/agents/skills.md` pointers, `.env.example` (no new variable expected; the Decisions API uses `OPENROUTER_API_KEY`).
+- [x] 10.1 Gate retry (OWNER APPROVED 2026-11-24, "Allow one retry"): live eval re-runs each failed case once, records both attempts, flags `retried: true`, counts them in a summary line, keeps the budget cap across attempts; offline unchanged.
+- [x] 10.2 `usage_unavailable` (controller decision 2026-11-24): an earlier failed attempt with unknown usage is priced at its envelope's worst case and reported as a warning; the case is critical only when the delivered completion's own usage is unknown.

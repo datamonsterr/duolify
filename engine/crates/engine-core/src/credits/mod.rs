@@ -67,6 +67,9 @@ pub struct Attempt {
     pub fallback_used: bool,
     pub delivered: bool,
     pub usage_unavailable: bool,
+    /// Worst-case price of this attempt inside its envelope (0 when the caller has no envelope).
+    /// An attempt whose usage is unknown is priced at this figure.
+    pub worst_case_nanos: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
 }

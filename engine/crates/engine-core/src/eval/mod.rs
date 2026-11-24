@@ -381,6 +381,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
                     fallback_used: fallback,
                     delivered: false,
                     usage_unavailable: c.usage_unavailable,
+                    worst_case_nanos: worst,
                     error_code: None,
                 };
 
@@ -442,6 +443,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
                     fallback_used: fallback,
                     delivered: false,
                     usage_unavailable: true,
+                    worst_case_nanos: worst,
                     error_code: Some(code.into()),
                 });
             }
@@ -460,6 +462,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
                     fallback_used: fallback,
                     delivered: false,
                     usage_unavailable: true,
+                    worst_case_nanos: worst,
                     error_code: Some("timeout".into()),
                 });
             }

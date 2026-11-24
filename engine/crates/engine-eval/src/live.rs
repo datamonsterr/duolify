@@ -1036,6 +1036,7 @@ fn attempt(
         fallback_used: fallback,
         delivered: c.is_some(),
         usage_unavailable: c.is_none_or(|c| c.usage_unavailable),
+        worst_case_nanos: 0,
         error_code: None,
     }
 }

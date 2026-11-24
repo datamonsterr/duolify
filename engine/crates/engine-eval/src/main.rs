@@ -161,6 +161,7 @@ async fn main() -> Result<()> {
                 critical_failure: false,
                 dataset_cases: 0,
                 preview_output_limit: None,
+                retried_cases: 0,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };
@@ -228,6 +229,7 @@ async fn main() -> Result<()> {
                 critical_failure: false,
                 dataset_cases: 0,
                 preview_output_limit: None,
+                retried_cases: 0,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };
@@ -402,8 +404,13 @@ async fn main() -> Result<()> {
     runner.prompt_revision = prompt_rev;
     runner.budget_usd = budget;
     runner.dataset_cases = Some(total);
+    // Owner decision 2026-11-24: live runs re-run each failed case once. Offline stays single-shot.
+    runner.retry_failed = provider != "mock";
 
     let report = runner.run_cases(cases, &thresholds).await?;
+    if let Some(line) = report.retry_summary() {
+        println!("retry: {line}");
+    }
 
     let reports_dir = custom_reports
         .as_ref()

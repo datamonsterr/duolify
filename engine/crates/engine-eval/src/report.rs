@@ -33,6 +33,9 @@ pub fn generate_markdown_report(report: &EvalReport) -> String {
         "- **Live Promoted**: {}\n",
         if report.live_promoted { "YES" } else { "NO" }
     ));
+    if let Some(line) = report.retry_summary() {
+        md.push_str(&format!("- **Gate retry**: {line}\n"));
+    }
     md.push_str(&format!("- **Dataset**: {}\n", report.dataset));
     md.push_str(&format!(
         "- **Dataset Revision**: {}\n",
@@ -150,6 +153,7 @@ mod tests {
             critical_failure: false,
             dataset_cases: 1,
             preview_output_limit: None,
+            retried_cases: 0,
             task_reports,
             results: vec![CaseResult {
                 id: "case-1".into(),
