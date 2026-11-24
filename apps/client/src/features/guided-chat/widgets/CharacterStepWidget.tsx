@@ -28,15 +28,17 @@ export default function CharacterStepWidget({
   const { draft, cast } = useCharacterChat();
   const label = t((step.actionKey ?? "guided.confirm") as MessageId);
   const submit = (
-    <Button type="submit" disabled={disabled || (!draft && !value)}>
-      {label}
-    </Button>
+    <div className="gc-character-actions">
+      <Button type="submit" disabled={disabled || (!draft && !value)}>
+        {label}
+      </Button>
+    </div>
   );
   const spec = step.character;
   if (spec && "tab" in spec && draft)
     return (
       <div role="group" aria-labelledby={promptId} className="gc-character">
-        <CharacterStage spec={draft.spec} />
+        <CharacterStage spec={draft.spec} tall />
         <CharacterSelector
           spec={draft.spec}
           tab={spec.tab}

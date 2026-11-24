@@ -9,11 +9,14 @@ export function CharacterStage({
   pose = "idle",
   expression = "idle",
   size,
+  tall,
 }: {
   spec: CharacterSpecV2;
   pose?: Pose;
   expression?: ExpressionV2;
   size?: number;
+  /** Desktop: fill the height of the host panel instead of fixed thumbnails. */
+  tall?: boolean;
 }) {
   const t = useCharacterT();
   const views: [RigView, string][] = [
@@ -22,7 +25,7 @@ export function CharacterStage({
   ];
   return (
     <div
-      className="cv2-stage-pair"
+      className={tall ? "cv2-stage-pair cv2-tall" : "cv2-stage-pair"}
       role="group"
       aria-label={t("characters.v2.preview")}
     >

@@ -25,6 +25,15 @@ for (const size of sizes)
     const suffix = `${size.name}-${scheme}`;
     const shot = async (page: Page, name: string, n: string) => {
       if (shots) {
+        if (n === "start")
+          await page.evaluate(() => {
+            window.scrollTo(0, 0);
+            document.querySelector(".app-main")?.scrollTo(0, 0);
+          });
+        if (n === "done")
+          await page
+            .getByText(/Character created|Course Cast saved/)
+            .scrollIntoViewIfNeeded();
         await page.waitForTimeout(500);
         await page.screenshot({
           path: `${shots}/chat-${name}-${suffix}-${n}.png`,

@@ -63,28 +63,22 @@ export function CharacterCreator({
   return (
     <section className="cv2-creator" aria-label={t("characters.v2.title")}>
       <header className="cv2-head">
-        <div className="cv2-bar">
-          <button
-            type="button"
-            className="cv2-icon"
-            aria-label={t("characters.v2.close")}
-            onClick={onClose}
-          >
-            <Icon d="M15 5l-7 7 7 7" />
-          </button>
-          <h1>{t("characters.v2.short")}</h1>
-          <Button
-            className="cv2-save"
-            onClick={() => void submit()}
-            pending={pending}
-            disabled={!valid}
-          >
-            <Icon d="M5 12l5 5 9-10" />
-            {t(record ? "characters.v2.save" : "characters.v2.use")}
-          </Button>
-        </div>
+        <button
+          type="button"
+          className="cv2-icon"
+          aria-label={t("characters.v2.close")}
+          onClick={onClose}
+        >
+          <Icon d="M15 5l-7 7 7 7" />
+        </button>
+        <h1>{t("characters.v2.short")}</h1>
         <div className="cv2-stage">
-          <CharacterStage spec={spec} pose={pose} expression={expression} />
+          <CharacterStage
+            spec={spec}
+            pose={pose}
+            expression={expression}
+            tall
+          />
           <button
             type="button"
             className="cv2-icon"
@@ -95,6 +89,15 @@ export function CharacterCreator({
           </button>
         </div>
         <CharacterTabs tab={tab} onTab={setTab} />
+        <Button
+          className="cv2-save"
+          onClick={() => void submit()}
+          pending={pending}
+          disabled={!valid}
+        >
+          <Icon d="M5 12l5 5 9-10" />
+          {t(record ? "characters.v2.save" : "characters.v2.use")}
+        </Button>
       </header>
       <div className="cv2-side">
         <CharacterSelector
