@@ -42,6 +42,7 @@ const paths = {
   captions: "M3 6h18v12H3z M8 10h2 M14 10h2 M7 14h4 M13 14h4",
   stop: "M6 6h12v12H6z",
   select: "M4 8V4h4 M16 4h4v4 M20 16v4h-4 M8 20H4v-4",
+  theme: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 3v18 M12 3a9 9 0 0 1 0 18z",
   ask: "M4 5h16v11H9l-5 4z M9 10h.01 M12 10h.01 M15 10h.01",
   autoplay: "m5 6 6 6-6 6 M12 6l6 6-6 6",
 } as const;
@@ -70,6 +71,7 @@ export const iconOnlyAllowlist: readonly IconName[] = [
   "share",
   "bookmark",
   "home",
+  "theme",
 ];
 
 export function Icon({

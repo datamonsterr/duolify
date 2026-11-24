@@ -22,7 +22,7 @@ test.describe("E1-07 account export and deletion", () => {
         },
       }),
     );
-    await page.goto("/settings");
+    await page.goto("/settings#privacy");
     await page.getByRole("button", { name: "Export data" }).click();
     await page
       .getByLabel("Export passphrase")
@@ -38,6 +38,7 @@ test.describe("E1-07 account export and deletion", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await page.goto("/settings#privacy");
 
     // Cancel deletion dialog
     await page.getByRole("button", { name: "Delete account" }).click();
@@ -64,7 +65,7 @@ test.describe("E1-07 account export and deletion", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/settings");
+    await page.goto("/settings#privacy");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
     await page.getByRole("button", { name: "Export data" }).click();
@@ -97,7 +98,7 @@ test.describe("E1-07 account export and deletion", () => {
     ).toBeVisible();
 
     // Verify content disappears and session is revoked
-    await page.goto("/settings");
+    await page.goto("/settings#privacy");
     await expect(
       page.getByRole("heading", { name: "Session expired" }),
     ).toBeVisible();

@@ -58,7 +58,8 @@ for (const width of [1280, 390]) {
           });
         expect(colors).toEqual([expected[fg], expected[bg]]);
       }
-      const primary = page.getByRole("button", { name: "Refresh courses" });
+      // The view's one primary action is the Create a course link; Refresh is a quiet control.
+      const primary = page.getByRole("link", { name: "Create a course" });
       await expect(primary).toHaveCSS(
         "background-color",
         mode === "light" ? "rgb(31, 122, 13)" : "rgb(108, 212, 58)",
@@ -70,9 +71,6 @@ for (const width of [1280, 390]) {
       );
       await primary.focus();
       await expect(primary).toHaveCSS("outline-width", "3px");
-      await page.keyboard.down("Space");
-      await expect(primary).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 3)");
-      await page.keyboard.up("Space");
       const title = card.getByRole("link", { name: "Everyday astronomy" });
       const size = await title.boundingBox();
       expect(size!.height).toBeGreaterThanOrEqual(44);

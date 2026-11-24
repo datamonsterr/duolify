@@ -28,6 +28,7 @@ const profile = {
 };
 
 beforeEach(() => {
+  window.location.hash = "";
   vi.clearAllMocks();
   localStorage.removeItem("duolify.analytics-opt-out");
   vi.mocked(profileApi.readSettings).mockResolvedValue(profile);
@@ -86,6 +87,7 @@ it("saves the localized preferences through account settings", async () => {
     ),
   );
   // The saved language now drives the app.
+  window.location.hash = "#account";
   expect(
     await screen.findByRole("link", { name: "إدارة الجلسات" }),
   ).toHaveAttribute("href", "/settings/sessions");
@@ -98,11 +100,11 @@ it("translates the settings heading and sessions link for Arabic accounts", asyn
     </UiPreferencesProvider>,
   );
   await screen.findByRole("heading", { name: "الإعدادات" });
-  expect(screen.getByRole("link", { name: "إدارة الجلسات" })).toHaveAttribute(
-    "href",
-    "/settings/sessions",
-  );
   expect(screen.getByLabelText("المظهر")).toBeVisible();
+  window.location.hash = "#account";
+  expect(
+    await screen.findByRole("link", { name: "إدارة الجلسات" }),
+  ).toHaveAttribute("href", "/settings/sessions");
 });
 
 it("applies a saved language to the app, right to left for Arabic", async () => {
