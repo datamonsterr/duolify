@@ -17,7 +17,7 @@ var settingsFields = map[string]bool{
 	"locale": true, "time_zone": true, "daily_minutes": true, "daily_xp": true,
 	"reminder_enabled": true, "reminder_time": true, "analytics_opt_out": true,
 	"fullscreen_on_rotate": true, "autoplay": true, "auto_send_after_dictation": true,
-	"mascot": true,
+	"mascot": true, "single_key_shortcuts": true,
 }
 
 // LearnerSettings contains only non-content preferences returned by the settings API.
@@ -42,6 +42,7 @@ type LearnerSettings struct {
 	FullscreenOnRotate     bool `json:"fullscreen_on_rotate"`
 	Autoplay               bool `json:"autoplay"`
 	AutoSendAfterDictation bool `json:"auto_send_after_dictation"`
+	SingleKeyShortcuts     bool `json:"single_key_shortcuts"`
 
 	// Mascot is the guide preference (RigPartSpec v1); partial updates merge, see mascot.go.
 	Mascot json.RawMessage `json:"mascot"`

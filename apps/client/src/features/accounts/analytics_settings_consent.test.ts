@@ -13,6 +13,7 @@ import {
   configureAnalytics,
   setAnalyticsConsent,
   trackAppearanceChanged,
+  trackHotkey,
 } from "../../lib/analytics";
 
 const id = "11111111-1111-4111-8111-111111111111";
@@ -42,5 +43,19 @@ it("opts out immediately and suppresses later events", () => {
   setAnalyticsConsent(false);
   expect(posthog.opt_out_capturing).toHaveBeenCalledOnce();
   trackAppearanceChanged("light");
+  trackHotkey("show_help", "learn");
   expect(posthog.capture).not.toHaveBeenCalled();
+});
+
+it("records only authored hotkey identifiers and common properties", () => {
+  trackHotkey("show_help", "learn");
+  expect(posthog.capture).toHaveBeenCalledWith("hotkey_used", {
+    distinct_id: id,
+    platform: "web",
+    app_version: "test",
+    source: "client",
+    key_id: "show_help",
+    surface: "learn",
+    entry_point: "hotkey",
+  });
 });
