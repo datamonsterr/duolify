@@ -1,5 +1,12 @@
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 const neutral = "That username isn't available. Try another.";
 
 for (const mobile of [false, true]) {

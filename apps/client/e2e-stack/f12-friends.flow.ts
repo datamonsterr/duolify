@@ -24,6 +24,9 @@ test(
     },
   },
   async ({ page, browser, flow }) => {
+    // The old username form and add-friend dialog are what this flow covers.
+    const off = () => localStorage.setItem("duolify.guided.rest", "off");
+    await page.addInitScript(off);
     const suffix = Date.now().toString(36).slice(-6);
     const ana = `ana${suffix}`;
     const ben = `ben${suffix}`;
@@ -31,6 +34,7 @@ test(
     // Ben signs up in a second, independent browser context.
     const benContext = await browser.newContext();
     const benPage = await benContext.newPage();
+    await benPage.addInitScript(off);
     try {
       await signUp(benPage, uniqueEmail("f12b"), undefined, "/friends");
       await claimUsername(benPage, ben);
