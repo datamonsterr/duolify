@@ -81,6 +81,7 @@ html[data-imm-rotated] body {
   background: transparent;
 }
 .imm-ui {
+  container-type: inline-size;
   position: fixed;
   inset: 0;
   z-index: 6;
@@ -172,8 +173,8 @@ html[data-imm-rotated] body {
   color: white;
   background: linear-gradient(
     to top,
-    rgba(0, 0, 0, 0.85) 0%,
-    rgba(0, 0, 0, 0.8) 60%,
+    rgba(0, 0, 0, 0.75) 0%,
+    rgba(0, 0, 0, 0.75) 60%,
     rgba(0, 0, 0, 0.65) 85%,
     transparent 100%
   );
@@ -213,7 +214,7 @@ html[data-imm-rotated] body {
 .imm-bottom .imm-btn:disabled {
   opacity: 0.7;
 }
-@media (max-width: 700px) {
+@container (max-width: 700px) {
   .imm-more {
     display: inline-flex !important;
   }
@@ -421,6 +422,9 @@ html[data-imm-rotated] body {
 .imm-unlock[data-holding] {
   border-color: var(--primary);
   background: var(--raised);
+}
+:root[data-motion="reduce"] .imm-controls {
+  transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .imm-controls {

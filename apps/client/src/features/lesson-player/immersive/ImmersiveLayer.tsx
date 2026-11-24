@@ -464,24 +464,6 @@ export default function ImmersiveLayer({
                     </span>
                   </div>
                   <div className="imm-tools">
-                    <Btn
-                      id="captions"
-                      label="Captions"
-                      pressed={view.captions}
-                      onFocus={remember("captions")}
-                      onClick={act("captions", actions.toggleCaptions)}
-                    >
-                      CC
-                    </Btn>
-                    <Btn
-                      id="narration"
-                      label="Narration"
-                      pressed={!view.muted}
-                      onFocus={remember("narration")}
-                      onClick={act("narration", actions.toggleMute)}
-                    >
-                      <Icon name={view.muted ? "mute" : "volume"} />
-                    </Btn>
                     <button
                       type="button"
                       className="imm-btn imm-more"
@@ -495,6 +477,24 @@ export default function ImmersiveLayer({
                       className="imm-overflow"
                       data-open={moreOpen || undefined}
                     >
+                      <Btn
+                        id="captions"
+                        label="Captions"
+                        pressed={view.captions}
+                        onFocus={remember("captions")}
+                        onClick={act("captions", actions.toggleCaptions)}
+                      >
+                        CC
+                      </Btn>
+                      <Btn
+                        id="narration"
+                        label="Narration"
+                        pressed={!view.muted}
+                        onFocus={remember("narration")}
+                        onClick={act("narration", actions.toggleMute)}
+                      >
+                        <Icon name={view.muted ? "mute" : "volume"} />
+                      </Btn>
                       <Btn
                         id="slides"
                         label="Slide list"
