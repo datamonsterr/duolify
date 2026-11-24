@@ -65,7 +65,7 @@ export function Feedback({
       role={blocking ? "alert" : "status"}
     >
       <strong>
-        {title}{" "}
+        <span>{title}</span>{" "}
         <span aria-hidden="true" data-icon={tone}>
           {toneGlyph[tone]}
         </span>
