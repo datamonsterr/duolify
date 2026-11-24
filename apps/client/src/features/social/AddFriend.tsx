@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
+import { guidedEnabled } from "../guided-chat/flags";
 import { session } from "../accounts/session";
 import {
   minSearch,
@@ -19,6 +20,10 @@ import {
   type SendResult,
 } from "./friends";
 import "./social.css";
+
+const GuidedAddFriend = lazy(() =>
+  import("./GuidedAddFriend").then((m) => ({ default: m.GuidedAddFriend })),
+);
 
 type Outcome =
   | { query: string; kind: "ready"; results: FoundLearner[] }
@@ -45,6 +50,8 @@ export function AddFriend({ onClose }: { onClose: () => void }) {
   }>();
   const [linkProblem, setLinkProblem] = useState<FriendFailure>();
   const [linkBusy, setLinkBusy] = useState(false);
+  const guided = guidedEnabled("rest");
+  const Body = guided ? "div" : "form";
   const query = normalizeSearch(raw);
   const searchable = [...query].length >= minSearch;
 
@@ -154,82 +161,97 @@ export function AddFriend({ onClose }: { onClose: () => void }) {
         onClose();
       }}
     >
-      <form onSubmit={search} noValidate className="social-sheet-body">
+      <Body
+        {...(guided ? {} : { onSubmit: search, noValidate: true })}
+        className="social-sheet-body"
+      >
         <h2 id={`${id}-title`}>Add a friend</h2>
-        <label htmlFor={`${id}-input`}>Username</label>
-        <input
-          id={`${id}-input`}
-          ref={input}
-          value={raw}
-          onChange={(event) => setRaw(event.target.value)}
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          aria-describedby={`${id}-hint`}
-        />
-        <p id={`${id}-hint`} className="social-hint">
-          At least {minSearch} characters
-        </p>
-        <div aria-live="polite" aria-busy={loading} className="social-results">
-          {loading && <p>Searching…</p>}
-          {shown?.kind === "error" && (
-            <div role="alert" className="social-error">
-              <p>{searchMessages[shown.failure]}</p>
-              <button
-                type="button"
-                className="duo-button quiet"
-                onClick={() => {
-                  immediate.current = true;
-                  setOutcome(undefined);
-                  setAttempt((x) => x + 1);
-                }}
-              >
-                Retry
-              </button>
+        {guided ? (
+          <Suspense fallback={null}>
+            <GuidedAddFriend />
+          </Suspense>
+        ) : (
+          <>
+            <label htmlFor={`${id}-input`}>Username</label>
+            <input
+              id={`${id}-input`}
+              ref={input}
+              value={raw}
+              onChange={(event) => setRaw(event.target.value)}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-describedby={`${id}-hint`}
+            />
+            <p id={`${id}-hint`} className="social-hint">
+              At least {minSearch} characters
+            </p>
+            <div
+              aria-live="polite"
+              aria-busy={loading}
+              className="social-results"
+            >
+              {loading && <p>Searching…</p>}
+              {shown?.kind === "error" && (
+                <div role="alert" className="social-error">
+                  <p>{searchMessages[shown.failure]}</p>
+                  <button
+                    type="button"
+                    className="duo-button quiet"
+                    onClick={() => {
+                      immediate.current = true;
+                      setOutcome(undefined);
+                      setAttempt((x) => x + 1);
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {shown?.kind === "ready" && shown.results.length === 0 && (
+                <div>
+                  <strong>No one found with that username</strong>
+                  <p>Check the spelling, or share an invite link instead.</p>
+                </div>
+              )}
+              {shown?.kind === "ready" && shown.results.length > 0 && (
+                <ul aria-label="Search results" className="social-result-list">
+                  {shown.results.map((person) => (
+                    <li key={person.username}>
+                      <span className="social-avatar small" aria-hidden="true">
+                        {person.avatar.initial}
+                      </span>
+                      <span className="social-card-text">
+                        <strong>{person.display_name}</strong>
+                        <span>@{person.username}</span>
+                      </span>
+                      {sent[person.username] ? (
+                        <span role="status" className="social-chip">
+                          {sent[person.username] === "friends"
+                            ? "Friends"
+                            : "Request sent"}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="duo-button secondary"
+                          aria-label={`Send request to ${person.username}`}
+                          onClick={() => void send(person.username)}
+                        >
+                          Send request
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
-          {shown?.kind === "ready" && shown.results.length === 0 && (
-            <div>
-              <strong>No one found with that username</strong>
-              <p>Check the spelling, or share an invite link instead.</p>
-            </div>
-          )}
-          {shown?.kind === "ready" && shown.results.length > 0 && (
-            <ul aria-label="Search results" className="social-result-list">
-              {shown.results.map((person) => (
-                <li key={person.username}>
-                  <span className="social-avatar small" aria-hidden="true">
-                    {person.avatar.initial}
-                  </span>
-                  <span className="social-card-text">
-                    <strong>{person.display_name}</strong>
-                    <span>@{person.username}</span>
-                  </span>
-                  {sent[person.username] ? (
-                    <span role="status" className="social-chip">
-                      {sent[person.username] === "friends"
-                        ? "Friends"
-                        : "Request sent"}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="duo-button secondary"
-                      aria-label={`Send request to ${person.username}`}
-                      onClick={() => void send(person.username)}
-                    >
-                      Send request
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        {refused && (
-          <p role="alert" className="social-error">
-            {friendMessages[refused.failure]}
-          </p>
+            {refused && (
+              <p role="alert" className="social-error">
+                {friendMessages[refused.failure]}
+              </p>
+            )}
+          </>
         )}
         <section className="social-link" aria-labelledby={`${id}-link`}>
           <h3 id={`${id}-link`}>Or invite with a link</h3>
@@ -281,7 +303,7 @@ export function AddFriend({ onClose }: { onClose: () => void }) {
             Close
           </button>
         </div>
-      </form>
+      </Body>
     </dialog>
   );
 }

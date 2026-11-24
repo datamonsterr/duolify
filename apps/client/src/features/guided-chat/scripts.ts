@@ -4,6 +4,8 @@ import { authSignin } from "./signin.script";
 import { courseLevel, courseSteer } from "./course.scripts";
 import { shareScripts } from "./share.scripts";
 import { onboardingSetup } from "./onboarding.script";
+import { profileEdit, profileGoal } from "./profile.scripts";
+import { socialAddFriend, socialUsername } from "./social.scripts";
 import type { GuidedScript } from "./types";
 
 const opts = (prefix: string, ids: string[]) =>
@@ -179,4 +181,8 @@ export const allScripts: GuidedScript[] = [
   accountExport,
   accountDelete,
   ...shareScripts,
+  profileEdit,
+  profileGoal,
+  socialUsername,
+  socialAddFriend,
 ];

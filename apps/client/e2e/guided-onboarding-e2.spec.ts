@@ -1,6 +1,13 @@
 import { test, expect } from "./accounts-fixture";
 import type { Page } from "@playwright/test";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 const send = (page: Page) =>
   page
     .locator(".gc-widget")
