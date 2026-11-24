@@ -112,6 +112,13 @@ html[data-imm-rotated] body {
 .imm-ui > * {
   pointer-events: auto;
 }
+/* Toasts sit below the top bar (button height + its padding), never over the title. */
+.player.immersive {
+  --toast-top: calc(
+    var(--sa-t, env(safe-area-inset-top, 0px)) + var(--space-3) +
+      var(--size-target) + var(--space-2)
+  );
+}
 .imm-controls {
   position: absolute;
   inset: 0;
