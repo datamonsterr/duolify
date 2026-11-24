@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  lazy,
   useEffect,
   useState,
   useSyncExternalStore,
@@ -6,8 +8,13 @@ import {
 } from "react";
 import { Button } from "../design/Button";
 import { trackSessionRecovery } from "../../lib/analytics";
-import { SignIn } from "./SignIn";
 import { session, safeReturnTo } from "./session";
+import "./accounts.css";
+
+const SignIn = lazy(() =>
+  import("./SignIn").then(({ SignIn }) => ({ default: SignIn })),
+);
+
 export function RouteGuard({
   children,
   path,
@@ -77,14 +84,16 @@ export function RouteGuard({
       )}
       {session.expired() ? (
         recovering ? (
-          <SignIn
-            recovery
-            onSignedIn={() => {
-              setOwner(session.current()?.id ?? null);
-              setRecovering(false);
-              setError(false);
-            }}
-          />
+          <Suspense fallback={<p role="status" aria-busy="true" />}>
+            <SignIn
+              recovery
+              onSignedIn={() => {
+                setOwner(session.current()?.id ?? null);
+                setRecovering(false);
+                setError(false);
+              }}
+            />
+          </Suspense>
         ) : (
           <main className="auth-page">
             <h1>Session expired</h1>

@@ -15,11 +15,8 @@ import {
   session,
   setAnalyticsOptOut,
 } from "./session";
-import {
-  isTurnstileFailure,
-  useTurnstile,
-  useTurnstileSiteKey,
-} from "./turnstile";
+import { isTurnstileFailure, useTurnstileSiteKey } from "./turnstile-config";
+import { useTurnstileCheck } from "./turnstile-check";
 import type { Tokens } from "./secure-store";
 import {
   SSO_REDIRECT_URI,
@@ -58,14 +55,14 @@ export function SignIn({
       : "welcome",
   );
   const { siteKey, reload } = useTurnstileSiteKey(step !== "welcome");
-  const emailCheck = useTurnstile(
+  const emailCheck = useTurnstileCheck(
     siteKey,
     "email_code",
     !guided && step !== "welcome",
     step === "code",
     reload,
   );
-  const signupCheck = useTurnstile(
+  const signupCheck = useTurnstileCheck(
     siteKey,
     "sign_up",
     !guided && step === "code",

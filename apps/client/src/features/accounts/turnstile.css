@@ -1,3 +1,7 @@
+.share-preview-checking {
+  align-content: start;
+}
+
 .turnstile-check {
   display: grid;
   gap: var(--space-2);

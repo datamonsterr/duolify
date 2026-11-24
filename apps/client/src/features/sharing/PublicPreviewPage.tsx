@@ -10,9 +10,9 @@ import { EnrollPanel } from "./EnrollPanel";
 import { session } from "../accounts/session";
 import {
   isTurnstileFailure,
-  useTurnstile,
   useTurnstileSiteKey,
-} from "../accounts/turnstile";
+} from "../accounts/turnstile-config";
+import { useTurnstileCheck } from "../accounts/turnstile-check";
 import "./sharing.css";
 
 type State =
@@ -33,7 +33,7 @@ function PublicPreview({ token }: { token: string }) {
   const [outline, setOutline] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const { siteKey, reload } = useTurnstileSiteKey(true);
-  const { widget, ready, consume, fail, reset } = useTurnstile(
+  const { widget, ready, consume, fail, reset } = useTurnstileCheck(
     siteKey,
     "share_preview",
     state.kind === "loading",

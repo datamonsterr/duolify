@@ -26,6 +26,18 @@ describe("offline manifest", () => {
       },
     }),
     "assets/vendor.js": chunk("assets/vendor.js"),
+    "assets/SignIn.js": chunk("assets/SignIn.js", {
+      isDynamicEntry: true,
+      facadeModuleId: "/x/src/features/accounts/SignIn.tsx",
+      viteMetadata: {
+        importedCss: new Set(["assets/SignIn.css"]),
+        importedAssets: new Set(),
+      },
+    }),
+    "assets/turnstile.js": chunk("assets/turnstile.js", {
+      isDynamicEntry: true,
+      facadeModuleId: "/x/src/features/accounts/turnstile.tsx",
+    }),
     "assets/LessonPlayer.js": chunk("assets/LessonPlayer.js", {
       isDynamicEntry: true,
       facadeModuleId: "/x/src/features/lesson-player/LessonPlayer.tsx",
@@ -49,7 +61,7 @@ describe("offline manifest", () => {
     "guided-chat.html": { type: "asset", fileName: "guided-chat.html" },
   };
 
-  it("precaches the first screen only", () => {
+  it("precaches the first screen and sign-in for offline recovery", () => {
     const { shell } = buildOfflineManifest(bundle);
     expect(shell).toEqual(
       expect.arrayContaining([
@@ -57,11 +69,14 @@ describe("offline manifest", () => {
         "/assets/app.js",
         "/assets/vendor.js",
         "/assets/app.css",
+        "/assets/SignIn.js",
+        "/assets/SignIn.css",
         "/assets/font.woff2",
       ]),
     );
     expect(shell).not.toContain("/assets/LessonPlayer.js");
     expect(shell).not.toContain("/assets/Marketplace.js");
+    expect(shell).not.toContain("/assets/turnstile.js");
     expect(shell).not.toContain("/guided-chat.html");
   });
 

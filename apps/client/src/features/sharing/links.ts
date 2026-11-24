@@ -1,5 +1,5 @@
 import { session } from "../accounts/session";
-import { turnstileHeader } from "../accounts/turnstile";
+import { turnstileHeader } from "../accounts/turnstile-config";
 import type { PublicationDraft } from "./drafts";
 
 export type LinkState = {

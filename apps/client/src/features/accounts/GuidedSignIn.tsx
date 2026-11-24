@@ -6,7 +6,8 @@ import { authSignin } from "../guided-chat/signin.script";
 import { trackGuidedChat } from "../guided-chat/analytics";
 import { useOnline } from "../guided-chat/useOnline";
 import { AuthError } from "./session";
-import { isTurnstileFailure, useTurnstile } from "./turnstile";
+import { isTurnstileFailure } from "./turnstile-config";
+import { useTurnstileCheck } from "./turnstile-check";
 
 /** Email code sign-in as a guided chat. The inputs are real labelled fields so autofill, OTP
  * suggestions and password managers keep working. Nothing here is drafted or persisted. */
@@ -31,12 +32,30 @@ export function GuidedSignIn({
   const email = useRef("");
   const [notice, setNotice] = useState("");
   const [resending, setResending] = useState(false);
-  const emailCheck = useTurnstile(siteKey, "email_code", true, false, reload);
-  const signupCheck = useTurnstile(siteKey, "sign_up", true, false, reload);
-  const resendCheck = useTurnstile(siteKey, "email_code", true, true, reload);
+  const emailCheck = useTurnstileCheck(
+    siteKey,
+    "email_code",
+    true,
+    false,
+    reload,
+  );
+  const signupCheck = useTurnstileCheck(
+    siteKey,
+    "sign_up",
+    true,
+    false,
+    reload,
+  );
+  const resendCheck = useTurnstileCheck(
+    siteKey,
+    "email_code",
+    true,
+    true,
+    reload,
+  );
 
   async function submit(
-    check: ReturnType<typeof useTurnstile>,
+    check: ReturnType<typeof useTurnstileCheck>,
     action: (proof?: string) => Promise<void>,
   ) {
     const proof = check.consume();

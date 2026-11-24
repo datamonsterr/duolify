@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "../design/Button";
 import { useUiPreferences } from "../design/localization/Preferences";
+import type { TurnstileWidgetProps } from "./turnstile-check";
 import "./turnstile.css";
 
 const scriptURL =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
-export const turnstileHeader = "X-Turnstile-Token";
 type Action = "email_code" | "sign_up" | "share_preview";
 
 type TurnstileAPI = {
@@ -64,68 +69,6 @@ function loadScript(): Promise<TurnstileAPI> {
   return scriptReady;
 }
 
-/** null means that the client's feature config is still loading. */
-export function useTurnstileSiteKey(active: boolean) {
-  const [generation, setGeneration] = useState(0);
-  const [config, setConfig] = useState<{
-    generation: number;
-    siteKey: string;
-  }>();
-  const reload = useCallback(
-    () => setGeneration((previous) => previous + 1),
-    [],
-  );
-  useEffect(() => {
-    if (!active) return;
-    let live = true;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 3000);
-    void fetch(`${apiBase}/v1/auth/turnstile/config`, {
-      cache: "no-store",
-      credentials: "omit",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) return "";
-        const config: unknown = await response.json();
-        if (
-          config &&
-          typeof config === "object" &&
-          "enabled" in config &&
-          config.enabled === true &&
-          "site_key" in config &&
-          typeof config.site_key === "string"
-        ) {
-          return config.site_key;
-        }
-        return "";
-      })
-      .catch(() => "")
-      .then((key) => {
-        window.clearTimeout(timer);
-        if (live) setConfig({ generation, siteKey: key });
-      });
-    return () => {
-      live = false;
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [active, generation]);
-  return {
-    siteKey: config?.generation === generation ? config.siteKey : null,
-    reload,
-  };
-}
-
-export function isTurnstileFailure(details: unknown) {
-  return Boolean(
-    details &&
-    typeof details === "object" &&
-    "code" in details &&
-    details.code === "turnstile_failed",
-  );
-}
-
 type Status = "checking" | "ready" | "failed";
 
 /** A widget instance holds its proof in memory and gives it to only one request. */
@@ -135,16 +78,19 @@ export function useTurnstile(
   active = true,
   interactionOnly = false,
   reloadConfig?: () => void,
+  initiallyFailed = false,
 ) {
   const { preferences, t, theme } = useUiPreferences();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [result, setResult] = useState<{ key: string; status: Status }>();
   const proof = useRef<{ key: string; token: string } | null>(null);
   const retryButton = useRef<HTMLButtonElement>(null);
   const group = useRef<HTMLDivElement>(null);
   const language = preferences.locale === "ar" ? "ar" : "en";
   const key = `${action}:${siteKey}:${theme}:${language}:${interactionOnly}:${attempt}`;
+  const [result, setResult] = useState<
+    { key: string; status: Status } | undefined
+  >(() => (initiallyFailed ? { key, status: "failed" } : undefined));
   const status = result?.key === key ? result.status : "checking";
   const fail = useCallback(() => {
     proof.current = null;
@@ -268,4 +214,28 @@ export function useTurnstile(
       !active || status === "ready" || (siteKey === "" && status !== "failed"),
     widget,
   };
+}
+
+export default function TurnstileWidget({
+  ref,
+  siteKey,
+  action,
+  interactionOnly,
+  reloadConfig,
+  initiallyFailed,
+}: TurnstileWidgetProps) {
+  const { widget, consume, fail, reset, ready } = useTurnstile(
+    siteKey,
+    action,
+    true,
+    interactionOnly,
+    reloadConfig,
+    initiallyFailed,
+  );
+  useImperativeHandle(
+    ref,
+    () => ({ siteKey, interactionOnly, consume, fail, reset, ready }),
+    [siteKey, interactionOnly, consume, fail, reset, ready],
+  );
+  return widget;
 }
