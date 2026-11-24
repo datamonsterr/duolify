@@ -147,9 +147,9 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--space-2) 0;
-  background: var(--bg, #f7f9f4);
+  background: var(--canvas);
   border-bottom: 2px solid var(--line);
-  box-shadow: 0 -24px 0 var(--bg, #f7f9f4);
+  box-shadow: 0 -24px 0 var(--canvas);
 }
 .cv2-bar {
   display: flex;
@@ -372,7 +372,7 @@
 }
 @media (min-width: 900px) {
   .cv2-creator {
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: 360px 1fr;
     align-items: start;
   }
   .cv2-head {
@@ -394,11 +394,14 @@
     scroll-margin-top: 0;
   }
   .cv2-fig .cv2-preview {
-    width: 120px;
-    height: 120px;
+    width: 100px;
+    height: 100px;
   }
   .cv2-fig-body .cv2-preview {
-    height: 200px;
+    height: 168px;
+  }
+  .cv2-tabs {
+    min-width: 0;
   }
   .cv2-side {
     grid-column: 2;
@@ -431,5 +434,29 @@
   min-width: 0;
 }
 .gc-character > .cv2-stage-pair {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   justify-content: center;
+  padding: var(--space-2) 0;
+  background: var(--canvas);
+  border-bottom: 2px solid var(--line);
+  box-shadow: 0 -16px 0 var(--canvas);
+}
+.cv2-none {
+  opacity: 0.5;
+}
+/* In chat the stage stays small and pinned so previews remain visible while choosing. */
+.gc-character .cv2-fig .cv2-preview {
+  width: 60px;
+  height: 60px;
+}
+.gc-character .cv2-fig-body .cv2-preview {
+  height: 84px;
+}
+.gc-character .cv2-field,
+.gc-character .cv2-tile input,
+.gc-character .cv2-swatch input,
+.gc-character .cv2-text input {
+  scroll-margin-top: 130px;
 }

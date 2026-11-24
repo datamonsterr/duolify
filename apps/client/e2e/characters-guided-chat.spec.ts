@@ -24,10 +24,12 @@ for (const size of sizes)
   for (const scheme of schemes) {
     const suffix = `${size.name}-${scheme}`;
     const shot = async (page: Page, name: string, n: string) => {
-      if (shots)
+      if (shots) {
+        await page.waitForTimeout(500);
         await page.screenshot({
           path: `${shots}/chat-${name}-${suffix}-${n}.png`,
         });
+      }
     };
 
     test(`character.create chat ${suffix}`, async ({ page }) => {

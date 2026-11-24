@@ -86,7 +86,22 @@ export default function CharacterStepWidget({
                   document={r.record.document}
                   size={56}
                 />
-              ) : null}
+              ) : (
+                <svg
+                  className="cv2-none"
+                  viewBox="0 0 24 24"
+                  width="56"
+                  height="56"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M6.5 17.5l11-11" />
+                </svg>
+              )}
               <span>{r.name}</span>
             </label>
           ))}
