@@ -25,6 +25,8 @@ type Config struct {
 	LogLevel                      slog.Level
 	AnalyticsOptOut               bool
 	LessonTestTracerEnabled       bool
+	ChatEdgeEnabled               bool
+	EdgeServiceSecret             string
 	LessonTestMinGap              int
 	LessonTestMaxVariantsPerTopic int
 	LessonTestMaxVariantsPerTest  int
@@ -40,6 +42,7 @@ func Load(getenv func(string) string) (Config, error) {
 		EngineAddr:                    getenv("ENGINE_ADDR"),
 		PostHogKey:                    getenv("POSTHOG_API_KEY"),
 		PostHogHost:                   defaultValue(getenv("POSTHOG_HOST"), "https://us.i.posthog.com"),
+		EdgeServiceSecret:             getenv("EDGE_SERVICE_SECRET"),
 		LessonTestMinGap:              2,
 		LessonTestMaxVariantsPerTopic: 3,
 		LessonTestMaxVariantsPerTest:  12,
@@ -84,6 +87,16 @@ func Load(getenv func(string) string) (Config, error) {
 		if err != nil {
 			return Config{}, fmt.Errorf("LESSON_TEST_TRACER_ENABLED is invalid")
 		}
+	}
+	if value := getenv("CHAT_EDGE_ENABLED"); value != "" {
+		var err error
+		cfg.ChatEdgeEnabled, err = strconv.ParseBool(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("CHAT_EDGE_ENABLED is invalid")
+		}
+	}
+	if cfg.ChatEdgeEnabled && len(strings.TrimSpace(cfg.EdgeServiceSecret)) < 32 {
+		return Config{}, fmt.Errorf("EDGE_SERVICE_SECRET must be at least 32 bytes when chat edge is enabled")
 	}
 	for _, v := range []struct{ name, value string }{
 		{"DATABASE_URL", cfg.DatabaseURL},

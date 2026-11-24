@@ -16,6 +16,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/chat"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/eval"
@@ -49,6 +50,7 @@ type Dependencies struct {
 	Characters      http.Handler
 	Steering        http.Handler
 	Tutor           http.Handler
+	ChatEdge        *chat.Edge
 	Gamification    http.Handler
 	Social          http.Handler
 	Sharing         interface {
@@ -221,6 +223,9 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("DELETE /v1/tutor/threads/{id}", tutor)
 		mux.Handle("POST /v1/tutor/messages/{id}/note", tutor)
 	}
+	if deps.ChatEdge != nil && deps.Accounts != nil {
+		deps.ChatEdge.MountRoutes(mux, deps.Accounts.Protect, allowedOrigin)
+	}
 	if deps.Voice != nil && deps.Accounts != nil {
 		mux.Handle("POST /v1/voice/transcriptions", deps.Accounts.Protect(deps.Voice))
 	}
@@ -244,6 +249,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			"lesson_test_tracer_enabled": deps.LessonTestTracerEnabled,
 			// E15-07 release flag: the Marketplace stays hidden until moderation, takedown and legal approval.
 			"marketplace_enabled": marketplace,
+			"chat_edge_enabled":   deps.ChatEdge != nil && deps.Accounts != nil,
 		})
 	})
 	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
@@ -527,6 +533,11 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	})
 	// Public routes are explicit; every new route inherits authentication.
 	guard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// These routes use method-, body- and scope-bound service authentication in the Edge handler.
+		if strings.HasPrefix(r.URL.Path, "/internal/edge/chat/") {
+			mux.ServeHTTP(w, r)
+			return
+		}
 		// Disabled tracer endpoints remain unavailable even to authenticated callers.
 		// Respond here, without dispatching a handler through the public allowlist.
 		if !deps.LessonTestTracerEnabled {

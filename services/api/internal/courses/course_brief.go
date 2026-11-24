@@ -257,6 +257,7 @@ func (s *Service) attemptEvents(ctx context.Context, owner, version string, atte
 			provider, model = a.GetProvider(), a.GetModel()
 		}
 		props := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "task": "course_brief_chat", "pricing_version": version, "attempt": i + 1, "provider": provider, "model": model, "input_tokens": u.GetInputTokens(), "output_tokens": u.GetOutputTokens(), "latency_ms": u.GetLatencyMs(), "fallback_used": a.FallbackUsed, "succeeded": a.Succeeded, "usage_available": u != nil}
+		props["chat_transport"] = analytics.ChatTransport(ctx)
 		if u != nil && u.GetErrorCode() != "" {
 			props["error_code"] = u.GetErrorCode()
 		}

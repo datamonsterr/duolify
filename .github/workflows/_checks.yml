@@ -48,6 +48,7 @@ jobs:
       api: ${{ github.event_name != 'pull_request' || steps.paths.outputs.api == 'true' }}
       engine: ${{ github.event_name != 'pull_request' || steps.paths.outputs.engine == 'true' }}
       client: ${{ github.event_name != 'pull_request' || steps.paths.outputs.client == 'true' }}
+      edge: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || steps.paths.outputs.edge == 'true' }}
       infra: ${{ github.event_name != 'pull_request' || steps.paths.outputs.infra == 'true' }}
       stack: ${{ steps.paths.outputs.stack }}
       selfhost: ${{ steps.paths.outputs.selfhost }}
@@ -103,6 +104,24 @@ jobs:
               - '.mise/tasks/client.toml'
               - '.mise/tasks/client-stack.toml'
               - '.mise/tasks/mobile.toml'
+              - *tooling
+              - *tasks
+              - *github
+              - *scripts
+            edge:
+              - 'edge/**'
+              - 'infra/edge/**'
+              - 'services/api/internal/sharing/**'
+              - 'services/api/internal/httpapi/**'
+              - 'services/api/internal/courses/shared_demo.go'
+              - 'services/api/internal/courses/demo/**'
+              - 'services/api/migrations/**'
+              - 'services/api/go.*'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.npmrc'
+              - '.mise/tasks/edge.toml'
               - *tooling
               - *tasks
               - *github
@@ -296,6 +315,35 @@ jobs:
       - name: mise run client:bundle-budget
         run: mise run client:bundle-budget
         timeout-minutes: 1
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  edge:
+    needs: changes
+    if: needs.changes.outputs.edge == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    concurrency:
+      group: edge-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: go node pnpm
+          area: edge
+      - name: Install workspace dependencies
+        run: mise run client:install
+      - name: Check Worker
+        run: "mise run edge:lint ::: edge:build"
+      - name: Test Worker and Go origin conformance
+        run: mise run edge:test
+        timeout-minutes: 8
       - name: Summary
         if: always()
         env:
@@ -996,6 +1044,7 @@ jobs:
       - proto
       - api
       - client-web
+      - edge
       - infra
       - engine-lint
       - client-native

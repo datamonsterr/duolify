@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 )
@@ -31,7 +32,10 @@ func (s *Service) RetryAfterSeconds() int { return s.cfg.PreviewRateWindowSecond
 
 // MarketHandler serves browse and the Course page anonymously (the session, when present, only
 // adds the block filter) and enrollment for a signed-in actor. The actor is never read from a body.
-type MarketHandler struct{ c Catalogue }
+type MarketHandler struct {
+	c    Catalogue
+	edge *Service
+}
 
 // NewMarketHandler wires the public Marketplace routes.
 func NewMarketHandler(c Catalogue) *MarketHandler { return &MarketHandler{c: c} }
@@ -95,12 +99,15 @@ func (h *MarketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		marketFail(w, r, retry, err)
 		return
 	}
+	readAt := time.Now()
+	edgeTTL := h.edge.edgeMarketplaceTTL(r, viewer)
 	if id != "" {
 		p, err := h.c.MarketCourse(r.Context(), viewer, id)
 		if err != nil {
 			marketFail(w, r, retry, err)
 			return
 		}
+		edgeReadFreshness(w, readAt, edgeTTL)
 		write(w, http.StatusOK, p)
 		return
 	}
@@ -114,11 +121,19 @@ func (h *MarketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		q.Limit = n
 	}
-	page, err := h.c.Browse(r.Context(), viewer, q)
+	var page Page
+	var err error
+	if edgeTTL > 0 {
+		// Start a new TTL from the source read. Redis may hold a result near its own expiry.
+		page, err = h.edge.browse(r.Context(), viewer, q, false)
+	} else {
+		page, err = h.c.Browse(r.Context(), viewer, q)
+	}
 	if err != nil {
 		marketFail(w, r, retry, err)
 		return
 	}
+	edgeReadFreshness(w, readAt, edgeTTL)
 	write(w, http.StatusOK, page)
 }
 

@@ -115,11 +115,15 @@ type turnView struct {
 
 func (s *Service) readTurn(ctx context.Context, owner, course, key string) (*turnView, error) {
 	var v turnView
-	err := s.opts.Pool.QueryRow(ctx, `SELECT t.state,COALESCE(t.end_reason,''),COALESCE(t.thread_id::text,''),COALESCE(m.id::text,''),COALESCE(m.content,''),COALESCE(m.status,'')
+	var createdAt time.Time
+	err := s.opts.Pool.QueryRow(ctx, `SELECT t.state,COALESCE(t.end_reason,''),COALESCE(t.thread_id::text,''),COALESCE(m.id::text,''),COALESCE(m.content,''),COALESCE(m.status,''),t.created_at
 FROM tutor_turns t LEFT JOIN tutor_messages m ON m.id=t.assistant_message_id AND m.learner_id=t.learner_id
-WHERE t.learner_id=$1::uuid AND t.course_id=$2::uuid AND t.idempotency_key=$3`, owner, course, key).Scan(&v.State, &v.EndReason, &v.ThreadID, &v.MessageID, &v.Content, &v.Status)
+WHERE t.learner_id=$1::uuid AND t.course_id=$2::uuid AND t.idempotency_key=$3`, owner, course, key).Scan(&v.State, &v.EndReason, &v.ThreadID, &v.MessageID, &v.Content, &v.Status, &createdAt)
 	if err != nil {
 		return nil, err
+	}
+	if scope, ok := scopeFromContext(ctx); ok && !scope.canReadTurn(v.ThreadID, createdAt) {
+		return nil, errEdgeCredential
 	}
 	return &v, nil
 }
@@ -150,6 +154,12 @@ func (s *Service) stop(w http.ResponseWriter, r *http.Request, owner, course, ke
 	if !validKey(key) || !s.ownsCourse(r.Context(), owner, course) {
 		fail(w, http.StatusNotFound, "not_found")
 		return
+	}
+	if _, scoped := scopeFromContext(r.Context()); scoped {
+		if _, err := s.readTurn(r.Context(), owner, course, key); err != nil {
+			fail(w, http.StatusNotFound, "not_found")
+			return
+		}
 	}
 	fl := s.flights.stop(owner, key)
 	if fl != nil {

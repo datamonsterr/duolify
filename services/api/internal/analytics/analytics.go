@@ -99,7 +99,7 @@ func allowlisted(event string) bool {
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
 		"duolify_integration_check",
-		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
+		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "chat_transport_fallback", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
@@ -110,7 +110,7 @@ func allowlisted(event string) bool {
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
-		"marketplace_browsed", "marketplace_searched", "course_viewed", "example_courses_viewed", "example_course_enrolled",
+		"marketplace_browsed", "marketplace_searched", "course_viewed", "example_courses_viewed", "example_course_enrolled", "edge_public_read",
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
@@ -342,6 +342,17 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "published_lesson_reused", "published_lesson_generated_on_demand":
 		ids("course_id", "lesson_id")
 		numeric("version")
+	case "edge_public_read":
+		for key, allowed := range map[string][]string{
+			"surface":      {"share_preview", "course_page", "shared_demo", "marketplace"},
+			"read_path":    {"hyperdrive", "go_cache", "go_origin"},
+			"cache_status": {"hit", "miss", "bypass"},
+			"outcome":      {"served", "not_found", "unavailable"},
+		} {
+			if value, ok := input[key].(string); ok && slices.Contains(allowed, value) {
+				out[key] = value
+			}
+		}
 	case "marketplace_browsed", "marketplace_searched":
 		// Closed vocabulary only: the search text never reaches analytics, only its length.
 		if v, _ := input["category"].(string); marketCategories[v] {
@@ -668,6 +679,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			out["entry_point"] = v
 		}
 	case "$ai_generation":
+		chatTransportProperty(input, out)
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
@@ -688,15 +700,26 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		numeric("message_length")
 		boolean("has_lesson_context")
 	case "tutor_reply_completed":
+		chatTransportProperty(input, out)
 		ids("course_id", "class", "model", "envelope", "cache_class")
 		numeric("latency_ms", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "summary_count", "excerpt_count", "context_tokens")
 	case "tutor_reply_failed":
+		chatTransportProperty(input, out)
 		ids("course_id", "class", "error_code")
 		numeric("latency_ms")
 		boolean("interrupted", "retryable")
 	case "tutor_reply_stopped":
+		chatTransportProperty(input, out)
 		ids("course_id", "class", "reason")
 		numeric("latency_ms", "delivered_chars")
+	case "chat_transport_fallback":
+		from, _ := input["from_transport"].(string)
+		to, _ := input["to_transport"].(string)
+		reason, _ := input["reason_code"].(string)
+		surface, _ := input["surface"].(string)
+		if (surface == "tutor" || surface == "guided") && ValidChatFallback(from, to, reason) {
+			out["surface"], out["from_transport"], out["to_transport"], out["reason_code"] = surface, from, to, reason
+		}
 	case "analytics_opt_out_changed":
 		boolean("enabled")
 	case "learner_profile_updated":

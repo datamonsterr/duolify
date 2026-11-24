@@ -186,6 +186,12 @@ func (s *Service) ownsCourse(ctx context.Context, owner, course string) bool {
 	return s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE c.id=$1::uuid AND e.learner_id=$2::uuid AND c.learner_id=$2::uuid AND c.deleted_at IS NULL)`, course, owner).Scan(&ok) == nil && ok
 }
 
+func (s *Service) ownsThread(ctx context.Context, owner, course, thread string) bool {
+	var found bool
+	err := s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid AND course_id=$3::uuid)`, thread, owner, course).Scan(&found)
+	return err == nil && found
+}
+
 func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course string) {
 	var in struct {
 		Class               string       `json:"class"`
@@ -219,10 +225,14 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 		regionFailure(w, err)
 		return
 	}
-	thread, err := s.latestThread(r.Context(), owner, course)
-	if err != nil {
-		fail(w, http.StatusServiceUnavailable, "unavailable")
-		return
+	scope, scoped := scopeFromContext(r.Context())
+	thread := scope.ThreadID
+	if !scoped {
+		thread, err = s.latestThread(r.Context(), owner, course)
+		if err != nil {
+			fail(w, http.StatusServiceUnavailable, "unavailable")
+			return
+		}
 	}
 	req, err := s.assemble(r.Context(), owner, course, thread, in.Message, current)
 	if err != nil {
@@ -440,6 +450,10 @@ func (s *Service) emit(ctx context.Context, owner, event string, props map[strin
 		return
 	}
 	props["source"], props["platform"], props["app_version"] = "api", "web", "0.1.0"
+	switch event {
+	case "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped":
+		props["chat_transport"] = analytics.ChatTransport(ctx)
+	}
 	if err := s.opts.Events.Capture(owner, event, props); err != nil {
 		s.opts.Logger.Warn("tutor analytics capture failed", "event", event)
 	}

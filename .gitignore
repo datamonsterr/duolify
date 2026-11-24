@@ -4,6 +4,10 @@ infra/deploy/site.d/*
 !infra/deploy/site.d/README.md
 .env
 .env.*
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.wrangler/
 !.env.example
 !.env.*.example
 mise.local.toml
