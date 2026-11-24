@@ -46,11 +46,18 @@ func (m *createMapper) MapCharacter(_ context.Context, r *pb.MapCharacterRequest
 		close(m.started)
 		<-m.resume
 	}
+	attempts := []*pb.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, InputTokens: 100, OutputTokens: 100, Attempt: 1, Component: "content", Delivered: true}}
+	if r.DraftSchemaVersion == characters.SchemaV2 {
+		return &pb.MapCharacterResponse{
+			AttributesJson: `{"attributes":[{"field":"body.kind","value":"robot"},{"field":"body.height","value":"tall"}]}`,
+			Attempts:       attempts,
+		}, nil
+	}
 	raw, _ := json.Marshal(characters.DefaultGuideFixture())
 	if m.invalid.Load() {
 		raw = []byte(`{}`)
 	}
-	return &pb.MapCharacterResponse{SpecJson: string(raw), Attempts: []*pb.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, InputTokens: 100, OutputTokens: 100, Attempt: 1, Component: "content", Delivered: true}}}, nil
+	return &pb.MapCharacterResponse{SpecJson: string(raw), Attempts: attempts}, nil
 }
 
 type mappingRPC struct{ pb.EngineServiceClient }

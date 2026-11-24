@@ -147,9 +147,9 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--space-2) 0;
-  background: var(--bg, #f7f9f4);
+  background: var(--surface);
   border-bottom: 2px solid var(--line);
-  box-shadow: 0 -24px 0 var(--bg, #f7f9f4);
+  box-shadow: 0 -24px 0 var(--surface);
 }
 .cv2-bar {
   display: flex;
@@ -158,10 +158,14 @@
 }
 .cv2-save {
   margin-inline-start: auto;
+  flex-shrink: 0;
+  padding-inline: var(--space-3);
+  white-space: nowrap;
 }
 .cv2-bar h1 {
   font-size: 1.25rem;
   margin: 0;
+  white-space: nowrap;
 }
 .cv2-stage {
   display: flex;

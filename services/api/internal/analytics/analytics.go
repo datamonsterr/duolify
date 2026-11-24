@@ -104,7 +104,7 @@ func allowlisted(event string) bool {
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"character_rendered", "character_render_fallback", "character_reaction_shown", "tutor_character_selected", "tutor_character_fallback",
-		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
+		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed", "character_draft_proposed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied", "character_voice_fallback", "character_snapshot_published",
 		"check_in_credits_granted", "daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
@@ -445,6 +445,14 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "character_created", "character_regenerated":
 		ids("character_id", "pricing_version", "rig_version", "voice_key")
 		numeric("character_version", "credits")
+	case "character_draft_proposed":
+		if operation := input["operation"]; operation == "create" || operation == "regenerate" {
+			out["operation"] = operation
+		}
+		if kind := input["kind"]; kind == "human" || kind == "animal" || kind == "robot" || kind == "fantasy" {
+			out["kind"] = kind
+		}
+		boolean("fallback_used")
 	case "character_rejected", "character_create_failed":
 		if operation := input["operation"]; operation == "manual_edit" || operation == "create" || operation == "regenerate" {
 			out["operation"] = operation
@@ -452,7 +460,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("fallback_used")
 		if reason, ok := input["reason_code"].(string); ok {
 			switch reason {
-			case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable", "creation_disabled", "cancelled", "timeout", "version_conflict", "provider_unavailable":
+			case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "hateful_content", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable", "creation_disabled", "cancelled", "timeout", "version_conflict", "provider_unavailable":
 				out["reason_code"] = reason
 			}
 		}

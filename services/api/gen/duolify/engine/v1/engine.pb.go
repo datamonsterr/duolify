@@ -640,11 +640,13 @@ func (x *SynthesizeNarrationResponse) GetSpeakerKey() string {
 }
 
 type MapCharacterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Prompt        string                 `protobuf:"bytes,1,opt,name=prompt,proto3" json:"prompt,omitempty"`
-	Limits        *UsageLimits           `protobuf:"bytes,2,opt,name=limits,proto3" json:"limits,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Prompt string                 `protobuf:"bytes,1,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	Limits *UsageLimits           `protobuf:"bytes,2,opt,name=limits,proto3" json:"limits,omitempty"`
+	// Zero requests the legacy v1 spec. Two requests catalog-only attributes for a v2 draft.
+	DraftSchemaVersion uint32 `protobuf:"varint,3,opt,name=draft_schema_version,json=draftSchemaVersion,proto3" json:"draft_schema_version,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *MapCharacterRequest) Reset() {
@@ -691,12 +693,22 @@ func (x *MapCharacterRequest) GetLimits() *UsageLimits {
 	return nil
 }
 
+func (x *MapCharacterRequest) GetDraftSchemaVersion() uint32 {
+	if x != nil {
+		return x.DraftSchemaVersion
+	}
+	return 0
+}
+
 type MapCharacterResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SpecJson      string                 `protobuf:"bytes,1,opt,name=spec_json,json=specJson,proto3" json:"spec_json,omitempty"`
-	Attempts      []*Usage               `protobuf:"bytes,2,rep,name=attempts,proto3" json:"attempts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SpecJson       string                 `protobuf:"bytes,1,opt,name=spec_json,json=specJson,proto3" json:"spec_json,omitempty"`
+	Attempts       []*Usage               `protobuf:"bytes,2,rep,name=attempts,proto3" json:"attempts,omitempty"`
+	AttributesJson string                 `protobuf:"bytes,3,opt,name=attributes_json,json=attributesJson,proto3" json:"attributes_json,omitempty"`
+	// Safe catalog attributes salvaged from an undeliverable response.
+	PartialAttributesJson string `protobuf:"bytes,4,opt,name=partial_attributes_json,json=partialAttributesJson,proto3" json:"partial_attributes_json,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *MapCharacterResponse) Reset() {
@@ -741,6 +753,20 @@ func (x *MapCharacterResponse) GetAttempts() []*Usage {
 		return x.Attempts
 	}
 	return nil
+}
+
+func (x *MapCharacterResponse) GetAttributesJson() string {
+	if x != nil {
+		return x.AttributesJson
+	}
+	return ""
+}
+
+func (x *MapCharacterResponse) GetPartialAttributesJson() string {
+	if x != nil {
+		return x.PartialAttributesJson
+	}
+	return ""
 }
 
 type ScreenCharacterRequest struct {
@@ -2221,12 +2247,14 @@ func (x *RegionWindow) GetEndMs() uint32 {
 
 // Plain text dialogue; keys resolve exclusively through the API-pinned Cast.
 type CharacterSegment struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SpeakerKey    string                 `protobuf:"bytes,1,opt,name=speaker_key,json=speakerKey,proto3" json:"speaker_key,omitempty"`
-	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	Expression    string                 `protobuf:"bytes,3,opt,name=expression,proto3" json:"expression,omitempty"`
-	StartMs       uint32                 `protobuf:"varint,4,opt,name=start_ms,json=startMs,proto3" json:"start_ms,omitempty"`
-	DurationMs    uint32                 `protobuf:"varint,5,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	SpeakerKey string                 `protobuf:"bytes,1,opt,name=speaker_key,json=speakerKey,proto3" json:"speaker_key,omitempty"`
+	Text       string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Expression string                 `protobuf:"bytes,3,opt,name=expression,proto3" json:"expression,omitempty"`
+	StartMs    uint32                 `protobuf:"varint,4,opt,name=start_ms,json=startMs,proto3" json:"start_ms,omitempty"`
+	DurationMs uint32                 `protobuf:"varint,5,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	// Empty on v1 segments; the player derives a pose from the expression.
+	Pose          string `protobuf:"bytes,6,opt,name=pose,proto3" json:"pose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2294,6 +2322,13 @@ func (x *CharacterSegment) GetDurationMs() uint32 {
 		return x.DurationMs
 	}
 	return 0
+}
+
+func (x *CharacterSegment) GetPose() string {
+	if x != nil {
+		return x.Pose
+	}
+	return ""
 }
 
 type Question struct {
@@ -5475,13 +5510,16 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\n" +
 	"segment_id\x18\x0e \x01(\tR\tsegmentId\x12\x1f\n" +
 	"\vspeaker_key\x18\x0f \x01(\tR\n" +
-	"speakerKey\"e\n" +
+	"speakerKey\"\x97\x01\n" +
 	"\x13MapCharacterRequest\x12\x16\n" +
 	"\x06prompt\x18\x01 \x01(\tR\x06prompt\x126\n" +
-	"\x06limits\x18\x02 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"i\n" +
+	"\x06limits\x18\x02 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\x120\n" +
+	"\x14draft_schema_version\x18\x03 \x01(\rR\x12draftSchemaVersion\"\xca\x01\n" +
 	"\x14MapCharacterResponse\x12\x1b\n" +
 	"\tspec_json\x18\x01 \x01(\tR\bspecJson\x124\n" +
-	"\battempts\x18\x02 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\"\xec\x01\n" +
+	"\battempts\x18\x02 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\x12'\n" +
+	"\x0fattributes_json\x18\x03 \x01(\tR\x0eattributesJson\x126\n" +
+	"\x17partial_attributes_json\x18\x04 \x01(\tR\x15partialAttributesJson\"\xec\x01\n" +
 	"\x16ScreenCharacterRequest\x12\x1b\n" +
 	"\tspec_json\x18\x01 \x01(\tR\bspecJson\x12/\n" +
 	"\x13compiled_appearance\x18\x02 \x01(\tR\x12compiledAppearance\x12\x1d\n" +
@@ -5616,7 +5654,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x01h\x18\x04 \x01(\x01R\x01h\"@\n" +
 	"\fRegionWindow\x12\x19\n" +
 	"\bstart_ms\x18\x01 \x01(\rR\astartMs\x12\x15\n" +
-	"\x06end_ms\x18\x02 \x01(\rR\x05endMs\"\xa3\x01\n" +
+	"\x06end_ms\x18\x02 \x01(\rR\x05endMs\"\xb7\x01\n" +
 	"\x10CharacterSegment\x12\x1f\n" +
 	"\vspeaker_key\x18\x01 \x01(\tR\n" +
 	"speakerKey\x12\x12\n" +
@@ -5626,7 +5664,8 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"expression\x12\x19\n" +
 	"\bstart_ms\x18\x04 \x01(\rR\astartMs\x12\x1f\n" +
 	"\vduration_ms\x18\x05 \x01(\rR\n" +
-	"durationMs\"\xdc\x01\n" +
+	"durationMs\x12\x12\n" +
+	"\x04pose\x18\x06 \x01(\tR\x04pose\"\xdc\x01\n" +
 	"\bQuestion\x12\x1f\n" +
 	"\vquestion_id\x18\x01 \x01(\tR\n" +
 	"questionId\x12\x16\n" +

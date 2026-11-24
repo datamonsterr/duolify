@@ -21,16 +21,20 @@ import {
 /** Selector-driven creator and editor. The preview, selector and draft contract are standalone. */
 export function CharacterCreator({
   record,
+  draft,
+  draftFailure,
   onSaved,
   onClose,
 }: {
   record?: CharacterRecord;
+  draft?: CharacterSpecV2;
+  draftFailure?: string;
   onSaved: (record: CharacterRecord) => void;
   onClose: () => void;
 }) {
   const t = useCharacterT();
   const [spec, setSpec] = useState<CharacterSpecV2>(
-    () => record?.document ?? defaultDraft("human"),
+    () => draft ?? record?.document ?? defaultDraft("human"),
   );
   const [tab, setTab] = useState<Tab>("kind");
   const [view, setView] = useState<RigView>("avatar");
@@ -84,6 +88,7 @@ export function CharacterCreator({
             {t(record ? "characters.v2.save" : "characters.v2.use")}
           </Button>
         </div>
+        {draftFailure && <p role="alert">{draftFailure}</p>}
         <div className="cv2-stage">
           <button
             type="button"

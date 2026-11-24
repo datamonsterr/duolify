@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -64,10 +65,11 @@ func ValidateStartupPricing(env string, allowUnapproved bool, hasApprovedKey boo
 
 // CreateRequest identifies one learner intent and an optional pinned regeneration.
 type CreateRequest struct {
-	RequestKey      string `json:"request_key"`
-	Prompt          string `json:"prompt"`
-	CharacterID     string `json:"character_id,omitempty"`
-	ExpectedVersion int    `json:"expected_version,omitempty"`
+	RequestKey         string `json:"request_key"`
+	Prompt             string `json:"prompt"`
+	CharacterID        string `json:"character_id,omitempty"`
+	ExpectedVersion    int    `json:"expected_version,omitempty"`
+	DraftSchemaVersion int    `json:"draft_schema_version,omitempty"`
 }
 
 // CreateJob is the content-free job state plus an approved result and quote.
@@ -79,6 +81,8 @@ type CreateJob struct {
 	ReservationID string         `json:"reservation_id,omitempty"`
 	Quote         *pricing.Quote `json:"quote,omitempty"`
 	Character     *Record        `json:"character,omitempty"`
+	Draft         *SpecV2        `json:"draft,omitempty"`
+	Target        *Record        `json:"target,omitempty"`
 	Proposal      bool           `json:"proposal"`
 }
 
@@ -148,12 +152,13 @@ func (s *Service) CreateAvailability(ctx context.Context) CreateAvailability {
 // GetCreate returns only the requesting learner's saved operation.
 func (s *Service) GetCreate(ctx context.Context, owner, id string) (CreateJob, error) {
 	var j CreateJob
-	var quoteID, reservation *string
+	var quoteID, reservation, characterID *string
 	var raw []byte
+	var expected, draftVersion int
 	if _, err := uuid.Parse(id); err != nil {
 		return j, ErrNotFound
 	}
-	err := s.pool.QueryRow(ctx, `SELECT id::text,state,reason_code,operation,quote_id::text,reservation_id::text,result FROM character_create_jobs WHERE id=$1 AND learner_id=$2`, id, owner).Scan(&j.ID, &j.State, &j.Reason, &j.Operation, &quoteID, &reservation, &raw)
+	err := s.pool.QueryRow(ctx, `SELECT id::text,state,reason_code,operation,quote_id::text,reservation_id::text,result,character_id::text,expected_version,draft_schema_version FROM character_create_jobs WHERE id=$1 AND learner_id=$2`, id, owner).Scan(&j.ID, &j.State, &j.Reason, &j.Operation, &quoteID, &reservation, &raw, &characterID, &expected, &draftVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, ErrNotFound
 	}
@@ -161,12 +166,30 @@ func (s *Service) GetCreate(ctx context.Context, owner, id string) (CreateJob, e
 		return j, err
 	}
 	if raw != nil {
-		if err = json.Unmarshal(raw, &j.Character); err != nil {
+		var result struct {
+			Draft *SpecV2 `json:"draft"`
+		}
+		if err = json.Unmarshal(raw, &result); err != nil {
 			return j, err
+		}
+		j.Draft = result.Draft
+		if j.Draft == nil {
+			if err = json.Unmarshal(raw, &j.Character); err != nil {
+				return j, err
+			}
 		}
 	}
 	if reservation != nil {
 		j.ReservationID = *reservation
+	}
+	if draftVersion == SchemaV2 && characterID != nil && (j.State == "succeeded" || j.State == "failed") {
+		record, e := s.Get(ctx, owner, *characterID)
+		if e == nil {
+			record.Version = expected
+			j.Target = &record
+		} else if !errors.Is(e, ErrNotFound) {
+			return j, e
+		}
 	}
 	if quoteID != nil {
 		q, e := pricing.NewQuotes(s.pool).Get(ctx, owner, *quoteID)
@@ -181,6 +204,9 @@ func (s *Service) GetCreate(ctx context.Context, owner, id string) (CreateJob, e
 
 // QuoteCreate consumes attempt quota, screens input and snapshots the server quote.
 func (s *Service) QuoteCreate(ctx context.Context, owner string, in CreateRequest) (CreateJob, error) {
+	if in.DraftSchemaVersion != 0 && in.DraftSchemaVersion != SchemaV2 {
+		return CreateJob{}, errors.New("invalid_spec")
+	}
 	if len(in.RequestKey) < 1 || len(in.RequestKey) > 100 {
 		return CreateJob{}, errors.New("invalid_request_key")
 	}
@@ -266,7 +292,7 @@ func (s *Service) QuoteCreate(ctx context.Context, owner string, in CreateReques
 	if in.CharacterID != "" {
 		character = in.CharacterID
 	}
-	if err = tx.QueryRow(ctx, `INSERT INTO character_create_jobs(learner_id,request_key,character_id,expected_version,operation,state,reason_code,prompt,deadline_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now()+interval '90 seconds') RETURNING id::text`, owner, in.RequestKey, character, in.ExpectedVersion, operation, state, reason, prompt).Scan(&id); err != nil {
+	if err = tx.QueryRow(ctx, `INSERT INTO character_create_jobs(learner_id,request_key,character_id,expected_version,operation,state,reason_code,prompt,deadline_at,draft_schema_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now()+interval '90 seconds',$9) RETURNING id::text`, owner, in.RequestKey, character, in.ExpectedVersion, operation, state, reason, prompt, in.DraftSchemaVersion).Scan(&id); err != nil {
 		return CreateJob{}, err
 	}
 	if reason != "" {
@@ -411,15 +437,17 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 	var expected int
 	var deadline time.Time
 	var screenCost int64
-	if err = s.pool.QueryRow(ctx, `SELECT prompt,character_id::text,expected_version,deadline_at,screen_cost_nanos FROM character_create_jobs WHERE id=$1 AND learner_id=$2`, id, owner).Scan(&prompt, &character, &expected, &deadline, &screenCost); err != nil {
+	var draftVersion int
+	if err = s.pool.QueryRow(ctx, `SELECT prompt,character_id::text,expected_version,deadline_at,screen_cost_nanos,draft_schema_version FROM character_create_jobs WHERE id=$1 AND learner_id=$2`, id, owner).Scan(&prompt, &character, &expected, &deadline, &screenCost, &draftVersion); err != nil {
 		return err
 	}
 	jobCtx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
+	var partial *SpecV2
 	fail := func(reason string, usage []*pb.Usage) error {
 		cleanup, stop := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer stop()
-		_, e := s.failCreate(cleanup, owner, id, "failed", reason, usage)
+		_, e := s.finishFailedCreate(cleanup, owner, id, "failed", reason, usage, partial)
 		return e
 	}
 	if prompt == nil {
@@ -447,14 +475,31 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 		return fail("provider_unavailable", nil)
 	}
 	limits.MaxCostNanos = min(limits.MaxCostNanos, uint64(remaining))
-	response, err := s.creation.mapper.MapCharacter(jobCtx, &pb.MapCharacterRequest{Prompt: *prompt, Limits: limits})
+	response, err := s.creation.mapper.MapCharacter(jobCtx, &pb.MapCharacterRequest{Prompt: *prompt, Limits: limits, DraftSchemaVersion: boundedUint32(int64(draftVersion))})
 	var attempts []*pb.Usage
+	var document []byte
+	var prepared write
+	mappingErr := err
 	if response != nil {
 		attempts = response.Attempts
-	}
-	mappingErr := err
-	if mappingErr == nil && response != nil {
-		_, mappingErr = ValidateSpecJSON([]byte(response.SpecJson))
+		if mappingErr == nil && draftVersion == SchemaV2 {
+			draft, e := promptDraft(response.AttributesJson)
+			mappingErr = e
+			if e == nil {
+				document, mappingErr = json.Marshal(draft)
+			} else {
+				partial = partialPromptDraft(response.PartialAttributesJson)
+				if partial == nil {
+					partial = partialPromptDraft(response.AttributesJson)
+				}
+			}
+		} else if mappingErr == nil {
+			document = []byte(response.SpecJson)
+			_, mappingErr = ValidateSpecJSON(document)
+		}
+		if mappingErr == nil {
+			prepared, mappingErr = prepareWrite(document)
+		}
 	}
 	if e := s.recordMapping(context.WithoutCancel(ctx), owner, id, attempts, mappingErr, limits); e != nil {
 		return fail("provider_unavailable", attempts)
@@ -462,12 +507,7 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 	if err != nil || response == nil || len(attempts) == 0 || len(attempts) > int(limits.MaxAttempts) {
 		return fail("provider_unavailable", attempts)
 	}
-	spec, err := ValidateSpecJSON([]byte(response.SpecJson))
-	if err != nil {
-		return fail("invalid_spec", attempts)
-	}
-	compiled, err := CompileSVG(spec, "idle")
-	if err != nil {
+	if mappingErr != nil {
 		return fail("invalid_spec", attempts)
 	}
 	mappingCost := int64(0)
@@ -488,7 +528,7 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 	screenLimits = creationScreenLimits(*j.Quote, remaining)
 	screenLimits.DeadlineUnixMs = uint64(deadline.UnixMilli())
 	screenCtx, screenCancel := context.WithTimeout(jobCtx, 10*time.Second)
-	screened, screenErr := s.screener.ScreenCharacter(screenCtx, &pb.ScreenCharacterRequest{SpecJson: response.SpecJson, CompiledAppearance: compiled, Limits: screenLimits})
+	screened, screenErr := s.screener.ScreenCharacter(screenCtx, &pb.ScreenCharacterRequest{SpecJson: string(document), CompiledAppearance: prepared.compiled, Limits: screenLimits})
 	screenCancel()
 	if reason := s.recordScreen(context.WithoutCancel(ctx), owner, id, screened, screenErr, *j.Quote); reason != "" {
 		return fail(reason, attempts)
@@ -528,8 +568,6 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 		if e := tx.QueryRow(jobCtx, `SELECT id::text FROM learners WHERE id=$1 FOR UPDATE`, owner).Scan(&lock); e != nil {
 			return e
 		}
-		next := 1
-		characterID := ""
 		if character == nil {
 			var count int64
 			if e := tx.QueryRow(jobCtx, `SELECT count(*) FROM characters WHERE learner_id=$1 AND deleted_at IS NULL`, owner).Scan(&count); e != nil {
@@ -538,6 +576,27 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 			if count >= j.Quote.Bounds["count"] {
 				return errors.New("limit_exceeded")
 			}
+		}
+		if draftVersion == SchemaV2 {
+			if character != nil {
+				var version int
+				if e := tx.QueryRow(jobCtx, `SELECT current_version FROM characters WHERE id=$1 AND learner_id=$2 AND deleted_at IS NULL FOR UPDATE`, *character, owner).Scan(&version); e != nil || version != expected {
+					return errors.New("version_conflict")
+				}
+			}
+			result, e := encodePromptDraft(prepared.doc)
+			if e != nil {
+				return e
+			}
+			if _, e = tx.Exec(jobCtx, `UPDATE character_create_jobs SET state='succeeded',result=$2,prompt=NULL,finished_at=now() WHERE id=$1`, id, result); e != nil {
+				return e
+			}
+			fallback := slices.ContainsFunc(attempts, func(a *pb.Usage) bool { return a != nil && a.FallbackUsed })
+			return creationEvent(jobCtx, tx, owner, id+":result", "character_draft_proposed", map[string]any{"operation": j.Operation, "kind": prepared.doc.Body.Kind, "fallback_used": fallback})
+		}
+		next := 1
+		characterID := ""
+		if character == nil {
 			if e := tx.QueryRow(jobCtx, `INSERT INTO characters(learner_id) VALUES($1) RETURNING id::text`, owner).Scan(&characterID); e != nil {
 				return e
 			}
@@ -552,10 +611,11 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 				return errors.New("version_conflict")
 			}
 		}
-		if _, e := tx.Exec(jobCtx, `INSERT INTO character_versions(character_id,version,spec) VALUES($1,$2,$3)`, characterID, next, response.SpecJson); e != nil {
+		if _, e := tx.Exec(jobCtx, `INSERT INTO character_versions(character_id,version,spec) VALUES($1,$2,$3)`, characterID, next, document); e != nil {
 			return e
 		}
-		record := Record{ID: characterID, Version: next, Spec: *spec}
+		spec := prepared.projected
+		record := Record{ID: characterID, Version: next, Spec: spec}
 		raw, _ := json.Marshal(record)
 		if _, e := tx.Exec(jobCtx, `UPDATE character_create_jobs SET state='succeeded',character_id=$2,result=$3,prompt=NULL,finished_at=now() WHERE id=$1`, id, characterID, raw); e != nil {
 			return e
@@ -641,7 +701,7 @@ func (s *Service) recordMapping(ctx context.Context, owner, id string, attempts 
 
 func createReason(reason string) string {
 	switch reason {
-	case "invalid_spec", "limit_exceeded", "screening_unavailable", "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "creation_disabled", "cancelled", "timeout", "version_conflict", "provider_unavailable":
+	case "invalid_spec", "limit_exceeded", "screening_unavailable", "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "hateful_content", "prompt_injection", "creation_disabled", "cancelled", "timeout", "version_conflict", "provider_unavailable":
 		return reason
 	}
 	return "provider_unavailable"
@@ -710,6 +770,19 @@ func creationEvent(ctx context.Context, tx pgx.Tx, owner, key, event string, pro
 	return err
 }
 func (s *Service) failCreate(ctx context.Context, owner, id, state, reason string, attempts []*pb.Usage) (CreateJob, error) {
+	return s.finishFailedCreate(ctx, owner, id, state, reason, attempts, nil)
+}
+
+func encodePromptDraft(draft *SpecV2) ([]byte, error) {
+	if draft == nil {
+		return nil, nil
+	}
+	return json.Marshal(struct {
+		Draft *SpecV2 `json:"draft"`
+	}{Draft: draft})
+}
+
+func (s *Service) finishFailedCreate(ctx context.Context, owner, id, state, reason string, attempts []*pb.Usage, draft *SpecV2) (CreateJob, error) {
 	j, err := s.GetCreate(ctx, owner, id)
 	if err != nil {
 		return j, err
@@ -735,7 +808,11 @@ func (s *Service) failCreate(ctx context.Context, owner, id, state, reason strin
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	reason = createReason(reason)
-	tag, err := tx.Exec(ctx, `UPDATE character_create_jobs SET state=$3,reason_code=$4,prompt=NULL,finished_at=now() WHERE id=$1 AND learner_id=$2 AND state NOT IN ('succeeded','failed','rejected','cancelled')`, id, owner, state, reason)
+	result, err := encodePromptDraft(draft)
+	if err != nil {
+		return j, err
+	}
+	tag, err := tx.Exec(ctx, `UPDATE character_create_jobs SET state=$3,reason_code=$4,prompt=NULL,result=$5,finished_at=now() WHERE id=$1 AND learner_id=$2 AND state NOT IN ('succeeded','failed','rejected','cancelled')`, id, owner, state, reason, result)
 	if err != nil {
 		return j, err
 	}

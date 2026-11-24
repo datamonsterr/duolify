@@ -32,6 +32,7 @@ type SlideSegment struct {
 	SpeakerLabel string `json:"speaker_label"`
 	Text         string `json:"text"`
 	Expression   string `json:"expression"`
+	Pose         string `json:"pose,omitempty"`
 	StartMs      int    `json:"start_ms"`
 	DurationMs   int    `json:"duration_ms"`
 }

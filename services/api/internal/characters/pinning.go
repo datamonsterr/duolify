@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -19,7 +20,7 @@ const (
 	maxSegments    = 12
 )
 
-var segmentExpressions = map[string]bool{"idle": true, "happy": true, "sad": true, "thinking": true, "celebrate": true}
+var segmentPoses = []string{"idle", "talk", "point", "think", "celebrate", "wave", "shrug"}
 var assetLike = regexp.MustCompile(`(?i)(://|^//|data:|javascript:|url\(|www\.)`)
 
 // PinJobCastTx resolves and stores the effective Cast inside the caller's job
@@ -85,8 +86,8 @@ func PersonasJSON(cast LessonCastSnapshot) (string, error) {
 	return string(raw), err
 }
 
-// ValidateSegments accepts bounded plain text only for pinned speakers, the five
-// supported expressions and times inside the Slide. Assets are never accepted.
+// ValidateSegments accepts bounded plain text only for pinned speakers, catalog
+// poses and expressions, and times inside the Slide.
 func ValidateSegments(segments []*pb.CharacterSegment, cast LessonCastSnapshot, slideMs uint32) error {
 	if len(segments) > maxSegments {
 		return errors.New("too many segments")
@@ -98,8 +99,11 @@ func ValidateSegments(segments []*pb.CharacterSegment, cast LessonCastSnapshot, 
 		if _, ok := cast.Speakers[segment.SpeakerKey]; !ok {
 			return fmt.Errorf("unknown speaker %q", segment.SpeakerKey)
 		}
-		if !segmentExpressions[segment.Expression] {
+		if !slices.Contains(validExpressionsV2, segment.Expression) {
 			return errors.New("unsupported expression")
+		}
+		if segment.Pose != "" && !slices.Contains(segmentPoses, segment.Pose) {
+			return errors.New("unsupported pose")
 		}
 		if !PlainSegmentText(segment.Text) {
 			return errors.New("segment text must be bounded plain text")
@@ -128,7 +132,7 @@ func PlainSegmentText(text string) bool {
 func ProjectSegments(segments []*pb.CharacterSegment, cast LessonCastSnapshot) []SlideSegment {
 	out := make([]SlideSegment, 0, len(segments))
 	for _, s := range segments {
-		out = append(out, SlideSegment{SpeakerKey: s.SpeakerKey, SpeakerLabel: cast.Speakers[s.SpeakerKey].Spec.Info.Name, Text: s.Text, Expression: s.Expression, StartMs: int(s.StartMs), DurationMs: int(s.DurationMs)})
+		out = append(out, SlideSegment{SpeakerKey: s.SpeakerKey, SpeakerLabel: cast.Speakers[s.SpeakerKey].Spec.Info.Name, Text: s.Text, Expression: s.Expression, Pose: s.Pose, StartMs: int(s.StartMs), DurationMs: int(s.DurationMs)})
 	}
 	return out
 }

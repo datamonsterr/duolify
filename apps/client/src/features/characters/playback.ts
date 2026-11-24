@@ -1,19 +1,44 @@
-import { compileRigSvg, getBundledFallbackSvg } from "./rig";
+import {
+  defaultGuideFixture,
+  defaultSupporterFixture,
+  defaultCompanionFixture,
+} from "./fixtures";
+import { POSE_FOR_EXPRESSION } from "./motion-slide";
+import { compileRigSvg } from "./rig";
+import { altText } from "./rig-v2-alt";
+import { compileV2, POSES } from "./rig-v2";
 import { validateCharacterSpec } from "./schema";
+import { validateSpecV2 } from "./schema-v2";
+import { upgradeV1 } from "./upgrade";
+import { EXPRESSIONS_V2, type ExpressionV2, type Pose } from "./types-v2";
 import type {
+  CharacterSpec,
   Expression,
   LessonCastSnapshot,
   SlideManifest,
   SlideSegment,
 } from "./types";
 
-const EXPRESSIONS: Expression[] = [
-  "idle",
-  "happy",
-  "sad",
-  "thinking",
-  "celebrate",
-];
+type Appearance = { pose: Pose; expression: ExpressionV2 };
+
+function appearance(segment: SlideSegment): Appearance {
+  const expression = EXPRESSIONS_V2.includes(segment.expression)
+    ? segment.expression
+    : "idle";
+  const pose =
+    segment.pose && POSES.includes(segment.pose)
+      ? segment.pose
+      : POSE_FOR_EXPRESSION[expression];
+  return { pose, expression };
+}
+
+const stateKey = ({ pose, expression }: Appearance) => `${pose}:${expression}`;
+
+const defaults: Record<string, CharacterSpec> = {
+  guide: defaultGuideFixture,
+  supporter: defaultSupporterFixture,
+  supporter_2: defaultCompanionFixture,
+};
 
 const esc = (value: string) =>
   value
@@ -53,12 +78,17 @@ export function speakerFallback(
   cast: LessonCastSnapshot,
   key: string,
 ): Fallback {
-  const speaker = cast.speakers[key];
+  const speaker = Object.prototype.hasOwnProperty.call(cast.speakers, key)
+    ? cast.speakers[key]
+    : undefined;
   if (!speaker) return "missing_speaker";
   if (speaker.suppressed) return "suppressed";
   if ((speaker.spec as { rig_version?: string }).rig_version !== "original-v1")
     return "unsupported_rig";
-  return validateCharacterSpec(speaker.spec).valid ? null : "invalid_spec";
+  if (!validateCharacterSpec(speaker.spec).valid) return "invalid_spec";
+  return speaker.document && !validateSpecV2(speaker.document).valid
+    ? "invalid_spec"
+    : null;
 }
 
 /**
@@ -73,33 +103,58 @@ export function generatedCharacterDocument(
   reducedMotion: boolean,
   offline: boolean,
 ): string {
-  const segments = slide.segments ?? [];
-  const keys = [
-    ...new Set([
-      ...Object.keys(cast.speakers),
-      ...segments.map((s) => s.speaker_key),
-    ]),
-  ].slice(0, 4);
-  const speakers: Record<string, unknown> = {};
-  for (const key of keys) {
-    const reason = speakerFallback(cast, key);
-    const pinned = cast.speakers[key];
-    const svgs: Record<string, string> = {};
-    for (const expression of EXPRESSIONS) {
-      svgs[expression] =
-        reason || !pinned
-          ? getBundledFallbackSvg(expression)
-          : compileRigSvg(pinned.spec, expression);
-    }
-    speakers[key] = {
-      svgs,
-      fallback: reason,
-      character_version: pinned?.character_version ?? 1,
-      rig_version: reason
-        ? "original-v1"
-        : (pinned?.spec.rig_version ?? "original-v1"),
-    };
-  }
+  const segments = (slide.segments ?? []).map((segment) => ({
+    ...segment,
+    ...appearance(segment),
+  }));
+  const keys = [...new Set(segments.map((s) => s.speaker_key))].slice(0, 3);
+  const speakers = Object.fromEntries(
+    keys.map((key) => {
+      const fallback = speakerFallback(cast, key);
+      const pinned = cast.speakers[key];
+      const original =
+        !fallback && pinned
+          ? pinned.spec
+          : Object.prototype.hasOwnProperty.call(defaults, key)
+            ? defaults[key]!
+            : defaultGuideFixture;
+      const document = fallback ? undefined : pinned?.document;
+      const upgraded = document ?? upgradeV1(original);
+      const states = segments.filter((s) => s.speaker_key === key);
+      // Old documents without an authored pose keep their v1 art. Their clock
+      // still derives a pose, and new segments can pose an upgraded v1 rig.
+      const posed =
+        Boolean(document) ||
+        slide.segments?.some((s) => s.speaker_key === key && s.pose);
+      const svgs: Record<string, string> = {};
+      for (const state of [
+        { pose: "idle", expression: "idle" } as const,
+        ...states,
+      ]) {
+        const id = stateKey(state);
+        svgs[id] ??= posed
+          ? compileV2(upgraded, "body", state.pose, state.expression)
+          : compileRigSvg(
+              original,
+              (state.expression === "surprised" ||
+              state.expression === "confused"
+                ? "idle"
+                : state.expression) as Expression,
+            );
+      }
+      return [
+        key,
+        {
+          svgs,
+          fallback,
+          label: altText(upgraded),
+          name: original.info.name,
+          character_version: fallback ? 1 : (pinned?.character_version ?? 1),
+          rig_version: posed ? "original-v2" : "original-v1",
+        },
+      ];
+    }),
+  );
   const first = segments[0];
   const data = {
     segments,
@@ -110,23 +165,28 @@ export function generatedCharacterDocument(
       : "slide",
   };
   const avatars = keys
-    .map(
-      (key) =>
-        `<div class="cast-avatar" data-speaker-key="${esc(key)}" data-expression="idle">${(speakers[key] as { svgs: Record<string, string> }).svgs.idle}</div>`,
-    )
+    .map((key) => {
+      const speaker = speakers[key]!;
+      const state =
+        first?.speaker_key === key
+          ? first
+          : ({ pose: "idle", expression: "idle" } as const);
+      return `<div class="cast-avatar" data-speaker-key="${esc(key)}" data-pose="${state.pose}" data-expression="${state.expression}" role="img" aria-label="${esc(speaker.label)}">${speaker.svgs[stateKey(state)]}</div>`;
+    })
     .join("");
   const caption = first ? esc(first.text) : "";
-  const label = first ? esc(first.speaker_label) : "";
-  const reasons = keys
-    .map((k) => (speakers[k] as { fallback: Fallback }).fallback)
-    .filter(Boolean);
+  const firstSpeaker = first ? speakers[first.speaker_key] : undefined;
+  const label = first
+    ? esc(firstSpeaker?.fallback ? firstSpeaker.name : first.speaker_label)
+    : "";
+  const reasons = keys.map((k) => speakers[k]!.fallback).filter(Boolean);
   return `<style>
 .cast-stage{display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px;font-family:system-ui,sans-serif}
 .cast-row{display:flex;gap:16px;justify-content:center}
 .cast-avatar{opacity:.55;transition:opacity .2s}
 .cast-avatar.active{opacity:1}
-.cast-avatar svg{width:96px;height:96px}
-.cast-caption{max-width:36rem;text-align:center}
+.cast-avatar svg{width:152px;height:152px}
+.cast-caption{max-width:36rem;text-align:center;font-size:22px}
 :root[data-motion="reduce"] .cast-avatar{transition:none}
 </style>
 <section class="cast-stage" data-motion="${reducedMotion ? "reduce" : "full"}" data-cast-fallback="${esc(reasons.join(","))}">
@@ -134,17 +194,24 @@ export function generatedCharacterDocument(
 <div class="cast-caption" role="group" aria-label="Dialogue"><strong id="speaker-label">${label}</strong><p id="dialogue-text" aria-live="off">${caption}</p></div>
 </section>
 <script>(function(){
-var D=${scriptJson(data)},seen={},last=-1;
+var D=${scriptJson(data)},seen=new Set(),last=-1;
 function show(i){
   var s=D.segments[i];if(!s)return;
   var k=s.speaker_key,sp=D.speakers[k];
-  document.getElementById("speaker-label").textContent=s.speaker_label;
+  document.getElementById("speaker-label").textContent=sp&&sp.fallback?sp.name:s.speaker_label;
   document.getElementById("dialogue-text").textContent=s.text;
-  var els=document.querySelectorAll("[data-speaker-key]");
-  for(var j=0;j<els.length;j++)els[j].classList.toggle("active",els[j].getAttribute("data-speaker-key")===k);
-  var el=document.querySelector('[data-speaker-key="'+k+'"]');
-  if(el&&sp){el.setAttribute("data-expression",s.expression);el.innerHTML=sp.svgs[s.expression]||sp.svgs.idle;}
-  if(seen[k])return;seen[k]=1;
+  var els=document.querySelectorAll(".cast-row [data-speaker-key]");
+  for(var j=0;j<els.length;j++){
+    var el=els[j], key=el.dataset.speakerKey, speaker=D.speakers[key];
+    var state={pose:"idle",expression:"idle"};
+    for(var n=i;n>=0;n--)if(D.segments[n].speaker_key===key){state=D.segments[n];break;}
+    el.classList.toggle("active",key===k);
+    if(el.dataset.pose===state.pose&&el.dataset.expression===state.expression)continue;
+    el.dataset.pose=state.pose;
+    el.dataset.expression=state.expression;
+    el.innerHTML=speaker.svgs[state.pose+":"+state.expression]||speaker.svgs["idle:idle"];
+  }
+  if(seen.has(k))return;seen.add(k);
   try{
     parent.postMessage(sp&&sp.fallback?{type:"character_render_fallback",reason_code:sp.fallback,offline:D.offline}:{type:"character_rendered",speaker_key:k,character_version:sp?sp.character_version:1,rig_version:sp?sp.rig_version:"original-v1",expression:s.expression,offline:D.offline,slide_id:D.slide_id},"*");
   }catch(e){}

@@ -10,7 +10,7 @@ use engine_core::{LlmProvider, ProviderRouter, promotion::Gate};
 use engine_proto::{self as pb, engine_service_server::EngineService};
 use engine_server::Service;
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tonic::{Code, Request};
 use tonic_types::StatusExt;
 use wiremock::{
@@ -62,6 +62,7 @@ fn report(fingerprint: &str, failing: &[&str]) -> String {
 /// must-block phrases; `garbage` answers prose instead of the schema.
 struct Model {
     garbage: bool,
+    character_refusals: HashMap<String, &'static str>,
 }
 impl Respond for Model {
     fn respond(&self, request: &Received) -> ResponseTemplate {
@@ -79,11 +80,13 @@ impl Respond for Model {
             };
             json!({"allowed": reason.is_empty(), "reason_code": reason}).to_string()
         } else if has("character_screen") {
-            let reason = if has("taylor swift") {
-                "real_person"
-            } else {
-                ""
-            };
+            let request: Value = serde_json::from_slice(&request.body).unwrap();
+            let messages = request["messages"].as_array().unwrap();
+            let user: Value =
+                serde_json::from_str(messages.last().unwrap()["content"].as_str().unwrap())
+                    .unwrap();
+            let prompt = user["spec"]["raw_prompt"].as_str().unwrap_or_default();
+            let reason = self.character_refusals.get(prompt).copied().unwrap_or("");
             json!({"approved": reason.is_empty(), "reason_code": reason}).to_string()
         } else {
             let codes: Vec<&str> = if has("ignore the screening rules") {
@@ -106,8 +109,28 @@ impl Respond for Model {
 
 async fn live(gate: Gate, garbage: bool) -> (Service, MockServer) {
     let server = MockServer::start().await;
+    let character_refusals = golden("character_screen")
+        .into_iter()
+        .filter(|row| row["input"]["expected_blocked"] == true)
+        .map(|row| {
+            let id = row["id"].as_str().unwrap();
+            let reason = if id.contains("-minors-") {
+                "age_inappropriate"
+            } else if id.contains("-hateful-") {
+                "hateful_content"
+            } else if id.contains("-brand-") || id.contains("-copyright-") {
+                "third_party_ip"
+            } else {
+                "real_person"
+            };
+            (row["input"]["prompt"].as_str().unwrap().to_owned(), reason)
+        })
+        .collect();
     Mock::given(method("POST"))
-        .respond_with(Model { garbage })
+        .respond_with(Model {
+            garbage,
+            character_refusals,
+        })
         .mount(&server)
         .await;
     let p: Arc<dyn LlmProvider> = Arc::new(engine_providers::HttpProvider::openrouter(
@@ -285,6 +308,7 @@ async fn a_task_without_live_cases_stays_closed_even_when_the_run_passed() {
         .map_character(Request::new(pb::MapCharacterRequest {
             prompt: "a friendly robot".into(),
             limits: Some(limits()),
+            ..Default::default()
         }))
         .await
         .unwrap_err();

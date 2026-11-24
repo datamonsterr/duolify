@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
-import { characterCreation, type CreateJob } from "./creation";
+import {
+  characterCreation,
+  characterJobRecoveryKey,
+  type CreateJob,
+} from "./creation";
 import type { CharacterRecord } from "./library";
-import { session } from "../accounts/session";
 import { AppLink } from "../../lib/navigation";
 import { trackQuoteShown } from "../../lib/analytics";
 
@@ -13,9 +16,11 @@ const message = (error: unknown) =>
 export function CreateCharacter({
   record,
   onCreated,
+  onDraft,
 }: {
   record?: CharacterRecord;
   onCreated: (record: CharacterRecord) => void;
+  onDraft?: (job: CreateJob) => void;
 }) {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -40,11 +45,13 @@ export function CreateCharacter({
   const heading = useRef<HTMLHeadingElement>(null);
   // Recovery contains an opaque job ID only. Prompts are memory-only and erased
   // on terminal state. Ownership is still enforced by every API read.
-  const recoveryKey = `duolify.character-job.${session.current()?.id ?? "session"}`;
+  const recoveryKey = characterJobRecoveryKey();
   const created = useRef(onCreated);
+  const drafted = useRef(onDraft);
   useEffect(() => {
     created.current = onCreated;
-  }, [onCreated]);
+    drafted.current = onDraft;
+  }, [onCreated, onDraft]);
   useEffect(() => {
     let active = true;
     characterCreation
@@ -74,11 +81,12 @@ export function CreateCharacter({
     if (!job) return;
     sessionStorage.setItem(recoveryKey, job.id);
     if (terminal(job)) {
-      sessionStorage.removeItem(recoveryKey);
-      if (job.character && notified.current !== job.id) {
-        notified.current = job.id;
-        created.current(job.character);
-      }
+      const handoff = (job.draft || job.state === "failed") && drafted.current;
+      if (!handoff) sessionStorage.removeItem(recoveryKey);
+      if (notified.current === job.id) return;
+      notified.current = job.id;
+      if (job.character) created.current(job.character);
+      else if (handoff) handoff(job);
       return;
     }
     if (!["queued", "running", "screening"].includes(job.state)) return;
@@ -110,6 +118,7 @@ export function CreateCharacter({
         await characterCreation.quote({
           request_key: key.current,
           prompt,
+          ...(onDraft ? { draft_schema_version: 2 as const } : {}),
           ...(record
             ? { character_id: record.id, expected_version: record.version }
             : {}),

@@ -1,14 +1,21 @@
 import { test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
+import {
+  captureCharacterReview,
+  characterReviewViews,
+} from "./characters-review";
 
 // ADR 0013 approves only character_create pricing; original fixture art stays provisional.
-for (const mobile of [false, true]) {
-  test(`E17-03 free private editor and Cast ${mobile ? "mobile" : "desktop"}`, async ({
+for (const view of characterReviewViews) {
+  test(`E17-03 free private editor and Cast ${view.width}px ${view.color}`, async ({
     page,
     request,
   }) => {
-    if (mobile) await page.setViewportSize({ width: 390, height: 844 });
-    await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
+    await page.setViewportSize({ width: view.width, height: view.height });
+    await page.emulateMedia({
+      reducedMotion: "reduce",
+      colorScheme: view.color,
+    });
     await page.goto("/settings/characters");
     const token = await page.evaluate(
       () =>
@@ -69,6 +76,8 @@ for (const mobile of [false, true]) {
       .selectOption("default-supporter");
     await page.getByRole("button", { name: "Save Course Cast" }).click();
     await expect(page.getByRole("status")).toContainText("Saved");
+    await expect(page.locator(".cast-cards svg")).toHaveCount(2);
+    await captureCharacterReview(page, "cast", view);
     const oldLessonResponse = await request.get(
       `${apiBase}/v1/courses/${course_id}/lessons/e17-old/manifest`,
       { headers },

@@ -5,18 +5,20 @@ import type {
   PinnedSpeaker,
 } from "./types";
 import { compileRigSvg, getBundledFallbackSvg } from "./rig";
-import type { Pose } from "./types-v2";
+import type { ExpressionV2, Pose } from "./types-v2";
 
 /** The v2 compiler is a lazy chunk; callers pass it once loaded. */
 export type CompileV2 = typeof import("./rig-v2").compileV2;
 
 /** v1 segments carry no pose; derive one from the expression. */
-export const POSE_FOR_EXPRESSION: Record<Expression, Pose> = {
+export const POSE_FOR_EXPRESSION: Record<ExpressionV2, Pose> = {
   idle: "idle",
   happy: "talk",
   sad: "shrug",
   thinking: "think",
   celebrate: "celebrate",
+  surprised: "idle",
+  confused: "shrug",
 };
 
 function speakerSvg(

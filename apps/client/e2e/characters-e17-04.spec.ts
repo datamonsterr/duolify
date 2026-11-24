@@ -1,6 +1,10 @@
 import { resetTokens, test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
 import type { Page, APIRequestContext } from "./native-store-fixture";
+import {
+  captureCharacterReview,
+  characterReviewViews,
+} from "./characters-review";
 
 // ADR 0013's approved active-version path is covered by characters-e17-02-pricing.
 // These explicit mock-only proposal fixtures retain provisional default-cast art.
@@ -27,15 +31,15 @@ async function connect(page: Page, request: APIRequestContext) {
   });
   return headers;
 }
-for (const mobile of [false, true]) {
-  test(`E17-04 quoted private creation and regeneration ${mobile ? "mobile" : "desktop"}`, async ({
+for (const view of characterReviewViews) {
+  test(`E17-04 quoted private creation and regeneration ${view.width}px ${view.color}`, async ({
     page,
     request,
   }) => {
-    if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: view.width, height: view.height });
     await page.emulateMedia({
       reducedMotion: "reduce",
-      colorScheme: mobile ? "dark" : "light",
+      colorScheme: view.color,
     });
     const headers = await connect(page, request);
     const funding = await request.post(`${apiBase}/test/characters/fund`, {
@@ -45,7 +49,7 @@ for (const mobile of [false, true]) {
     await page.reload();
     await page
       .getByLabel("Describe your original character")
-      .fill("A patient original moon gardener");
+      .fill("A tall robot gardener with a red scarf");
     const quoted = page.waitForResponse(
       (r) =>
         r.url().endsWith("/v1/characters/jobs") &&
@@ -63,12 +67,34 @@ for (const mobile of [false, true]) {
       .getByRole("button", { name: "Confirm character credits" })
       .click();
     await page.reload();
+    await expect(page.getByRole("radio", { name: "Robot" })).toBeChecked();
+    await page.getByRole("tab", { name: "Look" }).click();
     await expect(
-      page.locator(".character-create").getByRole("status"),
-    ).toContainText("Character ready");
+      page
+        .getByRole("group", { name: "Height" })
+        .getByRole("radio", { name: "Tall" }),
+    ).toBeChecked();
+    const beforeSave = await request.get(`${apiBase}/v1/characters`, {
+      headers,
+    });
+    expect(await beforeSave.json()).toEqual([]);
+    await page.getByRole("tab", { name: "Outfit" }).click();
+    await expect(page.getByRole("checkbox", { name: "Scarf" })).toBeChecked();
+    await captureCharacterReview(page, "prompt-draft", view);
+    await page.getByRole("tab", { name: "About" }).click();
+    await page
+      .getByLabel("Name", { exact: true })
+      .fill("Original moon gardener");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Original moon gardener" }),
     ).toBeVisible();
+    const avatar = page.locator(".character-list svg[data-view=avatar]");
+    await expect(avatar).toBeVisible();
+    await page
+      .locator(".character-list .character-card")
+      .scrollIntoViewIfNeeded();
+    await captureCharacterReview(page, "library", view);
     const replay = await request.post(
       `${apiBase}/v1/characters/jobs/${job.id}/confirm`,
       { headers, data: { quote_id: job.quote.id } },
@@ -85,6 +111,8 @@ for (const mobile of [false, true]) {
     await page
       .getByRole("button", { name: "Confirm character credits" })
       .click();
+    await expect(page.getByRole("radio", { name: "Robot" })).toBeChecked();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByText("Version 2 · Private")).toBeVisible();
     await page.reload();
     await expect(page.getByText("Version 2 · Private")).toBeVisible();
@@ -204,6 +232,13 @@ test("E17-04 exhausted providers preserve wallet and old version", async ({
   await page.getByRole("button", { name: "Review character quote" }).click();
   await page.getByRole("button", { name: "Confirm character credits" }).click();
   await expect(page.getByRole("alert")).toContainText("invalid_spec");
+  await expect(page.getByRole("radio", { name: "Robot" })).toBeChecked();
+  await page.getByRole("tab", { name: "Look" }).click();
+  await expect(
+    page
+      .getByRole("group", { name: "Height" })
+      .getByRole("radio", { name: "Tall" }),
+  ).toBeChecked();
   const old = await (
     await request.get(`${apiBase}/v1/characters/${character_id}`, { headers })
   ).json();
@@ -214,6 +249,6 @@ test("E17-04 exhausted providers preserve wallet and old version", async ({
   expect(after.purchased).toBe(before.purchased);
   expect(after.reserved).toBe(0);
   await expect(
-    page.getByRole("link", { name: "Use Default cast" }),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Save", exact: true }),
+  ).toBeEnabled();
 });

@@ -18,7 +18,7 @@ pub struct Live {
 }
 
 /// Tasks whose live cases go through production builders here (screens run in the runner).
-pub const TASKS: [&str; 13] = [
+pub const TASKS: [&str; 14] = [
     "input_guard",
     "course_preview",
     "course_outline",
@@ -31,6 +31,7 @@ pub const TASKS: [&str; 13] = [
     "outline_chat_change",
     "outline_replan",
     "character_create",
+    "character_spec",
     "lesson_narration",
 ];
 
@@ -105,6 +106,23 @@ fn bounded(outcome: engine_core::credits::Outcome, output: Value) -> Live {
         attempts: outcome.attempts,
         completion: outcome.completion,
     }
+}
+
+pub fn character_attributes_output(
+    outcome: engine_core::credits::Outcome,
+    proposal: engine_core::characters::attributes::Attributes,
+) -> Live {
+    bounded(
+        outcome,
+        json!({
+            "valid_attributes": proposal.complete,
+            "attributes": proposal.values,
+        }),
+    )
+}
+
+pub fn character_attributes_limits(input: &Value) -> Limits {
+    limits(input, 4000, 2000, 90000)
 }
 
 /// Wraps a production validator and keeps each rejection reason with an excerpt of the answer,
@@ -678,6 +696,30 @@ pub async fn evaluate(
                 live.text = v.to_string();
             }
             Ok(live)
+        }
+        "character_spec" => {
+            let prompt = input["prompt"].as_str().unwrap_or_default();
+            let mut l = character_attributes_limits(input);
+            let fallback = (input["route"] == "fallback").then(|| {
+                // Measure the fallback alone, with its production reasoning configuration.
+                l.max_attempts = 1;
+                let mut routed = router.clone();
+                routed.primary = router.fallback.clone();
+                let model = routed
+                    .models
+                    .tasks
+                    .get_mut("character_create")
+                    .expect("production route");
+                model.model = model.fallback_model.clone();
+                routed
+            });
+            let (outcome, proposal) = engine_core::characters::attributes::map_attributes(
+                fallback.as_ref().unwrap_or(router),
+                prompt,
+                &l,
+            )
+            .await?;
+            Ok(character_attributes_output(outcome, proposal))
         }
         "lesson_narration" => narration(input).await,
         other => anyhow::bail!("no live evaluator for {other}"),

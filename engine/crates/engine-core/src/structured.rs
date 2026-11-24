@@ -38,11 +38,12 @@ pub const STEER_REASONS: [&str; 4] = [
     "too_long",
 ];
 /// Closed reason codes of the Character screen (`characters::verdict`).
-pub const CHARACTER_REASONS: [&str; 5] = [
+pub const CHARACTER_REASONS: [&str; 6] = [
     "real_person",
     "third_party_ip",
     "sexual_content",
     "age_inappropriate",
+    "hateful_content",
     "prompt_injection",
 ];
 

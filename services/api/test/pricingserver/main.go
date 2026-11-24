@@ -882,6 +882,14 @@ func (mockE2EBriefEngine) CourseBriefChat(_ context.Context, r *enginev1.CourseB
 type characterMapFixture struct{}
 
 func (characterMapFixture) MapCharacter(_ context.Context, r *enginev1.MapCharacterRequest) (*enginev1.MapCharacterResponse, error) {
+	attempts := []*enginev1.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, InputTokens: 100, OutputTokens: 100, Attempt: 1, Component: "content", Delivered: true}}
+	if r.DraftSchemaVersion == 2 {
+		if strings.Contains(r.Prompt, "exhausted providers") {
+			attempts[0].Delivered = false
+			return &enginev1.MapCharacterResponse{PartialAttributesJson: `{"attributes":[{"field":"body.kind","value":"robot"},{"field":"body.height","value":"tall"}]}`, Attempts: attempts}, nil
+		}
+		return &enginev1.MapCharacterResponse{AttributesJson: `{"attributes":[{"field":"body.kind","value":"robot"},{"field":"body.height","value":"tall"},{"field":"clothes.accessories.scarf","value":"#FF0000"}]}`, Attempts: attempts}, nil
+	}
 	spec := characters.DefaultGuideFixture()
 	spec.Info.Name = "Original moon gardener"
 	if strings.Contains(r.Prompt, "scarf") {
@@ -891,7 +899,7 @@ func (characterMapFixture) MapCharacter(_ context.Context, r *enginev1.MapCharac
 	if strings.Contains(r.Prompt, "exhausted providers") {
 		raw = []byte(`{}`)
 	}
-	return &enginev1.MapCharacterResponse{SpecJson: string(raw), Attempts: []*enginev1.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, InputTokens: 100, OutputTokens: 100, Attempt: 1, Component: "content", Delivered: true}}}, nil
+	return &enginev1.MapCharacterResponse{SpecJson: string(raw), Attempts: attempts}, nil
 }
 
 // Fixture documents are immutable and contain no personal content; integration
