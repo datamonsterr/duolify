@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import {
   reportFailure,
@@ -83,11 +84,7 @@ export function ReportSheet({
         aria-labelledby={titleId}
         aria-busy={busy}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.stopPropagation();
-            close();
-            return;
-          }
+          if (closeOnEscape(e, close)) return;
           if (e.key !== "Tab") return;
           const nodes = Array.from(
             root.current?.querySelectorAll<HTMLElement>(focusable) ?? [],

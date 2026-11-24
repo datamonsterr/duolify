@@ -1,8 +1,8 @@
 name: Set up client
-description: mise Node and pnpm, pnpm store, and (for native jobs) Rust, Tauri apt packages and a Tauri cache.
+description: mise Node and pnpm, pnpm store, and (for native jobs) Rust and a Tauri cache.
 inputs:
   tauri:
-    description: Install Rust, Tauri system dependencies and free disk space when true.
+    description: Install Rust and free disk space when true.
     default: 'false'
   cache-key:
     description: Rust cache namespace for native jobs.
@@ -27,19 +27,6 @@ runs:
       if: inputs.tauri == 'true'
       shell: bash
       run: mise run ci:free-disk
-    # Tauri 2 prerequisites (WebKitGTK 4.1): https://tauri.app/start/prerequisites/
-    # The .deb downloads are cached per runner image; installation runs every time,
-    # which keeps maintainer scripts and ldconfig correct.
-    - name: Cache apt downloads
-      if: inputs.tauri == 'true'
-      uses: actions/cache@v6
-      with:
-        path: ~/.cache/apt-archives
-        key: apt-tauri-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('.mise/tasks/ci.toml') }}
-    - name: mise run ci:tauri-deps
-      if: inputs.tauri == 'true'
-      shell: bash
-      run: mise run ci:tauri-deps
     - uses: Swatinem/rust-cache@v2
       if: inputs.tauri == 'true'
       with:

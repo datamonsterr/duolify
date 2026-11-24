@@ -92,7 +92,7 @@ for (const vp of [
     const state = fresh();
     state.characters = [{ id: CHARACTER_ID, version: 1, spec }];
     await mockApi(page, state);
-    await page.goto("/settings");
+    await page.goto("/settings#look");
     await page.getByText("Your guide", { exact: true }).click();
     const preview = page.locator(".your-guide svg").first();
 
@@ -148,7 +148,7 @@ test("a failed save reverts and shows an alert", async ({ page }) => {
       ? r.fulfill({ status: 503, json: { error: "x" } })
       : r.fallback(),
   );
-  await page.goto("/settings");
+  await page.goto("/settings#look");
   await page.getByText("Your guide", { exact: true }).click();
   await page.getByRole("radio", { name: "Rose" }).check();
   await expect(

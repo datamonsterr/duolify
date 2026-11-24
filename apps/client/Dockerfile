@@ -16,7 +16,9 @@ COPY apps/client/ apps/client/
 ARG VITE_API_URL=""
 ARG VITE_POSTHOG_KEY=""
 ARG VITE_POSTHOG_HOST="https://us.i.posthog.com"
-ENV VITE_API_URL=$VITE_API_URL VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
+# Empty = the landing shows only the poster. Otherwise <asset origin>/landing/v1 (video served from the asset bucket).
+ARG VITE_LANDING_MEDIA_BASE=""
+ENV VITE_API_URL=$VITE_API_URL VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST VITE_LANDING_MEDIA_BASE=$VITE_LANDING_MEDIA_BASE
 RUN pnpm --filter @duolify/client build
 
 # Caddy is both the static file server and the reverse proxy (infra/deploy/Caddyfile).

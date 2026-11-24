@@ -10,6 +10,8 @@ import type { RegionGestureEndInfo, RegionRect } from "./gestures";
 export type ImmersiveExtensions = {
   /** Rendered inside the side rail slot (`data-testid="immersive-side-rail-slot"`). */
   sideRail?: ReactNode;
+  /** A note, question or selection is open: nothing may move the Slide on its own. */
+  busy?: boolean;
   /** Two-finger spread. Rectangles are normalized to the 16:9 stage (0..1). */
   onRegionGestureStart?: (rect: RegionRect) => void;
   onRegionGestureUpdate?: (rect: RegionRect) => void;

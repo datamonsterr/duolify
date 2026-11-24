@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { GuidedSteerAdd } from "../guided-chat/GuidedSteerAdd";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "../design/Button";
@@ -267,21 +268,15 @@ export function InstructionPanel({
     if (id) focusLater(`delete:${id}`);
   }
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key !== "Escape") return;
-    const stop = () => {
-      e.preventDefault();
-      e.stopPropagation();
-    };
     if (confirmId) {
-      stop();
-      cancelConfirm();
+      closeOnEscape(e, cancelConfirm);
     } else if (edit && !edit.busy) {
-      stop();
-      closeEdit(edit.id);
+      closeOnEscape(e, () => closeEdit(edit.id));
     } else if (mobile && screen === "add" && !busy) {
-      stop();
-      setScreen("list");
-      focusLater("add-button");
+      closeOnEscape(e, () => {
+        setScreen("list");
+        focusLater("add-button");
+      });
     }
   }
 

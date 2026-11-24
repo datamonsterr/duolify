@@ -1,3 +1,8 @@
+#[cfg(desktop)]
+mod desktop_menu;
+#[cfg(any(desktop, test))]
+mod menu_contract;
+
 #[tauri::command]
 fn app_name() -> &'static str {
     "Duolify"
@@ -199,7 +204,12 @@ pub fn run() {
     let builder = tauri::Builder::default();
 
     #[cfg(desktop)]
-    let builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
+        .setup(|app| {
+            desktop_menu::install(app)?;
+            Ok(())
+        });
 
     let builder = builder
         .plugin(tauri_plugin_opener::init())

@@ -23,6 +23,7 @@ vi.mock("./api", async (original) => ({
   transcribe: mocks.transcribe,
 }));
 import { VoiceButton } from "./VoiceButton";
+import { resetToasts } from "../../components/toast";
 import type { VoicePlatform } from "./platform";
 
 const LESSON = "11111111-1111-4111-8111-111111111111";
@@ -63,6 +64,7 @@ const setOnline = (v: boolean) =>
   Object.defineProperty(navigator, "onLine", { value: v, configurable: true });
 
 beforeEach(() => {
+  resetToasts();
   localStorage.clear();
   localStorage.setItem("duolify.voice.explained", "1");
   setOnline(true);
@@ -155,18 +157,16 @@ describe("VoiceButton", () => {
     const mic = await screen.findByTestId("voice-mic");
     await waitFor(() => expect(mic).toHaveAttribute("aria-disabled", "false"));
     await act(async () => void fireEvent.pointerDown(mic, { pointerId: 1 }));
-    expect(await screen.findByTestId("voice-notice")).toHaveTextContent(
+    expect(await screen.findByTestId("toast")).toHaveTextContent(
       "Microphone access is off",
     );
-    expect(
-      screen.getByRole("button", { name: "Type instead" }),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("toast-action")).toHaveTextContent("Try again");
   });
 
   it("says voice needs a connection when offline", async () => {
     setOnline(false);
     view(platform());
-    expect(await screen.findByTestId("voice-blocked")).toHaveTextContent(
+    expect(await screen.findByTestId("toast")).toHaveTextContent(
       "needs a connection",
     );
     expect(screen.getByTestId("voice-mic")).toHaveAttribute(
@@ -178,7 +178,7 @@ describe("VoiceButton", () => {
   it("is unavailable without a transcription rate", async () => {
     mocks.pricing.mockResolvedValue({ transcribe: null });
     view(platform());
-    expect(await screen.findByTestId("voice-blocked")).toHaveTextContent(
+    expect(await screen.findByTestId("toast")).toHaveTextContent(
       "not available yet",
     );
   });
@@ -190,11 +190,11 @@ describe("VoiceButton", () => {
     );
     view(platform());
     await waitFor(() =>
-      expect(screen.getByTestId("voice-blocked")).toHaveTextContent(
+      expect(screen.getByTestId("toast")).toHaveTextContent(
         "today's voice limit",
       ),
     );
-    expect(screen.getByTestId("voice-blocked")).toHaveTextContent("resets at");
+    expect(screen.getByTestId("toast")).toHaveTextContent("resets at");
   });
 
   it("renders nothing without a Lesson", () => {
@@ -216,11 +216,22 @@ describe("VoiceButton", () => {
     await act(async () => void fireEvent.pointerDown(mic, { pointerId: 1 }));
     await act(async () => new Promise((r) => setTimeout(r, 620)));
     await act(async () => void fireEvent.pointerUp(mic, { pointerId: 1 }));
-    expect(await screen.findByTestId("voice-notice")).toHaveTextContent(
+    expect(await screen.findByTestId("toast")).toHaveTextContent(
       "could not make out",
     );
     expect(onTranscript).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    fireEvent.click(screen.getByTestId("toast-action"));
     await waitFor(() => expect(onTranscript).toHaveBeenCalled());
+  });
+
+  it("leaving the button while a key is held cancels the take", async () => {
+    const onTranscript = view(platform());
+    const mic = await screen.findByTestId("voice-mic");
+    await waitFor(() => expect(mic).toHaveAttribute("aria-disabled", "false"));
+    await act(async () => void fireEvent.keyDown(mic, { key: " " }));
+    await waitFor(() => expect(mic).toHaveAttribute("aria-pressed", "true"));
+    await act(async () => void fireEvent.blur(mic));
+    await waitFor(() => expect(mic).toHaveAttribute("aria-pressed", "false"));
+    expect(onTranscript).not.toHaveBeenCalled();
   });
 });

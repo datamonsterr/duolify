@@ -70,8 +70,17 @@ export default function AnswerPanel({
     send: () => sendNow(),
   });
   const sendNow = () => {
+    // The quote must be approved by the Learner; a dictation never skips that consent.
+    if (
+      !tutor.draft.trim() ||
+      tutor.phase !== "idle" ||
+      !tutor.online ||
+      tutor.block
+    )
+      return false;
     dictation.noteSent();
     tutor.send();
+    return true;
   };
   // Only what was asked in this panel is shown; earlier turns stay in the shared thread.
   const [baseline, setBaseline] = useState<Set<string> | null>(null);

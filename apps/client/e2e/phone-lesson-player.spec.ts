@@ -51,7 +51,7 @@ for (const vp of [
       page,
     }) => {
       await openLesson(page);
-      await expect(page.locator("details.appearance-menu")).toBeHidden();
+      await expect(page.locator(".app-bar-controls")).toBeHidden();
     });
 
     test("the expand control is visible with a 44px target", async ({

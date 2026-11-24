@@ -56,6 +56,16 @@ func TestSelectorCreateAndV2Edit(t *testing.T) {
 		t.Fatalf("v2 edit %+v %v", got, err)
 	}
 
+	// A v2 Character pins its document into the Course cast.
+	course := "f1111111-1111-4111-8111-111111111111"
+	if _, err = s.SelectCast(ctx, owner, course, characters.CastSelection{Guide: rec.ID}); err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := s.CurrentCast(ctx, owner, course)
+	if err != nil || pinned.Speakers["guide"].Document == nil || pinned.Speakers["guide"].Document.Info.Name != "Selector Sam" {
+		t.Fatalf("pinned cast lacks v2 document: %+v %v", pinned.Speakers["guide"], err)
+	}
+
 	// First v2 edit of a stored v1 Character keeps v1 immutable and writes v2 as version 2.
 	var v1Before []byte
 	if err = f.DB.Pool.QueryRow(ctx, `SELECT spec FROM character_versions WHERE character_id=$1 AND version=1`, v1ID).Scan(&v1Before); err != nil {

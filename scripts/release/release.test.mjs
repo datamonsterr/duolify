@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isOnMain } from "./check-on-main.mjs";
+import { checkPublishRef, isOnMain } from "./check-on-main.mjs";
 import { renderChangelog, parseSubject } from "./changelog.mjs";
 import { verifyCertOutput } from "./verify-apk-cert.mjs";
 import { releaseNotes } from "./release-notes.mjs";
@@ -212,6 +212,13 @@ test("properties values survive nasty characters", () => {
 function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 }
+
+test("publish dispatch requires the main ref", () => {
+  assert.doesNotThrow(() => checkPublishRef("workflow_dispatch", "refs/heads/main"));
+  assert.throws(() => checkPublishRef("workflow_dispatch", "refs/heads/feature"), /must run from main/);
+  assert.throws(() => checkPublishRef("workflow_dispatch", "refs/tags/v1.0.0"), /must run from main/);
+  assert.doesNotThrow(() => checkPublishRef("push", "refs/tags/v1.0.0"));
+});
 
 test("main guard accepts main ancestors and rejects other commits", () => {
   const dir = mkdtempSync(join(tmpdir(), "guard-"));
