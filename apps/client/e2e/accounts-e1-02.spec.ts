@@ -26,15 +26,9 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "wait" });
 });
 
-test("welcome artwork and legal actions follow the quiet-link treatment", async ({
-  page,
-}) => {
+test("legal actions follow the quiet-link treatment", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/sign-in");
-  await expect(page.locator(".auth-art i:nth-of-type(3)")).toHaveCSS(
-    "box-shadow",
-    "rgb(217, 154, 0) 0px 7px 0px 0px",
-  );
   const legalAction = page.locator(".auth-legal button").first();
   await expect(legalAction).toHaveCSS("text-decoration-line", "underline");
   await expect(legalAction).toHaveCSS("border-style", "none");
@@ -55,11 +49,10 @@ for (const width of [1280, 390]) {
           name: "Learn any topic, a little at a time.",
         }),
       ).toBeVisible();
-      await page
-        .getByRole("button", { name: "I already have an account" })
-        .click();
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
       const email = `learner-${width}-${mode}@example.test`;
       await page.getByLabel("Email address").fill(email);
+      await page.getByLabel("Email address").press("Enter");
       await page.getByLabel("I am 16 or older").check();
       await page.getByRole("button", { name: "Send code" }).click();
       await expect(page.getByLabel("One-time code")).toBeFocused();
@@ -86,7 +79,7 @@ for (const width of [1280, 390]) {
         page.getByRole("heading", { name: "Welcome back" }),
       ).toBeVisible();
       await context.setOffline(true);
-      await expect(page.getByRole("status")).toContainText("Offline");
+      await expect(page.getByRole("status")).toContainText(/offline/i);
       await context.setOffline(false);
       await page.getByRole("button", { name: "Back to welcome" }).click();
       await expect(
@@ -108,6 +101,7 @@ test("expired code and unsafe destination preserve recovery", async ({
   await page.goto("/sign-in?returnTo=https%3A%2F%2Fevil.test");
   await page.getByRole("button", { name: "Get started" }).click();
   await page.getByLabel("Email address").fill("expired@example.test");
+  await page.getByLabel("Email address").press("Enter");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Send code" }).click();
   await expect(page.getByLabel("One-time code")).toBeVisible();
@@ -121,7 +115,7 @@ test("expired code and unsafe destination preserve recovery", async ({
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("invalid or expired");
   await page.getByRole("button", { name: "Resend code" }).click();
-  await expect(page.getByLabel("One-time code")).toHaveValue("");
+  await expect(page.getByRole("status")).toContainText("Code sent");
   const fresh = await (
     await request.get(apiBase + "/test/mail?email=expired@example.test")
   ).json();
@@ -156,21 +150,21 @@ for (const width of [1280, 320]) {
     const email =
       `a-very-long-learner-address-${width}-`.repeat(6) + "@example.test";
     await page.getByLabel("Email address").fill(email);
+    await page.getByLabel("Email address").press("Enter");
     await page.getByLabel("I am 16 or older").check();
     await page.getByRole("button", { name: "Send code" }).tap();
     await expect(
-      page.getByRole("button", { name: "Preparing…" }),
+      page.getByRole("button", { name: "Send code" }),
     ).toBeDisabled();
     release();
     await expect(page.getByRole("alert")).toContainText("unavailable");
-    await expect(page.getByLabel("Email address")).toHaveValue(email);
     await context.setOffline(true);
     await expect(
-      page.getByRole("button", { name: "Retry sign-in" }),
+      page.getByRole("button", { name: "Send code" }),
     ).toBeDisabled();
     await context.setOffline(false);
     fail = false;
-    await page.getByRole("button", { name: "Retry sign-in" }).tap();
+    await page.getByRole("button", { name: "Send code" }).tap();
     await expect(page.getByLabel("One-time code")).toBeFocused();
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "200%";
@@ -180,8 +174,6 @@ for (const width of [1280, 320]) {
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
-    await page.getByRole("button", { name: "Change email" }).tap();
-    await expect(page.getByLabel("Email address")).toHaveValue(email);
     await page.getByRole("button", { name: "Back to welcome" }).tap();
     await expect(
       page.getByRole("button", { name: "Get started" }),

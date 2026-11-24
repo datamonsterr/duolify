@@ -1,3 +1,4 @@
+import "./messages.setup";
 import type { GuidedScript } from "./types";
 
 const level = ["beginner", "intermediate", "advanced", "expert"].map((id) => ({

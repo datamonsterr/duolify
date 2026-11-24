@@ -65,3 +65,15 @@ Land the lint with a baseline first (no behaviour change), then primitives (toas
 
 ## Open Questions
 None for the owner; all product choices above were decided under the owner's delegation. Reconciliation with `immersive-overlay-polish` happens at merge time between the two authors.
+
+## Owner feedback log (2026-11-23)
+
+Each item is recorded here before it is coded. Wording is the owner's, as relayed.
+
+- A1. Remove the "Settings" disclosure menu from the app shell. Language select and a theme toggle icon button sit side by side at the top right of the app bar. Reduce motion and reset preferences move into the Settings page.
+- A2. Settings page: a horizontal tab row at the top replaces the bottom link stack and the repeated "Settings" heading; no duplicate Profile link; labels and controls align responsively with no mid-word wraps ("Captio/ns", "Analyti/cs", "Remind/ers", "Local/e"), no controls floating in wide columns, stacked under about 480 px.
+- B3. Checkbox is a circle, green fill when checked, tick `--on-primary` on `--primary`, 44 px target through the label hit area. Select gets padding before the down arrow.
+- B4. Dark theme contrast audit of every route: light field backgrounds and near-invisible headings or text, with an automated contrast check where cheap.
+- C5. Courses: one compact toolbar row (create, refresh as icon button, My courses and Discover tabs, streak and credits chips); lead with the course list.
+- C6. Credits: buttons sized to content, each action row on one line where it fits.
+- D7. Remove the right rail; fold streak, XP and credits into one compact block in the left sidebar; remove the left-bottom footnote.

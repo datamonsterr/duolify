@@ -43,7 +43,7 @@ The build is for the arm64 simulator only. It is ad-hoc signed, so it never runs
 
 `workflow_dispatch` with `dry_run` (default on) builds and verifies everything and uploads the files as a workflow artifact without creating a release.
 
-Publishing (tag push, or dispatch with `dry_run=false`) fails unless the commit is an ancestor of `origin/main`. Dispatch with `test_missing_signing=true` blanks the signing secrets to prove the missing-secrets path fails closed.
+Publishing (tag push, or dispatch with `dry_run=false`) fails unless the commit is an ancestor of `origin/main`. A publishing dispatch must also use the `main` ref. Dispatch with `test_missing_signing=true` blanks the signing secrets to prove the missing-secrets path fails closed.
 
 ## Signing
 

@@ -28,8 +28,9 @@ _.file = ".env"
 # exported in the caller's shell wins over .env, and an empty value never overrides a
 # non-empty one.
 OPENROUTER_API_KEY = '{% if get_env(name="OPENROUTER_API_KEY", default="") != "" %}{{ get_env(name="OPENROUTER_API_KEY") }}{% else %}{{ env.OPENROUTER_API_KEY | default(value="") }}{% endif %}'
-ELEVENLABS_API_KEY = '{% if get_env(name="ELEVENLABS_API_KEY", default="") != "" %}{{ get_env(name="ELEVENLABS_API_KEY") }}{% else %}{{ env.ELEVENLABS_API_KEY | default(value="") }}{% endif %}'
-ELEVENLABS_VOICE_ID = '{% if get_env(name="ELEVENLABS_VOICE_ID", default="") != "" %}{{ get_env(name="ELEVENLABS_VOICE_ID") }}{% else %}{{ env.ELEVENLABS_VOICE_ID | default(value="") }}{% endif %}'
+# ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID have no template here: mise 2026.10 renders the template to an empty
+# string for their real values (narration evals then run on the mock). Export them in the shell instead; an
+# empty line in .env would override them, so leave the keys out of .env when exporting.
 HF_TOKEN = '{% if get_env(name="HF_TOKEN", default="") != "" %}{{ get_env(name="HF_TOKEN") }}{% else %}{{ env.HF_TOKEN | default(value="") }}{% endif %}'
 
 [task_config]

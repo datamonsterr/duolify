@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { trackControl } from "../../lib/analytics";
 import { useShellSession } from "../shell/ShellSession";
 import { Badge } from "./Badge";
+import "./courses.css";
 import { Button } from "./Button";
 import { CourseCard } from "./CourseCard";
 import { AppLink, navigateTo } from "../../lib/navigation";
@@ -53,10 +54,9 @@ export function Courses({
     searchInput.current?.focus();
   };
   return (
-    <section aria-labelledby="courses-heading">
+    <section aria-labelledby="courses-heading" className="courses-page">
       <header className="courses-header">
         <div>
-          <div className="eyebrow">Keep your curiosity going</div>
           <h1 id="courses-heading">Courses</h1>
         </div>
         <label className="search-label courses-search">
@@ -68,13 +68,14 @@ export function Courses({
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <AppLink className="duo-button primary" href="/courses/create">
+        <AppLink
+          className="duo-button primary courses-create"
+          data-action-level="primary"
+          href="/courses/create"
+        >
           Create a course
         </AppLink>
       </header>
-      <p id="creation-unavailable" className="muted">
-        Start with a free course brief.
-      </p>
       <div className="course-toolbar">
         <div
           className="course-tabs"
@@ -95,14 +96,10 @@ export function Courses({
             role="tab"
             aria-selected="false"
             disabled
-            aria-describedby="discover-unavailable"
           >
             Discover
           </button>
         </div>
-        <p id="discover-unavailable" className="muted">
-          Public course discovery is not available yet.
-        </p>
       </div>
       <div className="course-context">
         <Badge role="streak">
@@ -143,7 +140,7 @@ export function Courses({
       )}
       <div className="course-actions">
         <Button
-          variant={isError ? "secondary" : "primary"}
+          variant={isError ? "secondary" : "quiet"}
           pending={isFetching && !!data}
           disabled={!online || (isFetching && !data)}
           onClick={() => {
@@ -180,10 +177,8 @@ export function Courses({
             <span />
           </div>
           <h2>What would you like to keep learning?</h2>
-          <p>
-            Start with a topic. You'll see a preview before anything is created.
-          </p>
           <Button
+            variant="secondary"
             onClick={() => {
               navigateTo("/courses/create");
             }}

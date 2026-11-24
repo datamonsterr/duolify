@@ -1,0 +1,264 @@
+{
+  "play_pause": {
+    "scope": "player",
+    "label": "play_pause",
+    "tooltip": "play",
+    "group": "playback",
+    "bindings": ["KeyK", "Space"]
+  },
+  "seek_back_5": {
+    "scope": "player",
+    "label": "seek_5",
+    "group": "playback",
+    "bindings": ["ArrowLeft"],
+    "repeat": true
+  },
+  "seek_forward_5": {
+    "scope": "player",
+    "label": "seek_5",
+    "group": "playback",
+    "bindings": ["ArrowRight"],
+    "repeat": true
+  },
+  "seek_back_10": {
+    "scope": "player",
+    "label": "seek_10",
+    "group": "playback",
+    "bindings": ["KeyJ"],
+    "repeat": true
+  },
+  "seek_forward_10": {
+    "scope": "player",
+    "label": "seek_10",
+    "group": "playback",
+    "bindings": ["KeyL"],
+    "repeat": true
+  },
+  "previous_slide": {
+    "scope": "player",
+    "label": "change_slide",
+    "group": "navigate",
+    "bindings": ["Shift+ArrowLeft", "PageUp"]
+  },
+  "next_slide": {
+    "scope": "player",
+    "label": "change_slide",
+    "group": "navigate",
+    "bindings": ["Shift+ArrowRight", "PageDown"]
+  },
+  "lesson_start": {
+    "scope": "player",
+    "label": "lesson_edges",
+    "group": "navigate",
+    "bindings": ["Home"]
+  },
+  "lesson_end": {
+    "scope": "player",
+    "label": "lesson_edges",
+    "group": "navigate",
+    "bindings": ["End"]
+  },
+  "seek_percent": {
+    "scope": "player",
+    "label": "seek_percent",
+    "group": "navigate",
+    "bindings": ["0–9"]
+  },
+  "volume_up": {
+    "scope": "player",
+    "label": "volume",
+    "group": "playback",
+    "bindings": ["ArrowUp"],
+    "repeat": true
+  },
+  "volume_down": {
+    "scope": "player",
+    "label": "volume",
+    "group": "playback",
+    "bindings": ["ArrowDown"],
+    "repeat": true
+  },
+  "mute": {
+    "scope": "player",
+    "label": "mute",
+    "group": "playback",
+    "bindings": ["KeyM"]
+  },
+  "captions": {
+    "scope": "player",
+    "label": "captions",
+    "group": "playback",
+    "bindings": ["KeyC"]
+  },
+  "speed_down": {
+    "scope": "player",
+    "label": "speed",
+    "group": "playback",
+    "bindings": ["<"]
+  },
+  "speed_up": {
+    "scope": "player",
+    "label": "speed",
+    "group": "playback",
+    "bindings": [">"]
+  },
+  "immersive": {
+    "scope": "player",
+    "label": "full_screen",
+    "group": "playback",
+    "bindings": ["KeyF"]
+  },
+  "quick_note": {
+    "scope": "player",
+    "label": "quick_note",
+    "group": "notes",
+    "bindings": ["KeyN"]
+  },
+  "bookmark": {
+    "scope": "player",
+    "label": "bookmark",
+    "group": "notes",
+    "bindings": ["KeyB"]
+  },
+  "select_region": {
+    "scope": "player",
+    "label": "select_region",
+    "group": "notes",
+    "bindings": ["KeyR"]
+  },
+  "focus_ask": {
+    "scope": "player",
+    "label": "focus_ask",
+    "group": "notes",
+    "bindings": ["/"]
+  },
+  "lesson_test_select": {
+    "scope": "lesson_test",
+    "label": "test_select",
+    "group": "navigate",
+    "bindings": ["1–9"]
+  },
+  "lesson_test_submit": {
+    "scope": "lesson_test",
+    "label": "test_submit",
+    "group": "navigate",
+    "bindings": ["Enter"]
+  },
+  "outline_move_up": {
+    "scope": "control",
+    "label": "outline_move",
+    "bindings": ["ArrowUp"]
+  },
+  "outline_move_down": {
+    "scope": "control",
+    "label": "outline_move",
+    "bindings": ["ArrowDown"]
+  },
+  "tour_next": {
+    "scope": "control",
+    "label": "tour_step",
+    "bindings": ["ArrowRight"]
+  },
+  "tour_previous": {
+    "scope": "control",
+    "label": "tour_step",
+    "bindings": ["ArrowLeft"]
+  },
+  "tour_activate": {
+    "scope": "control",
+    "label": "test_submit",
+    "bindings": ["Enter"]
+  },
+  "composer_send": {
+    "scope": "composer",
+    "label": "send",
+    "group": "notes",
+    "bindings": ["Enter", "Primary+Enter"]
+  },
+  "dismiss": {
+    "scope": "app",
+    "label": "dismiss",
+    "group": "app",
+    "bindings": ["Escape"]
+  },
+  "undo": {
+    "scope": "app",
+    "label": "undo",
+    "group": "app",
+    "bindings": ["Primary+KeyZ"]
+  },
+  "settings": {
+    "scope": "app",
+    "label": "settings",
+    "group": "app",
+    "bindings": ["Primary+,"],
+    "desktop": true,
+    "menu": {
+      "group": "app",
+      "label": "Settings",
+      "accelerator": "CmdOrCtrl+Comma"
+    }
+  },
+  "go_learn": {
+    "scope": "app",
+    "label": "learn",
+    "group": "app",
+    "bindings": ["Primary+1"],
+    "desktop": true,
+    "menu": {
+      "group": "navigate",
+      "label": "Learn",
+      "accelerator": "CmdOrCtrl+1"
+    }
+  },
+  "go_courses": {
+    "scope": "app",
+    "label": "courses",
+    "group": "app",
+    "bindings": ["Primary+2"],
+    "desktop": true,
+    "menu": {
+      "group": "navigate",
+      "label": "Courses",
+      "accelerator": "CmdOrCtrl+2"
+    }
+  },
+  "go_friends": {
+    "scope": "app",
+    "label": "friends",
+    "group": "app",
+    "bindings": ["Primary+3"],
+    "desktop": true,
+    "menu": {
+      "group": "navigate",
+      "label": "Friends",
+      "accelerator": "CmdOrCtrl+3"
+    }
+  },
+  "go_notes": {
+    "scope": "app",
+    "label": "go_notes",
+    "group": "app",
+    "bindings": ["Primary+4"],
+    "desktop": true,
+    "menu": {
+      "group": "navigate",
+      "label": "Notes",
+      "accelerator": "CmdOrCtrl+4"
+    }
+  },
+  "toggle_full_screen": {
+    "scope": "app",
+    "label": "full_screen",
+    "bindings": [],
+    "desktop": true,
+    "menu": { "group": "view", "label": "Toggle full screen" }
+  },
+  "show_help": {
+    "scope": "app",
+    "label": "show_help",
+    "group": "app",
+    "bindings": ["?"],
+    "menu": { "group": "help", "label": "Keyboard shortcuts" }
+  }
+}

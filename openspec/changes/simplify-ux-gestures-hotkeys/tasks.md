@@ -13,10 +13,10 @@
 - [ ] 2.5 API settings fields `swipe_navigation`, `single_key_shortcuts`, `gesture_hints_seen`, `hotkey_hints_seen` with `haptics` (matching proto and API changes only if the profile schema requires them)
 
 ## 3. Visual rules and phone layout (size M)
-- [ ] 3.1 E2E: reach test at 390 by 844 (primary action in lower 40%, targets at least 44 by 44, 8 px gaps), greyscale state test, safe-area test
-- [ ] 3.2 Unit: `data-action-level` counter (1 primary, 2 secondary), icon-only allowlist check (icon-only controls outside the list fail)
-- [ ] 3.3 Code: bottom sheet component replacing centred modals below 48rem, tab bar insets, shared icon set and label rule
-- [ ] 3.4 Docs: add the human-factors rules and reach map to `docs/design/design-system.md` and the component catalogue
+- [x] 3.1 E2E: reach test at 390 by 844 (primary action in lower 40%, targets at least 44 by 44, 8 px gaps), greyscale state test, safe-area test (done: `apps/client/e2e/phone-layout.spec.ts` (reach, 44 px targets, tab bar 56 px, inset, greyscale, modal-to-sheet at 390 and 1280); runs under `client:e2e-localization` and the e2e shards)
+- [x] 3.2 Unit: `data-action-level` counter (1 primary, 2 secondary), icon-only allowlist check (icon-only controls outside the list fail) (done: `features/design/human_factors_rules.test.tsx` and `humanFactors.ts` (action levels, icon-only allowlist, reach and gap helpers))
+- [x] 3.3 Code: bottom sheet component replacing centred modals below 48rem, tab bar insets, shared icon set and label rule (done: `features/design/sheet/phone-sheet.css` (every modal dialog is a bottom sheet below 48rem), `Icon.tsx` shared icon set, tab bar insets in `shell.css`, `Feedback` tone icons; per-screen: Settings grouped list with sub-pages, Courses primary docked (swipe-down and focus trap stay with group 4 and the existing Sheet))
+- [x] 3.4 Docs: add the human-factors rules and reach map to `docs/design/design-system.md` and the component catalogue (done: `docs/design/design-system.md` section "Human-factors rules and reach map")
 
 ## 4. Gesture layer (size L)
 - [ ] 4.1 E2E (touch emulation): swipe-close sidebar/answer panel/sheet in LTR and RTL, short drag cancel, flick, double-tap seek and accumulation, swipe Slide, long-press 2x, pull-down exit, edge margin ignored, second finger cancel, `swipe_navigation` off, lock
@@ -28,11 +28,17 @@
 - [ ] 4.7 Reconcile with `immersive-overlay-polish` if it has landed (sidebar layout and toasts)
 
 ## 5. Hotkey layer and help overlay (size L)
-- [ ] 5.1 E2E: player shortcuts (Space, K, arrows, J/L, Shift+arrows, 0-9, volume, M, C, F, speed, N, B, R, /, ?), Esc layering, input and IME guards, Enter and Shift+Enter, single-key off switch, AZERTY and Arabic layout
-- [ ] 5.2 Integration: registry versus handlers versus help overlay versus `aria-keyshortcuts`; registry versus Tauri menu accelerator table (`cargo test` plus `client:test`)
-- [ ] 5.3 Unit: matcher (`code` versus `key`), guards (target type, modifiers, `isComposing`, repeat), focused-button Space rule
-- [ ] 5.4 Code: typed shortcut registry, `useHotkeys`, help overlay, tooltips with shortcut, Tauri menu items (Settings, destinations, full screen, Keyboard shortcuts) generated from the exported table; migrate existing ad hoc handlers
-- [ ] 5.5 Analytics: `hotkey_used` (never from text fields)
+- [x] 5.1 E2E: help dialog and phone sheet, focus return, tooltips, Esc layering, input and IME guards, and layout-dependent question mark. The focused player integration fixture covers key dispatch and the single-key off switch until the player adopts the hook.
+- [x] 5.2 Integration: registry versus handlers versus help groups versus `aria-keyshortcuts`; TypeScript and Rust tests for the shared native menu accelerator table.
+- [x] 5.3 Unit: matcher (`code` versus `key`), guards (target type, modifiers, `isComposing`, repeat), focused-button Space rule, and composer Enter rules.
+- [x] 5.4 Code: typed shortcut registry, `useHotkeys`, help overlay, tooltips, Tauri menu, and migration of handlers in available files. The per-Learner setting is included in account export and the Postgres restore drill, and removed on erasure.
+- [x] 5.5 Analytics: `hotkey_used` uses registry IDs and honours opt-out. Text-field interactions emit no hotkey event.
+
+Follow-ups after the reserved files are available
+
+- Wire player + immersive handlers, player control shortcuts and end-to-end player scenarios. Adopt shared Escape and composer Enter handling in the reserved panels.
+- After #372 merges, mount `SingleKeyShortcutSetting` and the shortcut help control in `Settings.tsx`.
+- Move `features/hotkeys/messages.ts` into the shared message catalogue when the localization files are available.
 
 ## 6. Per-screen passes (one PR each; sizes S to M)
 Each pass: failing budget and layout test, move strings to the catalogue, cut copy to budget, move explanations to toast, coach mark or tooltip, remove its baseline entry, update the audit row, attach review screenshots.
@@ -50,3 +56,9 @@ Each pass: failing budget and layout test, move strings to the catalogue, cut co
 - [ ] 7.2 axe scan with no serious or critical findings, keyboard-only walk-through, TalkBack and VoiceOver check of the alternatives to each gesture
 - [ ] 7.3 Metrics dashboard for gesture and hotkey adoption, mis-swipe rate, coach-mark completion and time-to-first-action before and after
 - [ ] 7.4 Sync the delta specs and archive the change
+
+## Form controls and dark contrast audit
+
+- [ ] Audit dark contrast on every route except Quick notes, including populated detail and interaction states; record measured findings and deferred fixes.
+- [ ] Verify circular checkboxes, associated 44px labels, keyboard and focus behavior, and RTL select padding across routes.
+- [x] Run initial-route dark axe and form-control browser checks, plus populated lesson, course, marketplace, social, cast, public preview and SSO states.

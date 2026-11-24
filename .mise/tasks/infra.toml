@@ -8,6 +8,10 @@ description = "Start Postgres, Redis, RustFS S3 and scoped storage initializatio
 # selected service depends on its completion. Run the initializer separately.
 run = ["docker compose up -d --wait postgres redis objectstore", "docker compose run --rm --no-deps s3-init", "docker compose run --build --rm --no-deps backup-init"]
 
+["infra:landing-media-upload"]
+description = "Upload the landing video, WebM and poster to the asset bucket under landing/<version>/ (usage: infra:landing-media-upload <dir> [version]); run by hand, never from CI"
+run = "bash infra/s3/upload-landing-media.sh"
+
 ["infra:down"]
 description = "Stop all profiles; retain named data volumes"
 run = "docker compose --profile '*' down --remove-orphans"

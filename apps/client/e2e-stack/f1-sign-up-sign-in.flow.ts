@@ -29,16 +29,17 @@ test(
     const device = await browser.newContext({ baseURL: stackURL });
     const second = await device.newPage();
     try {
-      await second.goto("/");
+      await second.goto("/profile");
       await expect(second).toHaveURL(/\/sign-in/);
       await flow.step("new device redirected to sign-in", second);
       await second
-        .getByRole("button", { name: "I already have an account" })
+        .getByRole("button", { name: "Sign in", exact: true })
         .click();
       await expect(
         second.getByRole("heading", { name: "Welcome back" }),
       ).toBeVisible();
       await second.getByLabel("Email address").fill(email);
+      await second.getByLabel("Email address").press("Enter");
       await second.getByLabel("I am 16 or older").check();
       await second.getByRole("button", { name: "Send code" }).click();
       await expect(second.getByLabel("One-time code")).toBeVisible();

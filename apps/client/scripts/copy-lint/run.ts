@@ -28,7 +28,8 @@ export function analyse(root: string): Analysis {
   const ar: Catalogue = new Map();
   for (const c of cfg.catalogues) {
     for (const [k, v] of readCatalogue(join(root, c.file), c.en)) en.set(k, v);
-    for (const [k, v] of readCatalogue(join(root, c.file), c.ar)) ar.set(k, v);
+    for (const [k, v] of readCatalogue(join(root, c.arFile ?? c.file), c.ar))
+      ar.set(k, v);
   }
   const literals = sourceFiles(root, cfg).flatMap((f) =>
     scanLiterals(f, cfg, root),

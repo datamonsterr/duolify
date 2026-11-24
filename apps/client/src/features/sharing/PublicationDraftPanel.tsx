@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   draftFailure,
@@ -106,7 +107,7 @@ export function PublicationDraftPanel({
         onClose();
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape") onClose();
+        closeOnEscape(event, () => onClose());
         if (event.key !== "Tab") return;
         // Wrap focus inside the sheet; native modal focus can otherwise leave the page.
         const items = [

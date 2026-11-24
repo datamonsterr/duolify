@@ -1,0 +1,47 @@
+.app-bar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.app-bar-language,
+.app-bar-theme {
+  min-block-size: var(--size-target);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.app-bar-language {
+  padding-inline: var(--space-3) var(--space-6);
+}
+.app-bar-theme {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--size-target);
+  cursor: pointer;
+}
+.app-bar-theme[aria-pressed="true"] {
+  background-color: var(--raised);
+  border-color: var(--primary);
+}
+.app-main > .app-bar-controls {
+  margin-block-end: var(--space-4);
+}
+.mobile-header .app-bar-controls {
+  margin-inline-start: auto;
+}
+.mobile-header .credit-shortcut {
+  margin-inline-start: auto;
+}
+.app-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+.app-bar-row > .app-bar-controls {
+  margin-block-end: 0;
+}

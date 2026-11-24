@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   generateNext,
@@ -266,10 +267,8 @@ function QuoteSheet({
   }, [sheet.kind]);
 
   const keys = (event: React.KeyboardEvent) => {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      onClose();
-    } else if (event.key === "Tab" && root.current) {
+    if (closeOnEscape(event, () => onClose())) return;
+    if (event.key === "Tab" && root.current) {
       const items = [...root.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
       if (!items.length) return;
       const first = items[0]!;

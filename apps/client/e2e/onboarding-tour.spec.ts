@@ -191,7 +191,7 @@ test("keyboard focus, reduced motion, skip and Settings replay", async ({
   await expect(dialog(page)).toHaveAttribute("data-step-index", "1");
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
-  await page.goto("/settings");
+  await page.goto("/settings#account");
   await page
     .getByRole("button", { name: "Show me around", exact: true })
     .click();

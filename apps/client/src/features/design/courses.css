@@ -1,0 +1,17 @@
+/* Phone: the page is a column so its primary action can dock at the bottom of the scroll area. */
+@media (width < 48rem) {
+  .courses-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  .courses-header {
+    display: contents;
+  }
+  .courses-create {
+    order: 9;
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+  }
+}
