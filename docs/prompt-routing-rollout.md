@@ -22,7 +22,7 @@ Run each arm twice and compare the paired cost difference with its standard erro
 
 ## Rollback
 
-1. Set the task's `prompt_mode` back to `monolithic` and deploy. The monolithic prompt is byte-identical to the pre-routing one (test `monolithic_prompts_are_byte_identical`), so no data migration is needed.
+1. Set the task's `prompt_mode` back to `monolithic` and deploy. The monolithic prompt is byte-identical to the pre-routing one (tests `monolithic_lesson_prompt_is_rules_then_context` and `monolithic_assembly_returns_the_legacy_prompt_unchanged`), so no data migration is needed.
 2. Cached router decisions are ignored in monolithic mode: the router is only consulted by the routed path. They expire by TTL (30 days); to drop them at once, bump `ROUTER_VERSION` in `engine-core/src/router/mod.rs` (part of the cache key).
-3. To stop only the model router, unset `REDIS_URL` is not enough; remove the router install by running the engine in `mock` mode is not acceptable either. Use the breaker instead: the day's router budget closes automatically past 1 percent of engine spend, and a routed task with no router answer uses its default skill set.
+3. To stop only the model router, the daily breaker closes it automatically past 1 percent of engine spend; a routed task whose router gives no answer uses its default skill set. There is no separate kill switch: flip the task to `monolithic`.
 4. Input guard: unset `INPUT_GUARD_ENABLED` on the API and restart. Nothing else changes; the four existing screens keep running.
