@@ -15,6 +15,7 @@ import {
 } from "../../../lib/analytics";
 import { AUTO_HIDE_MS, canAutoHide, createAutoHide } from "./autohide";
 import { Icon } from "../../design/Icon";
+import { useUiPreferences } from "../../design/localization/Preferences";
 import { useImmersiveExtensions } from "./extensions";
 import { clientToStage } from "./geometry";
 import { createGestureRecognizer } from "./gestures";
@@ -44,6 +45,7 @@ export default function ImmersiveLayer({
   lastSlide,
   lessonId,
 }: Props) {
+  const { t } = useUiPreferences();
   const ext = useImmersiveExtensions();
   const controls = useControls();
   const layout = useLayout();
@@ -51,6 +53,7 @@ export default function ImmersiveLayer({
   const [focusInside, setFocusInside] = useState(false);
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
   const [railOpen, setRailOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [announce, setAnnounce] = useState("");
   const [assistive, setAssistive] = useState(focusMemory.keyboard);
 
@@ -418,100 +421,120 @@ export default function ImmersiveLayer({
                       />
                     </span>
                   ))}
-                  <span
-                    className="imm-time"
-                    data-testid="immersive-time"
-                    aria-hidden="true"
-                  >
-                    {formatClock(elapsed)} / {formatClock(total)}
-                  </span>
                 </div>
                 <div className="imm-row">
-                  <Btn
-                    id="replay"
-                    label="Replay this slide"
-                    disabled={view.disabled}
-                    onFocus={remember("replay")}
-                    onClick={act("replay_slide", actions.replay)}
-                  >
-                    ↻
-                  </Btn>
-                  <Btn
-                    id="autoplay"
-                    label={view.autoAdvance ? "Autoplay on" : "Autoplay off"}
-                    pressed={view.autoAdvance}
-                    onFocus={remember("autoplay")}
-                    onClick={act(
-                      view.autoAdvance ? "autoplay_off" : "autoplay_on",
-                      () => actions.setAutoAdvance(!view.autoAdvance),
-                    )}
-                  >
-                    <Icon name="autoplay" />{" "}
-                    {view.autoAdvance ? "Auto" : "Manual"}
-                  </Btn>
-                  <Btn
-                    id="speed"
-                    label={`Speed ${speedLabel(view.rate)}`}
-                    disabled={view.disabled}
-                    onFocus={remember("speed")}
-                    onClick={act("speed", actions.cycleSpeed)}
-                  >
-                    {speedLabel(view.rate)}
-                  </Btn>
-                  <Btn
-                    id="captions"
-                    label="Captions"
-                    pressed={view.captions}
-                    onFocus={remember("captions")}
-                    onClick={act("captions", actions.toggleCaptions)}
-                  >
-                    CC
-                  </Btn>
-                  <Btn
-                    id="narration"
-                    label="Narration"
-                    pressed={!view.muted}
-                    onFocus={remember("narration")}
-                    onClick={act("narration", actions.toggleMute)}
-                  >
-                    <Icon name={view.muted ? "mute" : "volume"} />
-                  </Btn>
-                  <Btn
-                    id="slides"
-                    label="Slide list"
-                    expanded={controls.list}
-                    onFocus={remember("slides")}
-                    onClick={act("slide_list", () =>
-                      dispatchControls({
-                        type: controls.list ? "closeList" : "openList",
-                      }),
-                    )}
-                  >
-                    ☰
-                  </Btn>
-                  <Btn
-                    id="rotate"
-                    label="Go full screen when I turn my phone"
-                    pressed={view.fullscreenOnRotate}
-                    onFocus={remember("rotate")}
-                    onClick={(e) => {
-                      viaOf(e);
-                      bump();
-                      actions.setFullscreenOnRotate(!view.fullscreenOnRotate);
-                    }}
-                  >
-                    ⟳
-                  </Btn>
-                  <Btn
-                    id="lock"
-                    label="Lock controls"
-                    onFocus={remember("lock")}
-                    onClick={act("lock", () =>
-                      dispatchControls({ type: "lock" }),
-                    )}
-                  >
-                    <Icon name="lock" />
-                  </Btn>
+                  <div className="imm-playback">
+                    <Btn
+                      id="replay"
+                      label="Replay this slide"
+                      disabled={view.disabled}
+                      onFocus={remember("replay")}
+                      onClick={act("replay_slide", actions.replay)}
+                    >
+                      ↻
+                    </Btn>
+                    <Btn
+                      id="autoplay"
+                      label={view.autoAdvance ? "Autoplay on" : "Autoplay off"}
+                      pressed={view.autoAdvance}
+                      onFocus={remember("autoplay")}
+                      onClick={act(
+                        view.autoAdvance ? "autoplay_off" : "autoplay_on",
+                        () => actions.setAutoAdvance(!view.autoAdvance),
+                      )}
+                    >
+                      <Icon name="autoplay" />{" "}
+                      {view.autoAdvance ? "Auto" : "Manual"}
+                    </Btn>
+                    <Btn
+                      id="speed"
+                      label={`Speed ${speedLabel(view.rate)}`}
+                      disabled={view.disabled}
+                      onFocus={remember("speed")}
+                      onClick={act("speed", actions.cycleSpeed)}
+                    >
+                      {speedLabel(view.rate)}
+                    </Btn>
+                    <span
+                      className="imm-time"
+                      data-testid="immersive-time"
+                      aria-hidden="true"
+                    >
+                      {formatClock(elapsed)} / {formatClock(total)}
+                    </span>
+                  </div>
+                  <div className="imm-tools">
+                    <button
+                      type="button"
+                      className="imm-btn imm-more"
+                      aria-label={t("player.more_controls")}
+                      aria-expanded={moreOpen}
+                      onClick={() => setMoreOpen(!moreOpen)}
+                    >
+                      ⋯
+                    </button>
+                    <div
+                      className="imm-overflow"
+                      data-open={moreOpen || undefined}
+                    >
+                      <Btn
+                        id="captions"
+                        label="Captions"
+                        pressed={view.captions}
+                        onFocus={remember("captions")}
+                        onClick={act("captions", actions.toggleCaptions)}
+                      >
+                        CC
+                      </Btn>
+                      <Btn
+                        id="narration"
+                        label="Narration"
+                        pressed={!view.muted}
+                        onFocus={remember("narration")}
+                        onClick={act("narration", actions.toggleMute)}
+                      >
+                        <Icon name={view.muted ? "mute" : "volume"} />
+                      </Btn>
+                      <Btn
+                        id="slides"
+                        label="Slide list"
+                        expanded={controls.list}
+                        onFocus={remember("slides")}
+                        onClick={act("slide_list", () =>
+                          dispatchControls({
+                            type: controls.list ? "closeList" : "openList",
+                          }),
+                        )}
+                      >
+                        ☰
+                      </Btn>
+                      <Btn
+                        id="rotate"
+                        label="Go full screen when I turn my phone"
+                        pressed={view.fullscreenOnRotate}
+                        onFocus={remember("rotate")}
+                        onClick={(e) => {
+                          viaOf(e);
+                          bump();
+                          actions.setFullscreenOnRotate(
+                            !view.fullscreenOnRotate,
+                          );
+                        }}
+                      >
+                        ⟳
+                      </Btn>
+                      <Btn
+                        id="lock"
+                        label="Lock controls"
+                        onFocus={remember("lock")}
+                        onClick={act("lock", () =>
+                          dispatchControls({ type: "lock" }),
+                        )}
+                      >
+                        <Icon name="lock" />
+                      </Btn>
+                    </div>
+                  </div>
                 </div>
               </div>
               {controls.list && (

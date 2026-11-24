@@ -60,6 +60,7 @@ export const en = {
   "outline.goal_error": "Enter a lesson goal.",
   "outline.expand": "Expand {name}",
   "outline.collapse": "Collapse {name}",
+  "player.more_controls": "More controls",
   "settings.sec_look": "Look and language",
   "settings.sec_audio": "Lessons and audio",
   "settings.sec_goals": "Goals and reminders",
