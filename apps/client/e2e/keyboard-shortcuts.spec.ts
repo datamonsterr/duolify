@@ -105,9 +105,12 @@ test("keeps text entry and composition safe and leaves browser tab keys alone", 
 test("shows help as a bottom sheet at phone width", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openLearn(page);
-  await page.keyboard.press("?");
   const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
-  await expect(help).toBeVisible();
+  // The hotkey layer loads lazily; press again until it is listening.
+  await expect(async () => {
+    await page.keyboard.press("?");
+    await expect(help).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
   const bounds = await help.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds!.y + bounds!.height).toBe(844);
