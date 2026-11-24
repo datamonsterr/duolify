@@ -500,12 +500,13 @@ pub async fn evaluate(
         "tutor_chat" => {
             let context: engine_core::chat::Context =
                 serde_json::from_value(input["context"].clone())?;
-            let prompt = engine_core::chat::prompt(&context);
+            let plan = engine_core::chat::plan_in(&arm_library(), &context);
             let started = std::time::Instant::now();
-            let (mut stream, route) = engine_core::eval::stream_bounded_routed(
+            let (mut stream, route) = engine_core::eval::stream_bounded_system(
                 router,
                 "chat",
-                &prompt,
+                plan.system.clone(),
+                &plan.user,
                 None,
                 std::time::Duration::from_secs(20),
                 std::time::Duration::from_secs(20),

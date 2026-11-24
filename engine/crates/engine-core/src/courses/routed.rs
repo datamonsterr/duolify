@@ -50,7 +50,7 @@ const CODE: &[&str] = &[
     "linux",
     "git",
 ];
-const LANGUAGE: &[&str] = &[
+pub(crate) const LANGUAGE: &[&str] = &[
     "english",
     "spanish",
     "french",
@@ -72,7 +72,7 @@ const LANGUAGE: &[&str] = &[
 ];
 
 /// True when a whole word of `text` (letters and digits, case-insensitive) is in `words`.
-fn has_word(text: &str, words: &[&str]) -> bool {
+pub(crate) fn has_word(text: &str, words: &[&str]) -> bool {
     text.to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
         .any(|w| words.contains(&w))

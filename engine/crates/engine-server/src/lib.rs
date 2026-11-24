@@ -1736,11 +1736,14 @@ impl EngineService for Service {
                 "quote route differs from evaluated route",
             ));
         }
-        let input = engine_core::chat::prompt(&tutor_context(&req));
+        let plan = engine_core::chat::plan(&tutor_context(&req));
+        let input = plan.user.clone();
+        let sent_len = input.len() + plan.system.as_ref().map_or(0, String::len);
         let span = tracing::Span::current();
-        let (stream, route) = engine_core::eval::stream_bounded_routed(
+        let (stream, route) = engine_core::eval::stream_bounded_system(
             &self.router,
             "chat",
+            plan.system.clone(),
             &input,
             limits.as_ref(),
             first_to,
@@ -1752,7 +1755,7 @@ impl EngineService for Service {
             input_tokens: l.input_tokens,
             output_tokens: l.output_tokens,
         });
-        let parts = engine_core::chat::stream::reconcile(stream, route, input.len(), bounds);
+        let parts = engine_core::chat::stream::reconcile(stream, route, sent_len, bounds);
         // Enter the request span while polling the provider as well as mapping
         // its output; a map closure alone runs after provider work has finished.
         let map_span = span.clone();
