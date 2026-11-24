@@ -1,5 +1,6 @@
 import { authRequest, credentialStore, session } from "./session";
 import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
+import { applyServerMascot } from "./mascot-settings";
 
 export const contextFields = [
   { id: "goal", label: "Goal", kind: "text" },
@@ -45,6 +46,9 @@ export type SettingsFields = {
   fullscreen_on_rotate: boolean;
   autoplay: boolean;
   auto_send_after_dictation: boolean;
+  single_key_shortcuts: boolean;
+  /** Guide preference (RigPartSpec v1); read-only here, patched through `saveSettings({ mascot })`. */
+  mascot?: Record<string, unknown>;
 };
 export type LearnerContext = ContextFields & {
   learner_id: string;
@@ -88,6 +92,7 @@ export const emptySettings = (): LearnerSettings => {
     fullscreen_on_rotate: true,
     autoplay: true,
     auto_send_after_dictation: true,
+    single_key_shortcuts: true,
   };
 };
 export function contextValues(profile: ContextFields): ContextFields {
@@ -189,6 +194,7 @@ export const profileApi = {
       ui_sounds: settings.ui_sounds,
       haptics: settings.haptics,
     });
+    applyServerMascot(settings.mascot);
     return settings;
   },
   async saveSettings(fields: Partial<SettingsFields>) {
@@ -201,6 +207,7 @@ export const profileApi = {
       ui_sounds: settings.ui_sounds,
       haptics: settings.haptics,
     });
+    applyServerMascot(settings.mascot);
     return settings;
   },
   async export() {

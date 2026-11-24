@@ -1,19 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
+import { useCharacterT } from "./useCharacterT";
 import { characterLibrary, type CharacterRecord } from "./library";
 import type { CharacterSpec, Accessory, Expression } from "./types";
 import { compileRigSvg } from "./rig";
 import { validateCharacterSpec } from "./schema";
 import "./characters.css";
 import { CreateCharacter } from "./CreateCharacter";
+import { CharacterCreator } from "./CharacterCreator";
+import { CharacterPreview as CharacterPreviewV2 } from "./CharacterPreview";
+import type { CharacterSpecV2 } from "./types-v2";
 import { AppLink } from "../../lib/navigation";
 
 function failure(error: unknown) {
   return error instanceof Error ? error.message : "Connect and retry.";
 }
 
-export function CharacterPreview({ spec }: { spec: CharacterSpec }) {
+export function CharacterPreview({
+  spec,
+  document,
+}: {
+  spec: CharacterSpec;
+  document?: CharacterSpecV2;
+}) {
   const [expression, setExpression] = useState<Expression>("idle");
+  if (document) return <CharacterPreviewV2 spec={document} />;
   const svg = compileRigSvg(spec, expression);
   return (
     <div className="character-preview">
@@ -44,6 +55,10 @@ export function CharacterLibrary() {
     CharacterRecord | undefined
   >();
   const [selected, setSelected] = useState<CharacterRecord | null>(null);
+  const [creator, setCreator] = useState<{ record?: CharacterRecord } | null>(
+    null,
+  );
+  const t = useCharacterT();
   const [draft, setDraft] = useState<CharacterSpec | null>(null);
   const [deleting, setDeleting] = useState<CharacterRecord | null>(null);
   const [error, setError] = useState("");
@@ -99,20 +114,47 @@ export function CharacterLibrary() {
   }
   return (
     <section className="characters-page" aria-busy={pending}>
-      <AppLink className="shell-link" href="/settings">
-        Back to Settings
-      </AppLink>
-      <h1 ref={title} tabIndex={-1}>
-        Private characters
-      </h1>
-      <p>
-        Your private library. Manual edits are free. New versions apply to
-        future lessons and chat.
-      </p>
-      <p>
-        Original fixture art is provisional. Live AI creation remains gated.
-      </p>
-      {!selected && (
+      {!creator && (
+        <>
+          <AppLink className="shell-link" href="/settings">
+            Back to Settings
+          </AppLink>
+          <h1 ref={title} tabIndex={-1}>
+            Private characters
+          </h1>
+        </>
+      )}
+      {!creator && (
+        <>
+          <p>
+            Your private library. Manual edits are free. New versions apply to
+            future lessons and chat.
+          </p>
+          <p>
+            Original fixture art is provisional. Live AI creation remains gated.
+          </p>
+        </>
+      )}
+      {creator && (
+        <CharacterCreator
+          key={creator.record?.id ?? "new"}
+          record={creator.record}
+          onClose={() => setCreator(null)}
+          onSaved={(record) => {
+            setRecords((current) => [
+              ...(current ?? []).filter((r) => r.id !== record.id),
+              record,
+            ]);
+            if (!creator.record) setCreator(null);
+          }}
+        />
+      )}
+      {!selected && !creator && (
+        <Button variant="secondary" onClick={() => setCreator({})}>
+          {t("characters.v2.new")}
+        </Button>
+      )}
+      {!selected && !creator && (
         <CreateCharacter
           key={regenerating?.id ?? "new"}
           record={regenerating}
@@ -152,7 +194,7 @@ export function CharacterLibrary() {
         </div>
       )}
       {records === null && !error && <p role="status">Loading characters…</p>}
-      {!selected && records && (
+      {!selected && !creator && records && (
         <div className="character-list">
           {records.length === 0 && <p>No private characters yet.</p>}
           {records.map((record) => (
@@ -160,7 +202,7 @@ export function CharacterLibrary() {
               <h2>{record.spec.info.name}</h2>
               <p>{record.spec.info.bio}</p>
               <small>Version {record.version} · Private</small>
-              <CharacterPreview spec={record.spec} />
+              <CharacterPreview spec={record.spec} document={record.document} />
               <Button
                 onClick={() => {
                   setSelected(record);
@@ -171,6 +213,18 @@ export function CharacterLibrary() {
               >
                 Edit {record.spec.info.name}
               </Button>
+              {record.document && !record.read_only && (
+                <Button
+                  variant="secondary"
+                  aria-label={`${t("characters.v2.customize")} ${record.spec.info.name}`}
+                  onClick={() => {
+                    setCreator({ record });
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                  }}
+                >
+                  {t("characters.v2.customize")}
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => {

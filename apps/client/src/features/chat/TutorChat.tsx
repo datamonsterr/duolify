@@ -511,8 +511,11 @@ export function TutorChat({
     send: () => sendNow(),
   });
   const sendNow = () => {
+    // The quote must be approved by the Learner; a dictation never skips that consent.
+    if (!canSend) return false;
     dictation.noteSent();
     tutor.send();
+    return true;
   };
   const notice = tutor.notice;
   const transcript = onReadTranscript ? (

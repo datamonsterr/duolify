@@ -239,16 +239,15 @@ for (const mobile of [false, true]) {
     const { copy } = await shared(request, owner, learner, title);
 
     const ownerPage = await pageAs(browser, request, owner, mobile);
-    await ownerPage.page.goto("/settings");
+    await ownerPage.page.goto("/settings#privacy");
     await ownerPage.page
       .getByRole("button", { name: "Delete account" })
       .click();
     const dialog = ownerPage.page.getByRole("dialog", {
-      name: "Delete your account?",
+      name: "Delete account",
     });
-    await expect(dialog).toContainText("learners who copied them keep");
-    await dialog.getByLabel("Type DELETE to confirm").fill("DELETE");
-    await dialog.getByRole("button", { name: "Delete permanently" }).click();
+    await expect(dialog).toContainText("learners keep copies");
+    await dialog.getByRole("button", { name: "Delete forever" }).click();
     await expect(ownerPage.page).toHaveURL(/sign-in/);
     await ownerPage.context.close();
 

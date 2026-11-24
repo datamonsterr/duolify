@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   enrollMarketplace,
@@ -126,11 +127,11 @@ export function MarketCoursePage({ id }: { id: string }) {
           <div
             className="report-menu"
             onKeyDown={(e) => {
-              if (e.key === "Escape" && menu) {
-                e.stopPropagation();
-                setMenu(false);
-                more.current?.focus();
-              }
+              if (menu)
+                closeOnEscape(e, () => {
+                  setMenu(false);
+                  more.current?.focus();
+                });
             }}
           >
             <button

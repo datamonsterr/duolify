@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef, useState } from "react";
 import { unpublish } from "./retention";
 import "./sharing.css";
@@ -73,13 +74,12 @@ export function UnpublishDialog({
         aria-labelledby={titleId}
         aria-busy={busy}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            // Keep the share panel open underneath.
-            e.preventDefault();
-            e.stopPropagation();
-            if (!busy) onClose();
+          if (
+            closeOnEscape(e, () => {
+              if (!busy) onClose();
+            })
+          )
             return;
-          }
           if (e.key !== "Tab") return;
           const nodes = Array.from(
             root.current?.querySelectorAll<HTMLElement>(focusable) ?? [],

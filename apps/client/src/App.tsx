@@ -1,3 +1,5 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import {
   UiPreferencesProvider,
   useUiPreferences,
@@ -27,6 +29,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { DailyCheckIn } from "./features/credits/DailyCheckIn";
+import { MascotSync } from "./features/accounts/MascotSync";
 import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
 import { courseTreeQuery, LearnPath } from "./LearnPath";
@@ -153,9 +156,24 @@ function AccountShell() {
       initialPreferences={{ locale: resolveLocale(session.current()?.locale) }}
     >
       <DailyCheckIn />
+      <MascotSync />
       <AppShell />
     </UiPreferencesProvider>
   );
+}
+// Signed-out web visitors see the landing at `/`. Native builds and signed-in Learners do not.
+function LandingGate({ children }: { children: ReactNode }) {
+  const [out, setOut] = useState<boolean | undefined>(
+    session.current() ? false : undefined,
+  );
+  useEffect(() => {
+    if (out === undefined)
+      void session.load().then(
+        (value) => setOut(!value && !session.expired()),
+        () => setOut(false),
+      );
+  }, [out]);
+  return out ? <SignIn landing /> : out === false ? <>{children}</> : null;
 }
 function AuthenticatedShell() {
   const path = useLocation({ select: (location) => location.pathname });
@@ -166,10 +184,15 @@ function AuthenticatedShell() {
     /^\/c\/[A-Za-z0-9_-]+$/.test(path)
   )
     return <Outlet />;
-  return (
+  const guarded = (
     <RouteGuard path={path}>
       <AccountShell />
     </RouteGuard>
+  );
+  return path === "/" && !isTauri() ? (
+    <LandingGate>{guarded}</LandingGate>
+  ) : (
+    guarded
   );
 }
 const root = createRootRoute({

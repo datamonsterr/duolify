@@ -3,8 +3,9 @@
 //   palette.body / bodyEdge / trim  -> robot "plating" colour (+ derived edge and trim)
 //   palette.accent                  -> robot "accent" colour
 //   palette.visor / eye             -> robot "eyes" (visor screen, eye glow)
-//   state                           -> {pose, expression} via characterStateMap (idle|talk|think|celebrate|wave|shrug,
-//                                      idle|happy|thinking|celebrate|confused); `listening` and `sleepy` fall back to idle.
+//   state -> {pose, expression}: idle->(idle,idle) listening->(idle,idle) thinking->(think,thinking) talking->(talk,idle)
+//            happy->(wave,happy) celebrate->(celebrate,celebrate) confused->(shrug,confused) sleepy->(idle,idle);
+//            rigs without `listening` or `sleepy` use their idle pose.
 // The allowlist lives in rig-part-spec.v1.json so the Go API validates against the same data.
 import spec from "./rig-part-spec.v1.json";
 
@@ -17,7 +18,6 @@ export const MASCOT_ACCESSORIES =
 export const MASCOT_SWATCHES = Object.keys(spec.swatches) as MascotSwatch[];
 export const MASCOT_SWATCH_COLORS = spec.swatches;
 export const MAX_ACCESSORIES = spec.maxAccessories;
-export const CHARACTER_STATE_MAP = spec.characterStateMap;
 
 export type RigPalette = {
   body: string;

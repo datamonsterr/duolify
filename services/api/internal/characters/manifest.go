@@ -7,8 +7,11 @@ type PinnedSpeaker struct {
 	CharacterID      string        `json:"character_id"`
 	CharacterVersion int           `json:"character_version"`
 	Spec             CharacterSpec `json:"spec"`
-	IsProvisional    bool          `json:"is_provisional,omitempty"`
-	Suppressed       bool          `json:"suppressed,omitempty"`
+	// Document is the v2 document of a Character written by the selector creator;
+	// absent for v1 Characters, built-ins and published snapshots.
+	Document      *SpecV2 `json:"document,omitempty"`
+	IsProvisional bool    `json:"is_provisional,omitempty"`
+	Suppressed    bool    `json:"suppressed,omitempty"`
 }
 
 // LessonCastSnapshot holds the pinned cast for a lesson.

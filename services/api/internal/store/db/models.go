@@ -530,18 +530,19 @@ type CreditGoodwillAudit struct {
 }
 
 type CreditJob struct {
-	ID             pgtype.UUID        `json:"id"`
-	QuoteID        pgtype.UUID        `json:"quote_id"`
-	LearnerID      pgtype.UUID        `json:"learner_id"`
-	OwnerReference string             `json:"owner_reference"`
-	State          string             `json:"state"`
-	LocalDate      pgtype.Date        `json:"local_date"`
-	PlatformDate   pgtype.Date        `json:"platform_date"`
-	HeldNanos      int64              `json:"held_nanos"`
-	Result         []byte             `json:"result"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	DeadlineAt     pgtype.Timestamptz `json:"deadline_at"`
-	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+	ID               pgtype.UUID        `json:"id"`
+	QuoteID          pgtype.UUID        `json:"quote_id"`
+	LearnerID        pgtype.UUID        `json:"learner_id"`
+	OwnerReference   string             `json:"owner_reference"`
+	State            string             `json:"state"`
+	LocalDate        pgtype.Date        `json:"local_date"`
+	PlatformDate     pgtype.Date        `json:"platform_date"`
+	HeldNanos        int64              `json:"held_nanos"`
+	Result           []byte             `json:"result"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	DeadlineAt       pgtype.Timestamptz `json:"deadline_at"`
+	FinishedAt       pgtype.Timestamptz `json:"finished_at"`
+	LearnerHeldNanos pgtype.Int8        `json:"learner_held_nanos"`
 }
 
 type CreditOutbox struct {
@@ -941,9 +942,13 @@ type LearnerProfile struct {
 	Haptics                string             `json:"haptics"`
 	ActiveCourseID         pgtype.UUID        `json:"active_course_id"`
 	NarrationVoice         string             `json:"narration_voice"`
+	WelcomeState           string             `json:"welcome_state"`
+	TourState              string             `json:"tour_state"`
 	FullscreenOnRotate     bool               `json:"fullscreen_on_rotate"`
 	Autoplay               bool               `json:"autoplay"`
 	AutoSendAfterDictation bool               `json:"auto_send_after_dictation"`
+	Mascot                 []byte             `json:"mascot"`
+	SingleKeyShortcuts     bool               `json:"single_key_shortcuts"`
 }
 
 type LearnerSocialSetting struct {
@@ -1445,6 +1450,18 @@ type QuickNote struct {
 	EnrichmentLeaseUntil pgtype.Timestamptz `json:"enrichment_lease_until"`
 }
 
+type QuickNoteAnchor struct {
+	NoteID     pgtype.UUID        `json:"note_id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	PlaybackMs int32              `json:"playback_ms"`
+	RectX      pgtype.Float8      `json:"rect_x"`
+	RectY      pgtype.Float8      `json:"rect_y"`
+	RectW      pgtype.Float8      `json:"rect_w"`
+	RectH      pgtype.Float8      `json:"rect_h"`
+	InputKind  string             `json:"input_kind"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type QuickNoteChatSource struct {
 	NoteID      pgtype.UUID        `json:"note_id"`
 	LearnerID   pgtype.UUID        `json:"learner_id"`
@@ -1586,14 +1603,24 @@ type StreakState struct {
 }
 
 type TutorMessage struct {
-	ID        pgtype.UUID        `json:"id"`
-	Seq       pgtype.Int8        `json:"seq"`
-	ThreadID  pgtype.UUID        `json:"thread_id"`
-	LearnerID pgtype.UUID        `json:"learner_id"`
-	Role      string             `json:"role"`
-	Content   string             `json:"content"`
-	Status    string             `json:"status"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID               pgtype.UUID        `json:"id"`
+	Seq              pgtype.Int8        `json:"seq"`
+	ThreadID         pgtype.UUID        `json:"thread_id"`
+	LearnerID        pgtype.UUID        `json:"learner_id"`
+	Role             string             `json:"role"`
+	Content          string             `json:"content"`
+	Status           string             `json:"status"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	AnchorLessonID   pgtype.UUID        `json:"anchor_lesson_id"`
+	AnchorSlideIndex pgtype.Int4        `json:"anchor_slide_index"`
+	AnchorSlideID    pgtype.Text        `json:"anchor_slide_id"`
+	AnchorAtMs       pgtype.Int4        `json:"anchor_at_ms"`
+	AnchorX          pgtype.Float8      `json:"anchor_x"`
+	AnchorY          pgtype.Float8      `json:"anchor_y"`
+	AnchorW          pgtype.Float8      `json:"anchor_w"`
+	AnchorH          pgtype.Float8      `json:"anchor_h"`
+	AnchorRegionIds  []string           `json:"anchor_region_ids"`
+	AnchorGrounding  pgtype.Text        `json:"anchor_grounding"`
 }
 
 type TutorThread struct {

@@ -1,4 +1,6 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useRef, useState } from "react";
+import { guidedEnabled } from "../guided-chat/flags";
 import { Sheet } from "../design/sheet/Sheet";
 import { Button } from "../design/Button";
 import { InstructionPanel } from "./InstructionPanel";
@@ -14,30 +16,24 @@ export function SteerCourse({ courseId }: { courseId: string }) {
   const mobile = useMobile();
   useEffect(() => {
     if (!open || mobile) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
-        event.preventDefault();
-        setOpen(false);
-        trigger.current?.focus();
-      }
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
+    const onKey = (event: KeyboardEvent) =>
+      closeOnEscape(
+        event,
+        () => {
+          setOpen(false);
+          trigger.current?.focus();
+        },
+        "learn",
+      );
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, mobile]);
   function close() {
     setOpen(false);
     trigger.current?.focus();
   }
   return (
-    <div
-      className="steering-workspace"
-      onKeyDown={(e) => {
-        if (open && e.key === "Escape") {
-          e.preventDefault();
-          close();
-        }
-      }}
-    >
+    <div className="steering-workspace">
       <Button
         variant="secondary"
         ref={trigger}
@@ -56,7 +52,10 @@ export function SteerCourse({ courseId }: { courseId: string }) {
           onClose={close}
         >
           <div hidden={replan}>
-            <InstructionPanel courseId={courseId} />
+            <InstructionPanel
+              courseId={courseId}
+              guided={guidedEnabled("course_steer")}
+            />
             <Button
               ref={replanTrigger}
               variant="secondary"

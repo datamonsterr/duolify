@@ -1,5 +1,6 @@
 import { appVersion, clientPlatform } from "./client-build";
 import { posthog } from "./posthog";
+import type { ShortcutId } from "../features/hotkeys/registry";
 import {
   navigation,
   screenIds,
@@ -278,6 +279,19 @@ function captureAuth(event: string, properties: Record<string, string>) {
   } catch {
     /* Analytics delivery cannot block sign-in. */
   }
+}
+
+export function trackHotkey(
+  keyId: ShortcutId,
+  surface: ScreenId,
+  entryPoint: "hotkey" | "button" = "hotkey",
+) {
+  if (!screenIds.includes(surface)) return;
+  captureAuth("hotkey_used", {
+    key_id: keyId,
+    surface,
+    entry_point: entryPoint,
+  });
 }
 
 // Fixed authored identifiers only; catalogue precedes this emitter (E2-05).

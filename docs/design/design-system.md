@@ -164,3 +164,19 @@ Strings receive stable keys such as `test.retry_queued`, `credits.daily_reset_at
 New UI events are catalogued in the change's `design-system` delta: `ui_screen_viewed`, `ui_navigation_selected`, `ui_control_activated`, `ui_sheet_opened`, `ui_purchase_option_selected`, `ui_checkout_requested`, `ui_recovery_selected`, `ui_test_retry_presented`, `ui_appearance_changed`. Use stable IDs/enums only. Existing product outcome events remain in `analytics/spec.md`; an API-owned outcome must not also fire from the client. Every future emitter needs catalog/type tests and consent handling. No answers, topics, chat, notes, profile text, slide HTML, email, URLs with private query strings or payment details in PostHog. The prototype sends nothing.
 
 Design sources are Git-backed; prototype state is memory-only. Runtime PostgreSQL/object-storage backup and AI golden-set/timeout/fallback behavior belong to implementing capability changes. Design mockups do not claim those systems exist.
+
+## Human-factors rules and reach map
+
+Source: `openspec/changes/simplify-ux-gestures-hotkeys` (Human-factors rules, Phone layout rules). Tests: `apps/client/e2e/phone-layout.spec.ts` and `features/design/human_factors_rules.test.tsx` (helpers in `features/design/humanFactors.ts`).
+
+| Rule | How it is applied and tested |
+| --- | --- |
+| Fitts | Primary action of a phone view is docked at the bottom of the scrolling main area (`.action-dock`, `.courses-create`), in the lower 40% of 390 by 844, at least 44 by 44, above the tab bar. Tab bar is at least 56 px plus the safe-area inset. `reachViolations`, `gapViolations`. |
+| Hick | At most 1 `data-action-level="primary"` and 2 `secondary` per view. Mark the view's controls with `data-action-level` (Button passes it through). `actionLevelViolations`. |
+| Recognition | One icon set in `features/design/Icon.tsx`. Icon-only controls only from `iconOnlyAllowlist` and with an accessible name; every other icon has a visible label of at most 2 words. `iconOnlyViolations`. |
+| Colour never alone | `Feedback` carries a tone icon (info, warning, error, check) plus a title; greyscale test saves with a failing request. |
+| Colour semantics | `primary` fill = the one primary action; success = tint + check; danger = destructive and errors only; `credit` = Credits only; `accent` = rewards. No new colours. |
+| Serial position | Tab bar keeps `mobileTabs` order, Learn first; destructive actions (Delete account) are secondary and never the dock action. |
+| Jakob | Below 48rem every modal `<dialog>` is a bottom sheet with handle and scrim (`features/design/sheet/phone-sheet.css`); at 48rem and above a centred dialog. Settings is a grouped list with sub-pages on phones; the section lives in the URL hash so back closes it. |
+
+Reach map (phone, 390 by 844): upper third = title and back at inline-start; middle = content; lower third = the primary action, then secondary; tab bar below with safe-area inset. Destructive actions are never in the lower-end corner.

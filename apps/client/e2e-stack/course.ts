@@ -40,46 +40,19 @@ export async function briefToPreviewQuote(
   ).toBeVisible();
   await flow?.step("create course start");
 
-  // The guided chat is only on where the owner approved it (development, test, or production with
-  // COURSE_BRIEF_CHAT_LIVE_APPROVED); elsewhere, staging included, the brief is the form.
-  const answer = page.getByRole("textbox", { name: "Your answer" });
-  // Before the config request answers, the page says "Form entry is available..." and the chat is
-  // disabled, so that text alone proves nothing. "Clarifying: N credits" appears only once the chat is
-  // enabled; give the config a few seconds, then fall back to the form.
-  const chat = await page
-    .getByText(/Clarifying: [\d,]+ credits/)
-    .waitFor({ timeout: 10_000 })
-    .then(
-      () => true,
-      () => false,
-    );
-  if (chat) {
-    await answer.fill(topic);
-    await page
-      .getByRole("button", { name: "Send answer", exact: true })
-      .click();
-    // The mock engine asks for the goal next; a live model may ask a follow-up instead.
-    await expect(
-      page.getByRole("log", { name: "New assistant messages" }).locator("p"),
-    ).toHaveCount(2);
-    await flow?.step("topic answered in guided chat");
-  } else {
-    await flow?.step("brief form (assistant disabled)");
-  }
-  // Every brief line is editable; make sure the topic is set whatever the chat did.
-  const brief = page; // the brief panel is a labelled aside beside the chat, a plain form without it
-  if (
-    !(await brief
-      .getByRole("textbox", { name: "Topic", exact: true })
-      .inputValue())
-  )
-    await brief
-      .getByRole("textbox", { name: "Topic", exact: true })
-      .fill(topic);
-
+  // The brief is a scripted guided chat (no model call): answer the topic, skip the optional
+  // questions, then confirm the summary card.
   await page
-    .getByRole("button", { name: "Confirm brief", exact: true })
+    .getByRole("textbox", { name: "What do you want to learn?" })
+    .fill(topic);
+  await page
+    .locator(".gc-widget")
+    .getByRole("button", { name: "Send", exact: true })
     .click();
+  await flow?.step("topic answered in guided chat");
+  for (let i = 0; i < 8; i += 1)
+    await page.getByRole("button", { name: "Skip", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Brief confirmed" }),
   ).toBeVisible();

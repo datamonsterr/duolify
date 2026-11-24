@@ -1,3 +1,7 @@
+import { accountDelete, accountExport } from "./account.scripts";
+import { courseBrief } from "./brief.script";
+import { authSignin } from "./signin.script";
+import { courseLevel, courseSteer } from "./course.scripts";
 import { onboardingSetup } from "./onboarding.script";
 import type { GuidedScript } from "./types";
 
@@ -167,4 +171,10 @@ export const allScripts: GuidedScript[] = [
   fixtureTour,
   fixtureSecure,
   onboardingSetup,
+  courseBrief,
+  authSignin,
+  courseLevel,
+  courseSteer,
+  accountExport,
+  accountDelete,
 ];

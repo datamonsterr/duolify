@@ -67,7 +67,9 @@ test(
 
     // Save the reply as a Quick note anchored to the area.
     await panel.getByTestId("answer-save-note").click();
-    await expect(panel.getByText("Saved as Quick note")).toBeVisible();
+    await expect(page.getByTestId("toast")).toContainText(
+      "Saved as Quick note",
+    );
     await flow.step("reply saved as a Quick note");
 
     await page.getByTestId("answer-close").click();

@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ToastHost } from "../../../components/toast";
+import { Icon } from "../../design/Icon";
+import { useUiPreferences } from "../../design/localization/Preferences";
 import { QuickNotePanel } from "../../notes/QuickNotePanel";
 import { TutorChat } from "../../chat/TutorChat";
 import { ResponsivePanel } from "../../shell/AdaptiveLayouts";
@@ -73,7 +76,8 @@ export default function ImmersiveNotes({
   const resume = () => {
     if (!pausedByUs.current) return;
     pausedByUs.current = false;
-    latest.current.actions.toggle();
+    // Only resume what is still paused: the Learner may have pressed Play meanwhile.
+    if (!latest.current.view.playing) latest.current.actions.toggle();
   };
   const discard = () => {
     setAnnounce("Selection too small, discarded.");
@@ -179,6 +183,7 @@ export default function ImmersiveNotes({
     resume();
   };
 
+  const { t } = useUiPreferences();
   const chooseArea = () => {
     selectArea();
     setAutoFocusRegion(true);
@@ -191,17 +196,21 @@ export default function ImmersiveNotes({
     <>
       <button
         type="button"
-        className="imm-btn"
+        className="imm-btn imm-icon-btn"
         data-testid="immersive-select-area"
+        aria-label={t("imm.select_area")}
+        title={t("imm.select_area")}
         onClick={chooseArea}
         disabled={composer !== null || answer !== null}
       >
-        Select area
+        <Icon name="select" />
       </button>
       <button
         type="button"
-        className="imm-btn"
+        className="imm-btn imm-icon-btn"
         data-testid="immersive-ask"
+        aria-label={t("imm.ask")}
+        title={t("imm.ask")}
         onClick={() =>
           openAnswer(
             selection.phase === "selected" ? selection.rect : undefined,
@@ -209,12 +218,14 @@ export default function ImmersiveNotes({
         }
         disabled={composer !== null || answer !== null}
       >
-        Ask
+        <Icon name="ask" />
       </button>
       <button
         type="button"
-        className="imm-btn"
+        className="imm-btn imm-icon-btn"
         data-testid="immersive-quick-note"
+        aria-label={t("imm.note")}
+        title={t("imm.note")}
         onClick={() =>
           openComposer(
             selection.phase === "selected" ? selection.rect : undefined,
@@ -222,13 +233,14 @@ export default function ImmersiveNotes({
         }
         disabled={composer !== null}
       >
-        Quick note
+        <Icon name="note" />
       </button>
     </>
   );
 
   const extensions: ImmersiveExtensions = {
     sideRail: rail,
+    busy: composer !== null || answer !== null || selection.phase !== "none",
     ...sel.gestureExtensions,
   };
 
@@ -372,6 +384,7 @@ export default function ImmersiveNotes({
         >
           <QuickNotePanel
             open={true}
+            voiceVariant="bubble"
             onClose={closeComposer}
             context={{
               source: "slide",
@@ -384,6 +397,7 @@ export default function ImmersiveNotes({
           />
         </div>
       )}
+      <ToastHost />
       <p
         className="imm-sr"
         role="status"

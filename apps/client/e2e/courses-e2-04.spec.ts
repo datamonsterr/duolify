@@ -1,4 +1,10 @@
 import { test, expect } from "./accounts-fixture";
+test.beforeEach(({ page }) =>
+  // The old brief form stays one release for rollback; these tests cover it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_brief", "off"),
+  ),
+);
 
 for (const mobile of [false, true]) {
   test(`recover generation after disconnect/failure, retry with fresh consent, and delete course ${mobile ? "mobile" : "desktop"}`, async ({

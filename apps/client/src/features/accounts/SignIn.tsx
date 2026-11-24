@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
-import { Badge } from "../design/Badge";
 import {
   trackAuthScreen,
   trackSSOCancelled,
@@ -31,14 +30,26 @@ import { isTauri } from "@tauri-apps/api/core";
 import "./accounts.css";
 import { SharedDemo } from "../courses/SharedDemo";
 import { Brand } from "../design/brand/Brand";
+const SsoMark = lazy(() => import("./SsoIcons"));
+const GuidedSignIn = lazy(() =>
+  import("./GuidedSignIn").then((m) => ({ default: m.GuidedSignIn })),
+);
+import { guidedEnabled } from "../guided-chat/flags";
 
+const Landing = lazy(() =>
+  import("../landing/LandingShell").then((m) => ({ default: m.LandingShell })),
+);
 export function SignIn({
   onSignedIn,
   recovery = false,
+  landing = false,
 }: {
   onSignedIn?: (path: string) => void;
   recovery?: boolean;
+  /** Web `/` for a signed-out visitor: the welcome step renders inside the landing page. */
+  landing?: boolean;
 }) {
+  const guided = guidedEnabled("signin");
   const [demo, setDemo] = useState(false);
   const demoTrigger = useRef<HTMLButtonElement>(null);
   const [step, setStep] = useState<"welcome" | "email" | "code">(
@@ -96,12 +107,12 @@ export function SignIn({
   }, []);
   useEffect(() => {
     field.current?.focus();
-    if (step === "welcome")
+    if (step === "welcome" && !landing)
       actions.current
         ?.querySelector<HTMLButtonElement>("[data-welcome-primary]")
         ?.focus();
     trackAuthScreen(step === "welcome" ? "welcome" : "sign_in");
-  }, [step]);
+  }, [step, landing]);
   function open(existing: boolean) {
     setReturning(existing);
     setStep("email");
@@ -153,6 +164,46 @@ export function SignIn({
       );
     } finally {
       setPending(false);
+    }
+  }
+  async function chatRequestCode(address: string, confirmed: boolean) {
+    try {
+      await authRequest("/v1/auth/code", {
+        email: address,
+        age_confirmed: confirmed,
+      });
+      return null;
+    } catch (cause) {
+      return cause instanceof Error
+        ? cause.message
+        : "Sign-in is unavailable. Please retry.";
+    }
+  }
+  async function chatVerify(
+    address: string,
+    value: string,
+    confirmed: boolean,
+  ) {
+    try {
+      const tokens = await authRequest<Tokens>("/v1/auth/verify", {
+        email: address,
+        code: value,
+        age_confirmed: confirmed,
+        locale: navigator.language || "en",
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        analytics_opt_out: optOut,
+      });
+      setAnalyticsOptOut(optOut);
+      await session.accept(tokens);
+      trackAuthScreen("sign_in");
+      trackSignIn();
+      if (onSignedIn) onSignedIn(destination);
+      else location.assign(destination);
+      return null;
+    } catch (cause) {
+      return cause instanceof Error
+        ? cause.message
+        : "Sign-in is unavailable. Please retry.";
     }
   }
   function finishOAuthCancel() {
@@ -283,13 +334,116 @@ export function SignIn({
     setError("");
     setNotice("Sign-in was cancelled. Try again any time.");
   }
+  const legal = (
+    <>
+      <footer className="auth-legal">
+        {(["Privacy", "Terms", "Analytics preference"] as const).map((item) => (
+          <Button
+            key={item}
+            variant="quiet"
+            className="auth-legal-link"
+            onClick={() => setInfo(info === item ? null : item)}
+            aria-expanded={info === item}
+          >
+            {item}
+          </Button>
+        ))}
+      </footer>
+      {info && (
+        <section className="auth-info" aria-label={info}>
+          <h2>{info}</h2>
+          {info === "Analytics preference" ? (
+            <label className="auth-check">
+              <input
+                type="checkbox"
+                checked={!optOut}
+                onChange={(event) => {
+                  setOptOut(!event.target.checked);
+                  setAnalyticsOptOut(!event.target.checked);
+                }}
+              />
+              Share anonymous product analytics
+            </label>
+          ) : info === "Privacy" ? (
+            <p>
+              We use your email to sign you in. Your codes and tokens are never
+              sent to analytics. Optional profile details help AI tailor
+              examples. You control your data and analytics preference.
+            </p>
+          ) : (
+            <p>
+              Duolify is for learners aged 16 and older. Email codes are for
+              your use only. Public launch terms are awaiting legal review.
+            </p>
+          )}
+          <Button variant="quiet" onClick={() => setInfo(null)}>
+            Close {info}
+          </Button>
+        </section>
+      )}
+    </>
+  );
+  const ssoButton = (strategy: SSOStrategy) => (
+    <Button
+      {...{ [`data-sso-${strategy}`]: true }}
+      variant="secondary"
+      className={`sso-${strategy.slice(6)}`}
+      pending={pending && !oauthActive}
+      disabled={!age || !online || pending}
+      onClick={() => void signInWithSSO(strategy)}
+    >
+      <Suspense>
+        <SsoMark strategy={strategy} />
+      </Suspense>
+      {strategy === "oauth_google"
+        ? "Continue with Google"
+        : "Continue with Apple"}
+    </Button>
+  );
+  const welcomeBlock = (
+    <div className="welcome-block" ref={actions}>
+      <label className="auth-check">
+        <input
+          type="checkbox"
+          checked={age}
+          onChange={(event) => setAge(event.target.checked)}
+        />
+        I am 16 or older
+      </label>
+      {sso.enabled && (
+        <>
+          {ssoButton("oauth_google")}
+          {ssoButton("oauth_apple")}
+        </>
+      )}
+      {oauthActive && (
+        <Button
+          variant="quiet"
+          onClick={() => {
+            if (oauthCancel.current) oauthCancel.current();
+            else finishOAuthCancel();
+          }}
+        >
+          Cancel sign-in
+        </Button>
+      )}
+      <Button data-welcome-primary onClick={() => open(false)}>
+        Get started
+      </Button>
+      {!landing && (
+        <Button ref={demoTrigger} variant="quiet" onClick={() => setDemo(true)}>
+          Explore shared example
+        </Button>
+      )}
+    </div>
+  );
   const content = (
     <div className="auth-page" hidden={demo} inert={demo}>
       <header className="auth-header">
         <Brand href="/sign-in" />
         {step === "welcome" && (
-          <Button variant="secondary" onClick={() => open(true)}>
-            I have an account
+          <Button variant="quiet" onClick={() => open(true)}>
+            Sign in
           </Button>
         )}
       </header>
@@ -305,67 +459,7 @@ export function SignIn({
                 build short lessons, quick tests and a streak that grows with
                 you.
               </p>
-              <div className="auth-chips">
-                <Badge role="success">Pick a topic</Badge>
-                <Badge role="info">Chat to set it up</Badge>
-                <Badge role="streak">Learn daily</Badge>
-              </div>
-              <div className="auth-actions" ref={actions}>
-                <label className="auth-check">
-                  <input
-                    type="checkbox"
-                    checked={age}
-                    onChange={(event) => setAge(event.target.checked)}
-                  />
-                  I am 16 or older
-                </label>
-                {sso.enabled && (
-                  <>
-                    <Button
-                      data-sso-oauth_google
-                      variant="secondary"
-                      pending={pending && !oauthActive}
-                      disabled={!age || !online || pending}
-                      onClick={() => void signInWithSSO("oauth_google")}
-                    >
-                      Continue with Google
-                    </Button>
-                    <Button
-                      data-sso-oauth_apple
-                      variant="secondary"
-                      pending={pending && !oauthActive}
-                      disabled={!age || !online || pending}
-                      onClick={() => void signInWithSSO("oauth_apple")}
-                    >
-                      Continue with Apple
-                    </Button>
-                  </>
-                )}
-                {oauthActive && (
-                  <Button
-                    variant="quiet"
-                    onClick={() => {
-                      if (oauthCancel.current) oauthCancel.current();
-                      else finishOAuthCancel();
-                    }}
-                  >
-                    Cancel sign-in
-                  </Button>
-                )}
-                <Button data-welcome-primary onClick={() => open(false)}>
-                  Get started
-                </Button>
-                <Button
-                  ref={demoTrigger}
-                  variant="secondary"
-                  onClick={() => setDemo(true)}
-                >
-                  Explore shared example
-                </Button>
-                <Button variant="secondary" onClick={() => open(true)}>
-                  I already have an account
-                </Button>
-              </div>
+              {welcomeBlock}
             </>
           ) : (
             <>
@@ -376,102 +470,115 @@ export function SignIn({
                     ? "Start your learning journey"
                     : "Check your email"}
               </h1>
-              <p>
-                {step === "email"
-                  ? "Sign in with an email code. No password needed."
-                  : `Enter the six-digit code sent to ${email}.`}
-              </p>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!pending && online)
-                    void (step === "email" ? send() : verify());
-                }}
-                aria-label="Email sign-in"
-              >
-                {step === "email" ? (
-                  <>
-                    <label>
-                      Email address
-                      <input
-                        ref={field}
-                        type="email"
-                        autoComplete="email"
-                        required
-                        maxLength={254}
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                      />
-                    </label>
-                    <label className="auth-check">
-                      <input
-                        type="checkbox"
-                        checked={age}
-                        onChange={(event) => setAge(event.target.checked)}
-                      />
-                      I am 16 or older
-                    </label>
-                    <Button
-                      type="submit"
-                      pending={pending}
-                      disabled={!age || !email.trim() || !online}
-                    >
-                      Send code
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <label>
-                      One-time code
-                      <input
-                        ref={field}
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        pattern="[0-9]{6}"
-                        required
-                        maxLength={6}
-                        value={code}
-                        onChange={(event) =>
-                          setCode(event.target.value.replace(/\D/g, ""))
-                        }
-                        aria-describedby={error ? "auth-error" : "auth-notice"}
-                      />
-                    </label>
-                    <Button
-                      type="submit"
-                      pending={pending}
-                      disabled={code.length !== 6 || !online}
-                    >
-                      Sign in
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={pending || !online}
-                      onClick={() => void send()}
-                    >
-                      Resend code
-                    </Button>
-                    <Button
-                      variant="quiet"
-                      disabled={pending}
-                      onClick={() => {
-                        setStep("email");
-                        setCode("");
-                        setError("");
-                        setNotice("");
-                      }}
-                    >
-                      Change email
-                    </Button>
-                  </>
-                )}
-              </form>
+              {guided ? (
+                <Suspense fallback={<p role="status" aria-busy="true" />}>
+                  <GuidedSignIn
+                    requestCode={chatRequestCode}
+                    verifyCode={chatVerify}
+                  />
+                </Suspense>
+              ) : (
+                <>
+                  <p>
+                    {step === "email"
+                      ? "Sign in with an email code. No password needed."
+                      : `Enter the six-digit code sent to ${email}.`}
+                  </p>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (!pending && online)
+                        void (step === "email" ? send() : verify());
+                    }}
+                    aria-label="Email sign-in"
+                  >
+                    {step === "email" ? (
+                      <>
+                        <label>
+                          Email address
+                          <input
+                            ref={field}
+                            type="email"
+                            autoComplete="email"
+                            required
+                            maxLength={254}
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                          />
+                        </label>
+                        <label className="auth-check">
+                          <input
+                            type="checkbox"
+                            checked={age}
+                            onChange={(event) => setAge(event.target.checked)}
+                          />
+                          I am 16 or older
+                        </label>
+                        <Button
+                          type="submit"
+                          pending={pending}
+                          disabled={!age || !email.trim() || !online}
+                        >
+                          Send code
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <label>
+                          One-time code
+                          <input
+                            ref={field}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            pattern="[0-9]{6}"
+                            required
+                            maxLength={6}
+                            value={code}
+                            onChange={(event) =>
+                              setCode(event.target.value.replace(/\D/g, ""))
+                            }
+                            aria-describedby={
+                              error ? "auth-error" : "auth-notice"
+                            }
+                          />
+                        </label>
+                        <Button
+                          type="submit"
+                          pending={pending}
+                          disabled={code.length !== 6 || !online}
+                        >
+                          Sign in
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          disabled={pending || !online}
+                          onClick={() => void send()}
+                        >
+                          Resend code
+                        </Button>
+                        <Button
+                          variant="quiet"
+                          disabled={pending}
+                          onClick={() => {
+                            setStep("email");
+                            setCode("");
+                            setError("");
+                            setNotice("");
+                          }}
+                        >
+                          Change email
+                        </Button>
+                      </>
+                    )}
+                  </form>
+                </>
+              )}
               <Button variant="quiet" disabled={pending} onClick={cancel}>
                 Back to welcome
               </Button>
             </>
           )}
-          {!online ? (
+          {!online && !(guided && step !== "welcome") ? (
             <p role="status" className="auth-warning">
               Offline. Connect to sign in. Saved lessons open after sign-in.
             </p>
@@ -500,65 +607,8 @@ export function SignIn({
               </Button>
             </div>
           )}
-          <footer className="auth-legal">
-            {(["Privacy", "Terms", "Analytics preference"] as const).map(
-              (item) => (
-                <Button
-                  key={item}
-                  variant="quiet"
-                  className="auth-legal-link"
-                  onClick={() => setInfo(info === item ? null : item)}
-                  aria-expanded={info === item}
-                >
-                  {item}
-                </Button>
-              ),
-            )}
-          </footer>
-          {info && (
-            <section className="auth-info" aria-label={info}>
-              <h2>{info}</h2>
-              {info === "Analytics preference" ? (
-                <label className="auth-check">
-                  <input
-                    type="checkbox"
-                    checked={!optOut}
-                    onChange={(event) => {
-                      setOptOut(!event.target.checked);
-                      setAnalyticsOptOut(!event.target.checked);
-                    }}
-                  />
-                  Share anonymous product analytics
-                </label>
-              ) : info === "Privacy" ? (
-                <p>
-                  We use your email to sign you in. Your codes and tokens are
-                  never sent to analytics. Optional profile details help AI
-                  tailor examples. You control your data and analytics
-                  preference.
-                </p>
-              ) : (
-                <p>
-                  Duolify is for learners aged 16 and older. Email codes are for
-                  your use only. Public launch terms are awaiting legal review.
-                </p>
-              )}
-              <Button variant="quiet" onClick={() => setInfo(null)}>
-                Close {info}
-              </Button>
-            </section>
-          )}
+          {legal}
         </div>
-        {step === "welcome" && (
-          <div className="auth-art" aria-hidden="true">
-            <div className="auth-orbit" />
-            <i />
-            <i />
-            <i />
-            <i />
-            <i />
-          </div>
-        )}
       </main>
     </div>
   );
@@ -573,7 +623,20 @@ export function SignIn({
           }}
         />
       )}
-      {content}
+      {landing && step === "welcome" ? (
+        demo ? null : (
+          <Suspense>
+            <Landing
+              welcome={welcomeBlock}
+              footer={legal}
+              onOpen={open}
+              onTryShared={() => setDemo(true)}
+            />
+          </Suspense>
+        )
+      ) : (
+        content
+      )}
     </>
   );
 }

@@ -1,0 +1,58 @@
+.ui-toast-host {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-start: calc(var(--sa-t, env(safe-area-inset-top, 0px)) + 12px);
+  display: flex;
+  justify-content: center;
+  padding-inline: var(--space-3);
+  /* Keep clear of a docked panel: toasts sit over the stage. */
+  padding-inline-end: calc(var(--space-3) + var(--imm-panel-inset, 0px));
+  pointer-events: none;
+  z-index: 60;
+}
+.ui-toast {
+  display: flex;
+  align-items: center;
+  max-inline-size: min(28rem, 100%);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+.ui-toast[data-tone="error"] {
+  border-color: var(--error);
+}
+.ui-toast button {
+  min-block-size: var(--size-target);
+  padding: 0 var(--space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ui-toast-text {
+  text-align: start;
+  border-radius: var(--radius-lg);
+  padding-block: var(--space-2);
+}
+.ui-toast-action {
+  flex: none;
+  white-space: nowrap;
+  font-weight: var(--weight-strong);
+  color: var(--primary);
+  border-inline-start: 1px solid var(--line);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ui-toast {
+    animation: toast-in var(--duration-fast) var(--ease-standard);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}

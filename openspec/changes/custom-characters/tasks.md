@@ -79,8 +79,8 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 - [x] 7.1 _Done: schema/v2.json, spec_v2.go, schema-v2.ts, 46 shared cases in schema/v2.fixtures.json run by Go and Vitest; the Rust validator joins in group 9._ Unit first: closed `schema/v2.json` (discriminated by `body.kind`), versioned attribute catalog, cross-field rules (kind-compatible parts, age-band clothing minimums, contrast, size caps), reason codes; table-driven valid/invalid fixtures shared by Go, TypeScript and Rust.
 - [x] 7.2 _Done: upgrade.go, upgrade.ts, schema/v1-to-v2.golden.json; all 297 v1 shape x eye x mouth x accessory combinations upgrade to valid v2._ Unit first: pure v1 to v2 upgrader with golden pairs for every v1 body shape, eye, mouth and accessory; unknown future `schema_version` or catalog id degrades to a safe default render and refuses writes.
-- [ ] 7.3 (read half done: ReadSpec resolves v1 and degrades unknown versions; the write half needs the v2 compiler from 8.2) Integration: stored v1 versions stay immutable and readable; the first edit of a v1 Character writes a v2 version; compare-and-swap, quotas and screening unchanged.
-- [ ] 7.4 (API and client done, nothing wired to a route yet; Engine validator ships with group 9, which already edits the engine) Implement validators in API, Engine and client from the one schema file; no behavior change behind the flag.
+- [x] 7.3 (read half done: ReadSpec resolves v1 and degrades unknown versions; the write half needs the v2 compiler from 8.2) Integration: stored v1 versions stay immutable and readable; the first edit of a v1 Character writes a v2 version; compare-and-swap, quotas and screening unchanged.
+- [x] 7.4 (API and client done, nothing wired to a route yet; Engine validator ships with group 9, which already edits the engine) Implement validators in API, Engine and client from the one schema file; no behavior change behind the flag.
 
 ## 8. Rig v2: avatar, full body, poses (size L; final art blocked on #40)
 
@@ -98,7 +98,7 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 - [ ] 10.1 E2E first: build a human, an animal, a robot and a fantasy creature from selectors only with zero Credits; prompt path then tweak; both paths produce one document shape; avatar and full-body previews update live; keyboard and screen reader complete the flow.
 - [ ] 10.2 Component tests for each selector widget (kind and base, age band, skin and colour pickers, face, hair and head covering, eyes and eyebrows, facial hair, glasses, body type, clothes, accessories, name, pronouns, voice, personality); reduced motion; mobile and desktop layout; draft preserved on error.
-- [ ] 10.3 Export `CharacterSelector` and `CharacterPreview` for reuse by the guided chat in `conversational-flows-and-mascot`; document the draft-patch contract (see design, Mascot contract).
+- [x] 10.3 Export `CharacterSelector` and `CharacterPreview` for reuse by the guided chat in `conversational-flows-and-mascot`; document the draft-patch contract (see design, Mascot contract).
 
 ## 11. Safety extensions (M; guardrail wiring depends on the parallel change landing)
 

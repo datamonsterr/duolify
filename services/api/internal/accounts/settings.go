@@ -17,6 +17,7 @@ var settingsFields = map[string]bool{
 	"locale": true, "time_zone": true, "daily_minutes": true, "daily_xp": true,
 	"reminder_enabled": true, "reminder_time": true, "analytics_opt_out": true,
 	"fullscreen_on_rotate": true, "autoplay": true, "auto_send_after_dictation": true,
+	"mascot": true, "single_key_shortcuts": true,
 }
 
 // LearnerSettings contains only non-content preferences returned by the settings API.
@@ -41,6 +42,10 @@ type LearnerSettings struct {
 	FullscreenOnRotate     bool `json:"fullscreen_on_rotate"`
 	Autoplay               bool `json:"autoplay"`
 	AutoSendAfterDictation bool `json:"auto_send_after_dictation"`
+	SingleKeyShortcuts     bool `json:"single_key_shortcuts"`
+
+	// Mascot is the guide preference (RigPartSpec v1); partial updates merge, see mascot.go.
+	Mascot json.RawMessage `json:"mascot"`
 }
 
 func profileContextField(name string) bool {
@@ -71,6 +76,14 @@ func ValidateSettingsPatch(fields map[string]json.RawMessage, limit int) (map[st
 			}
 			continue
 		}
+		if name == "mascot" {
+			if patch, ok := ParseMascotPatch(raw); ok {
+				values[name] = patch
+			} else {
+				failures[name] = "Enter a valid setting."
+			}
+			continue
+		}
 		ordinary[name] = raw
 	}
 	valid, invalid := ValidateContextPatch(ordinary, limit)
@@ -93,6 +106,7 @@ func (s *Service) readSettings(w http.ResponseWriter, r *http.Request) {
 		respond(w, 503, map[string]string{"error": "Could not read settings. Please retry."})
 		return
 	}
+	value.Mascot = ResolveMascot(r.Context(), s.pool, contextID(r), value.Mascot)
 	respond(w, 200, value)
 }
 
@@ -124,6 +138,8 @@ func (s *Service) saveSettings(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, map[string]any{"error": "Check the highlighted settings.", "fields": failures})
 		return
 	}
+	mascotPatch, hasMascot := patch["mascot"].(MascotPatch)
+	delete(patch, "mascot")
 	ctx := r.Context()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -156,6 +172,24 @@ func (s *Service) saveSettings(w http.ResponseWriter, r *http.Request) {
 			current[name] = value
 		}
 	}
+	if err == nil && hasMascot {
+		stored, _ := json.Marshal(current["mascot"])
+		merged, ok := MergeMascot(stored, mascotPatch)
+		if ok && merged.Mode == "character" && !MascotCharacterUsable(ctx, tx, contextID(r), *merged.CharacterID) {
+			ok = false
+		}
+		if !ok {
+			respond(w, 400, map[string]any{"error": "Check the highlighted settings.", "fields": map[string]string{"mascot": "Enter a valid setting."}})
+			return
+		}
+		encoded, _ := json.Marshal(merged)
+		var next any
+		_ = json.Unmarshal(encoded, &next)
+		if !reflect.DeepEqual(current["mascot"], next) {
+			changed = append(changed, "mascot")
+		}
+		current["mascot"] = next
+	}
 	updated, marshalErr := json.Marshal(current)
 	if err == nil {
 		err = marshalErr
@@ -186,5 +220,6 @@ func (s *Service) saveSettings(w http.ResponseWriter, r *http.Request) {
 			_ = s.profile.Events.Capture(after.LearnerID, "analytics_opt_out_changed", map[string]any{"enabled": true, "source": "api", "platform": "web", "app_version": "0.1.0"})
 		}
 	}
+	after.Mascot = ResolveMascot(ctx, s.pool, contextID(r), after.Mascot)
 	respond(w, 200, after)
 }

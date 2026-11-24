@@ -24,8 +24,8 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 3. Migrate course creation (M)
 
-- [ ] 3.1 e2e: brief chat to confirmed revision, no preview/Credits side effects, mobile sheet
-- [ ] 3.2 Scripts `course.brief`, `course.level`, `course.steer`; outline proposals stay quoted; update brief draft rules
+- [x] 3.1 e2e: brief chat to confirmed revision, no preview/Credits side effects, mobile sheet
+- [x] 3.2 Scripts `course.brief`, `course.level`, `course.steer`; outline proposals stay quoted; update brief draft rules
 
 ## 4. Free-text routing (L, two PRs: prefilter/FAQ, classifier)
 
@@ -44,8 +44,8 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 6. Migrate sign-in (M)
 
-- [ ] 6.1 e2e: email/code chat with autofill attributes, wrong code, resend, throttle, offline, age gate; pre-auth memory-only
-- [ ] 6.2 Scripts `auth.signin`, `auth.age`; keep return-path allowlist and credential storage rules
+- [x] 6.1 e2e: email/code chat with autofill attributes, wrong code, resend, throttle, offline, age gate; pre-auth memory-only
+- [x] 6.2 Scripts `auth.signin` (the age gate is its second step, so no separate `auth.age`); keep return-path allowlist and credential storage rules
 
 ## 7. Migrate character flows (M)
 
@@ -60,18 +60,18 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 9. Customisation (M)
 
-- [ ] 9.1 e2e: recolour, accessory, pick a Character, delete the Character, fallback to default
-- [ ] 9.2 API: `mascot` field on settings (validation against `RigPartSpec v1`, partial update), export, erasure, backup tests
-- [ ] 9.3 "Your guide" picker UI; shared `RigPartSpec v1` package consumed by `custom-characters`
+- [x] 9.1 e2e: recolour, accessory, pick a Character, delete the Character, fallback to default
+- [x] 9.2 API: `mascot` field on settings (validation against `RigPartSpec v1`, partial update), export, erasure, backup tests
+- [x] 9.3 "Your guide" picker UI; shared `RigPartSpec v1` package consumed by `custom-characters`
 
 ## 10. Analytics (S)
 
-- [ ] 10.1 Catalogue and tests: all `guided_chat_*` and `mascot_*` events, content-free, opt-out, `entry_point` not `source`
-- [ ] 10.2 Funnel dashboard: completion vs old form, time to complete, drop-off step, free-text rate; update `docs/analytics/coverage.md`
+- [x] 10.1 Catalogue and tests (`mascot_*` has no test yet, listed as a gap in the coverage table): all `guided_chat_*` and `mascot_*` events, content-free, opt-out, `entry_point` not `source`
+- [x] 10.2 Funnel definition (queries documented, no dashboard built here): completion vs old form, time to complete, drop-off step, free-text rate; update `docs/analytics/coverage.md`
 
 ## 11. Backup and restore (S)
 
-- [ ] 11.1 Add `guided_chat_drafts` and `mascot` to dump coverage, export and erasure tests; restore drill covers expiry purge and tombstones; data inventory docs
+- [x] 11.1 Add `guided_chat_drafts` and `mascot` to dump coverage, export and erasure tests; restore drill covers expiry purge and tombstones; data inventory docs
 
 ## 12. Design review and accessibility (M)
 

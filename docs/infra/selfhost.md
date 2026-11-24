@@ -3,13 +3,13 @@
 One command runs the whole production-shaped stack on any Linux machine with Docker.
 It is the base for the Hetzner VM deployment in [ADR 0014](../adr/0014-infrastructure-cost-migration.md).
 
-| Service | Role | Published |
-|---|---|---|
-| `proxy` | Caddy: web client on `/`, API on `/v1` (SSE unbuffered), HTTPS when `SITE_ADDRESS` is a domain | `HTTP_PORT`, `HTTPS_PORT` |
-| `api`, `worker` | Go API and River jobs (encrypted nightly backup at 02:00 UTC and on start) | no |
-| `engine` | Rust engine, mock providers by default | no |
-| `postgres`, `redis`, `objectstore` | Postgres 18.6, Redis 8.4, RustFS with versioned `duolify` and `duolify-backups` buckets | no |
-| `s3-init`, `backup-init`, `migrate` | One-shot: buckets, scoped RustFS identities, Goose + River migrations | no |
+| Service                             | Role                                                                                           | Published                 |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
+| `proxy`                             | Caddy: web client on `/`, API on `/v1` (SSE unbuffered), HTTPS when `SITE_ADDRESS` is a domain | `HTTP_PORT`, `HTTPS_PORT` |
+| `api`, `worker`                     | Go API and River jobs (encrypted nightly backup at 02:00 UTC and on start)                     | no                        |
+| `engine`                            | Rust engine, mock providers by default                                                         | no                        |
+| `postgres`, `redis`, `objectstore`  | Postgres 18.6, Redis 8.4, RustFS with versioned `duolify` and `duolify-backups` buckets        | no                        |
+| `s3-init`, `backup-init`, `migrate` | One-shot: buckets, scoped RustFS identities, Goose + River migrations                          | no                        |
 
 Files: `infra/deploy/compose.yml` (self-contained; it does not extend the dev `docker-compose.yml`),
 `infra/deploy/Caddyfile`, `infra/deploy/.env.example`, `infra/deploy/selfhost.sh`.
@@ -45,15 +45,15 @@ Settings to review in `infra/deploy/.env`:
 
 ## Day-to-day
 
-| Task | Command |
-|---|---|
-| Start / upgrade | `mise run infra:selfhost-up` |
-| Stop (keeps data) | `mise run infra:selfhost-down` |
-| Logs | `mise run infra:selfhost-logs [service...]` |
-| Health check | `mise run infra:selfhost-smoke` |
-| Back up now | `mise run infra:selfhost-backup` |
-| Restore drill | `mise run infra:selfhost-restore-drill` |
-| Anything else | `bash infra/deploy/selfhost.sh compose <args>` (for example `ps` or `exec postgres psql -U duolify`) |
+| Task              | Command                                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| Start / upgrade   | `mise run infra:selfhost-up`                                                                         |
+| Stop (keeps data) | `mise run infra:selfhost-down`                                                                       |
+| Logs              | `mise run infra:selfhost-logs [service...]`                                                          |
+| Health check      | `mise run infra:selfhost-smoke`                                                                      |
+| Back up now       | `mise run infra:selfhost-backup`                                                                     |
+| Restore drill     | `mise run infra:selfhost-restore-drill`                                                              |
+| Anything else     | `bash infra/deploy/selfhost.sh compose <args>` (for example `ps` or `exec postgres psql -U duolify`) |
 
 Always go through `selfhost.sh`. It pins the project, the compose file and the env file, and it hides variables from your shell and the dev `.env` that mise loads.
 
@@ -116,16 +116,23 @@ The proxy sets the web client headers (HSTS, `nosniff`, `Referrer-Policy`, `Perm
 
 The lesson asset origin (`LESSON_ASSET_ORIGIN`, the custom domain of the application bucket) is not served by Caddy, so set these on it in Cloudflare. Slides run in an opaque-origin sandbox, so their requests to this host are cross-origin with `Origin: null`. This repository does not call the Cloudflare API; configure it by hand.
 
-| Header | Value | Why |
-|---|---|---|
-| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Zone setting SSL/TLS > Edge Certificates > HSTS, or the rule below. Use one of them, not both |
-| `X-Content-Type-Options` | `nosniff` | An object served with the wrong type is never run as script |
-| `Referrer-Policy` | `no-referrer` | Slides leak nothing about the app |
-| `Cross-Origin-Resource-Policy` | `cross-origin` | The embedding frame is cross-origin; `same-origin` or `same-site` would block every asset |
-| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'; sandbox` | If someone opens an object (an SVG, say) directly, it cannot run script. Does not affect use as image, font, audio or script |
-| `Access-Control-Allow-Origin` | `*` for GET and HEAD, no credentials | Slides `fetch` assets and load fonts; the request origin is `null`. In R2: bucket > Settings > CORS policy |
+| Header                         | Value                                                 | Why                                                                                                                          |
+| ------------------------------ | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `Strict-Transport-Security`    | `max-age=31536000; includeSubDomains`                 | Zone setting SSL/TLS > Edge Certificates > HSTS, or the rule below. Use one of them, not both                                |
+| `X-Content-Type-Options`       | `nosniff`                                             | An object served with the wrong type is never run as script                                                                  |
+| `Referrer-Policy`              | `no-referrer`                                         | Slides leak nothing about the app                                                                                            |
+| `Cross-Origin-Resource-Policy` | `cross-origin`                                        | The embedding frame is cross-origin; `same-origin` or `same-site` would block every asset                                    |
+| `Content-Security-Policy`      | `default-src 'none'; frame-ancestors 'none'; sandbox` | If someone opens an object (an SVG, say) directly, it cannot run script. Does not affect use as image, font, audio or script |
+| `Access-Control-Allow-Origin`  | `*` for GET and HEAD, no credentials                  | Slides `fetch` assets and load fonts; the request origin is `null`. In R2: bucket > Settings > CORS policy                   |
 
 How: Cloudflare dashboard > the zone > Rules > Transform Rules > Modify Response Header > Create rule, "Hostname equals the asset host" (the rule matches the host, not a path), then "Set static" for each header above except `Access-Control-Allow-Origin`, which is the bucket's CORS policy. Verify with `curl -sI https://<asset host>/<any object>`. If a header is missing a slide may still play, but a wrong `Cross-Origin-Resource-Policy` or CORS policy shows as a blocked request in the browser console.
+
+### Landing page media
+
+The landing page video (`landing.mp4`, `landing.webm`) is not in git and not in the Tauri bundle. It lives in the application bucket under `landing/<version>/` and is read from the asset origin above (`media-src` already allows it). The poster (`landing-poster-960.webp`) and captions (`landing.en.vtt`) are small and ship in `apps/client/public/landing`.
+
+1. Upload by hand (an outward action; never from CI), with `S3_*` set for the target: `mise run infra:landing-media-upload <dir> v1`. It sets the content types and `Cache-Control: public, max-age=31536000, immutable`; new media means a new version.
+2. Build the web client with `VITE_LANDING_MEDIA_BASE=$LESSON_ASSET_ORIGIN/landing/v1`: the `web` Dockerfile has the build arg, compose passes it from `.env`, and `pr-ready` passes the `LANDING_MEDIA_BASE` repository variable. Without it the landing shows the poster and no player.
 
 ## Troubleshooting
 

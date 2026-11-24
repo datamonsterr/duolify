@@ -1,87 +1,32 @@
-import { useRef, useState, type PointerEvent, type KeyboardEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useId,
+  useRef,
+  useState,
+  type PointerEvent,
+  type KeyboardEvent,
+} from "react";
 import type { VoiceEntryPoint } from "../../lib/analytics";
 import { useUiPreferences } from "../design/localization/Preferences";
-import { autoSendEnabled, explicitAutoSend, setAutoSend } from "./autosend";
-import {
-  useVoiceInput,
-  type Transcript,
-  type VoiceBlock,
-  type VoiceNotice,
-} from "./useVoiceInput";
+import { useVoiceInput, type Transcript } from "./useVoiceInput";
 import type { VoicePlatform } from "./platform";
+import { blockText, clock, EXPLAINED, wasExplained } from "./voice-text";
 import "./voice.css";
-
-const EXPLAINED = "duolify.voice.explained";
-const wasExplained = () => {
-  try {
-    return localStorage.getItem(EXPLAINED) === "1";
-  } catch {
-    return false;
-  }
-};
-
-const clock = (ms: number) => {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
-
-type T = ReturnType<typeof useUiPreferences>["t"];
-
-function blockText(t: T, block: Exclude<VoiceBlock, undefined>, resets?: Date) {
-  switch (block) {
-    case "offline":
-      return t("voice.offline");
-    case "unavailable":
-      return t("voice.unavailable");
-    case "unsupported":
-      return t("voice.unsupported");
-    case "daily_cap":
-      return resets
-        ? t("voice.cap_resets", {
-            time: resets.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          })
-        : t("voice.cap");
-    case "denied":
-      return t("voice.denied_block");
-    case "no_lesson":
-    case "loading":
-      return "";
-  }
-}
-
-function noticeText(t: T, n: VoiceNotice) {
-  switch (n.kind) {
-    case "denied":
-      return t("voice.denied");
-    case "no_microphone":
-      return t("voice.no_microphone");
-    case "silent":
-      return t("voice.silent");
-    case "too_short":
-      return t("voice.too_short");
-    case "empty":
-      return t("voice.empty");
-    case "error":
-      return n.cls === "rate_limited"
-        ? t("voice.rate_limited")
-        : n.cls === "too_large" || n.cls === "too_long"
-          ? t("voice.too_long")
-          : n.cls === "unavailable"
-            ? t("voice.unavailable_now")
-            : n.cls === "offline"
-              ? t("voice.offline_retry")
-              : t("voice.failed");
-  }
-}
 
 /**
  * Push-to-talk microphone control: hold to record, release to transcribe, slide off or press
  * Escape to cancel, tap to toggle. Typing stays available next to it, always.
  */
-export function VoiceButton({
+// The bubble (and its toasts) load with the immersive presentation, not with the first screen.
+const VoiceBubble = lazy(() =>
+  import("./VoiceBubble").then((m) => ({ default: m.VoiceBubble })),
+);
+
+// Only mounted when no toast host is on the page (tutor sheet, notes page).
+const VoiceToasts = lazy(() => import("./VoiceToasts"));
+
+function VoiceTextButton({
   purpose,
   entryPoint,
   lessonId,
@@ -105,10 +50,15 @@ export function VoiceButton({
   });
   const [explaining, setExplaining] = useState(false);
   const { t } = useUiPreferences();
-  const [auto, setAuto] = useState(() => autoSendEnabled("en"));
   const button = useRef<HTMLButtonElement>(null);
   const recording = voice.phase === "recording";
   const transcribing = voice.phase === "transcribing";
+  const reasonId = useId();
+  const blockMessage =
+    voice.block && voice.block !== "loading" && voice.block !== "no_lesson"
+      ? blockText(t, voice.block, voice.capResets)
+      : "";
+  const reason = voice.block === "denied" ? "" : blockMessage;
   if (voice.block === "no_lesson") return null;
   const inactive =
     disabled || (voice.block !== undefined && voice.block !== "denied");
@@ -159,6 +109,7 @@ export function VoiceButton({
             : t("voice.hold_label")
         }
         aria-pressed={recording}
+        aria-describedby={reason ? reasonId : undefined}
         aria-disabled={inactive || transcribing}
         onPointerDown={down}
         onPointerMove={move}
@@ -167,6 +118,7 @@ export function VoiceButton({
         onContextMenu={(event) => event.preventDefault()}
         onKeyDown={(event) => key(event, true)}
         onKeyUp={(event) => key(event, false)}
+        onBlur={() => recording && !voice.toggled && voice.slideOff()}
       >
         <span aria-hidden="true">{recording ? "●" : "🎤"}</span>
         <span>
@@ -193,60 +145,13 @@ export function VoiceButton({
           </span>
         </div>
       )}
-      {recording && (
-        <p className="voice-hint">
-          {voice.toggled ? t("voice.hint_toggled") : t("voice.hint_hold")}
-        </p>
-      )}
-      {transcribing && (
-        <p className="voice-hint" role="status">
-          {t("voice.hint_transcribing")}
-        </p>
-      )}
-      {!recording &&
-        voice.block &&
-        voice.block !== "denied" &&
-        voice.block !== "loading" && (
-          <p className="voice-note" role="status" data-testid="voice-blocked">
-            {blockText(t, voice.block, voice.capResets)}
-          </p>
-        )}
-      {!recording && !transcribing && voice.notice && (
-        <p className="voice-note" role="alert" data-testid="voice-notice">
-          {noticeText(t, voice.notice)}
-          {voice.notice.kind === "denied" && (
-            <button
-              type="button"
-              className="voice-retry"
-              onClick={() => void voice.requestPermission()}
-            >
-              {t("voice.try_again")}
-            </button>
-          )}
-          {((voice.notice.kind === "empty" && voice.notice.retry) ||
-            (voice.notice.kind === "error" && voice.notice.retry)) && (
-            <button type="button" className="voice-retry" onClick={voice.retry}>
-              {t("voice.try_again")}
-            </button>
-          )}
-          <button type="button" className="voice-retry" onClick={voice.dismiss}>
-            {t("voice.type_instead")}
-          </button>
-        </p>
-      )}
-      {purpose === "tutor" && !recording && (
-        <label className="voice-hint voice-auto">
-          <input
-            type="checkbox"
-            data-testid="voice-auto-send"
-            checked={explicitAutoSend() ?? auto}
-            onChange={(event) => {
-              setAuto(event.target.checked);
-              setAutoSend(event.target.checked);
-            }}
-          />{" "}
-          {t("voice.auto_send")}
-        </label>
+      <Suspense fallback={null}>
+        <VoiceToasts voice={voice} reason={reason} />
+      </Suspense>
+      {reason && (
+        <span id={reasonId} className="imm-sr">
+          {reason}
+        </span>
       )}
       {explaining && (
         <div
@@ -285,5 +190,27 @@ export function VoiceButton({
         </div>
       )}
     </div>
+  );
+}
+
+export function VoiceButton(
+  props: Parameters<typeof VoiceTextButton>[0] & {
+    /** "bubble": a small round icon control; every explanation is a toast. */
+    variant?: "default" | "bubble";
+    /** Why the parent disabled the control; shown as a toast and as its description. */
+    disabledReason?: string;
+  },
+) {
+  const { variant, disabledReason, disabled = false, ...rest } = props;
+  return variant === "bubble" ? (
+    <Suspense fallback={null}>
+      <VoiceBubble
+        {...rest}
+        disabled={disabled}
+        disabledReason={disabledReason}
+      />
+    </Suspense>
+  ) : (
+    <VoiceTextButton {...rest} disabled={disabled} />
   );
 }

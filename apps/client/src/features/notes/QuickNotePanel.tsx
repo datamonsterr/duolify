@@ -11,6 +11,7 @@ import {
 import { session } from "../accounts/session";
 import { AppLink } from "../../lib/navigation";
 import { VoiceButton } from "../voice/VoiceButton";
+import { useUiPreferences } from "../design/localization/Preferences";
 
 export type QuickNoteContext = {
   source: NoteSource;
@@ -37,6 +38,8 @@ export type QuickNotePanelProps = {
     rawText: string;
   }) => Promise<{ id: string; status: string }>;
   isOffline?: boolean;
+  /** "bubble": a round mic icon; the dictated-note confirmation is a toast with Undo. */
+  voiceVariant?: "default" | "bubble";
 };
 
 const ENRICH_LABEL = "Enrich with AI · 2 credits (daily free)"; // @noncommercial-number
@@ -57,14 +60,22 @@ export function QuickNotePanel({
   context,
   onSync,
   isOffline = false,
+  voiceVariant = "default",
 }: QuickNotePanelProps) {
+  const { t } = useUiPreferences();
   const draftKey = getDraftKey(context);
   const [activeNote, setActiveNote] = useState<QueuedNote | null>(() => {
     // An anchored note is a new moment each time: only a still-unsynced one is reopened.
     const queued = noteQueue
       .getQueue()
       .filter(
-        (item) => !context.anchor || (item.anchor && item.status !== "synced"),
+        (item) =>
+          !context.anchor ||
+          (item.anchor &&
+            item.status !== "synced" &&
+            item.anchor.playbackMs === context.anchor.playbackMs &&
+            JSON.stringify(item.anchor.rect ?? null) ===
+              JSON.stringify(context.anchor.rect ?? null)),
       );
     return (
       queued.find((item) => {
@@ -123,10 +134,19 @@ export function QuickNotePanel({
     id?: string;
   } | null>(null);
 
+  const saving = useRef(false);
   const handleSave = async (dictation?: string) => {
     const body = dictation ?? noteText;
     const trimmed = body.trim();
-    if (!trimmed) return;
+    if (!trimmed || saving.current) return;
+    saving.current = true;
+    try {
+      await save(body, dictation);
+    } finally {
+      saving.current = false;
+    }
+  };
+  const save = async (body: string, dictation?: string) => {
     quickNoteDrafts.delete(draftKey);
     const anchor: NoteAnchor | undefined =
       dictation !== undefined && context.anchor
@@ -223,6 +243,28 @@ export function QuickNotePanel({
     }
   };
 
+  const undoRef = useRef(undoDictation);
+  useEffect(() => {
+    undoRef.current = undoDictation;
+  });
+  const bubble = voiceVariant === "bubble";
+  const dictatedKey = dictated?.actionKey;
+  useEffect(() => {
+    if (!bubble || !dictatedKey) return;
+    // Loaded on demand: toasts belong to the immersive presentation, not the first screen.
+    void import("../../components/toast").then(({ showToast }) =>
+      showToast({
+        id: "note-saved",
+        message: t("imm.saved"),
+        action: {
+          label: t("common.undo"),
+          onAction: () => void undoRef.current(),
+        },
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictatedKey, bubble]);
+
   const handleManualSync = async () => {
     if (!activeNote) return;
     setIsSyncing(true);
@@ -300,6 +342,7 @@ export function QuickNotePanel({
             entryPoint="quick_note"
             lessonId={context.lessonId}
             disabled={isSyncing}
+            variant={voiceVariant}
             onTranscript={({ text }) => {
               trackVoice({
                 event: "voice_transcript_used",
@@ -307,11 +350,14 @@ export function QuickNotePanel({
                 entry_point: "quick_note",
                 edited: false,
               });
-              void handleSave(text.slice(0, 2000));
+              // Typed text is never replaced by a dictation: the transcript joins it.
+              if (noteText.trim())
+                setNoteText(`${noteText.trimEnd()} ${text}`.slice(0, 2000));
+              else void handleSave(text.slice(0, 2000));
             }}
           />
         )}
-        {dictated && (
+        {dictated && !bubble && (
           <p role="status" data-testid="voice-note-saved" style={{ margin: 0 }}>
             Saved your dictated note.{" "}
             <button
@@ -389,7 +435,7 @@ export function QuickNotePanel({
               type="button"
               className="duo-button primary"
               onClick={() => void handleSave()}
-              disabled={!noteText.trim()}
+              disabled={!noteText.trim() || isSyncing}
               style={{
                 display: "flex",
                 alignItems: "center",
