@@ -55,6 +55,9 @@ function serve(
   });
 }
 
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+beforeEach(() => localStorage.setItem("duolify.guided.rest", "off"));
+
 describe("friend helpers", () => {
   it("classifies failures without trusting server text", () => {
     expect(friendFailure(rejected(404, "request_unavailable"))).toBe(

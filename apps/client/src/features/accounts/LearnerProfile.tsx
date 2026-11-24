@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { LearnerContextEditor } from "./LearnerContextEditor";
 import { SetupChat } from "./SetupChat";
 import { GuidedSetup } from "../guided-chat/GuidedSetup";
@@ -6,6 +6,10 @@ import { guidedEnabled } from "../guided-chat/flags";
 import { profileApi, type LearnerContext } from "./learner-context";
 import { Feedback } from "../design/chat/Feedback";
 import { Button } from "../design/Button";
+
+const GuidedProfileEdit = lazy(() =>
+  import("./GuidedProfileEdit").then((m) => ({ default: m.GuidedProfileEdit })),
+);
 
 export function LearnerProfile({
   setup = false,
@@ -81,6 +85,14 @@ export function LearnerProfile({
         onCommit={profileApi.commit}
         onExport={exportProfile}
       />
+    );
+  }
+
+  if (guidedEnabled("rest", profile.learner_id)) {
+    return (
+      <Suspense fallback={null}>
+        <GuidedProfileEdit profile={profile} onCommit={profileApi.commit} />
+      </Suspense>
     );
   }
 
