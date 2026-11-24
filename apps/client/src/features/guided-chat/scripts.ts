@@ -1,3 +1,4 @@
+import { accountDelete, accountExport } from "./account.scripts";
 import { courseBrief } from "./brief.script";
 import { authSignin } from "./signin.script";
 import { courseLevel, courseSteer } from "./course.scripts";
@@ -174,4 +175,6 @@ export const allScripts: GuidedScript[] = [
   authSignin,
   courseLevel,
   courseSteer,
+  accountExport,
+  accountDelete,
 ];

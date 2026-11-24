@@ -701,7 +701,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("enabled")
 	case "learner_profile_updated":
 		allowed := map[string]bool{}
-		for _, key := range strings.Fields("goal topic background level course_level daily_minutes daily_xp locale time_zone reminder_enabled reminder_time appearance motion narration narration_speed captions text_size ui_sounds haptics analytics_opt_out") {
+		for _, key := range strings.Fields("goal topic background level course_level daily_minutes daily_xp locale time_zone reminder_enabled reminder_time appearance motion narration narration_speed captions text_size ui_sounds haptics analytics_opt_out single_key_shortcuts") {
 			allowed[key] = true
 		}
 		if fields, ok := input["fields_changed"].([]string); ok {
