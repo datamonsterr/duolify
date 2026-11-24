@@ -1433,6 +1433,7 @@ impl EngineService for Service {
                 .map_err(|_| Status::invalid_argument("invalid character personas"))?
         };
         let neutral = "Use a neutral default narrator style for every speaker_key in character_personas; ignore persona flavour.";
+        let mut prompt_info = ("monolithic", "", 0u32);
         let (system, prompts) = if routed {
             let learner = req.learner.as_ref();
             let lesson = req.lesson.as_ref();
@@ -1446,6 +1447,7 @@ impl EngineService for Service {
             )
             .await;
             let ids = selection.ids;
+            prompt_info = ("routed", selection.source.code(), ids.len() as u32);
             let p = engine_core::lessontest::routed_lesson_prompt(&context_text, &ids)
                 .map_err(|e| Status::internal(e.to_string()))?;
             let prompts = if cast.is_empty() {
@@ -1495,6 +1497,11 @@ impl EngineService for Service {
         .await
         .map_err(internal)?;
         let mut attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
+        for a in &mut attempts {
+            a.prompt_mode = prompt_info.0.into();
+            a.router_source = prompt_info.1.into();
+            a.skill_count = prompt_info.2;
+        }
         let Some(c) = outcome.completion else {
             return Ok(lesson_events(None, attempts));
         };

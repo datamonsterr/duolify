@@ -107,6 +107,19 @@ pub enum Source {
     Breaker,
 }
 
+impl Source {
+    /// Wire and analytics name.
+    pub fn code(self) -> &'static str {
+        match self {
+            Source::Rules => "rules",
+            Source::Cache => "cache",
+            Source::Model => "model",
+            Source::Default => "default",
+            Source::Breaker => "breaker",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selection {
     pub ids: Vec<String>,

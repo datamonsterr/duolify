@@ -214,6 +214,12 @@ message Usage {
   // Tokens were estimated from delivered bytes (bounded by the quote) because the provider
   // sent no final usage frame; the API settles them as partial usage.
   bool estimated = 17;
+  // ADR 0025: which prompt produced this attempt. prompt_mode is monolithic or routed; for a routed
+  // prompt router_source is rules, cache, model, default or breaker and skill_count is the number
+  // of skills loaded. Empty and zero for tasks that are not split.
+  string prompt_mode = 18;
+  string router_source = 19;
+  uint32 skill_count = 20;
 }
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.

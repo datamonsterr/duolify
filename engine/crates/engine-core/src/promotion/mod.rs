@@ -254,6 +254,7 @@ pub const EXCLUDED_SOURCES: &[&str] = &[
     "engine-eval/src/main.rs",
     "engine-eval/src/report.rs",
     "engine-eval/src/analytics.rs",
+    "engine-eval/src/compare.rs",
 ];
 
 /// SHA-256 over the evaluated inputs, each framed by its path and length.

@@ -1262,7 +1262,13 @@ type Usage struct {
 	ErrorCode           string                 `protobuf:"bytes,16,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	// Tokens were estimated from delivered bytes (bounded by the quote) because the provider
 	// sent no final usage frame; the API settles them as partial usage.
-	Estimated     bool `protobuf:"varint,17,opt,name=estimated,proto3" json:"estimated,omitempty"`
+	Estimated bool `protobuf:"varint,17,opt,name=estimated,proto3" json:"estimated,omitempty"`
+	// ADR 0025: which prompt produced this attempt. prompt_mode is monolithic or routed; for a routed
+	// prompt router_source is rules, cache, model, default or breaker and skill_count is the number
+	// of skills loaded. Empty and zero for tasks that are not split.
+	PromptMode    string `protobuf:"bytes,18,opt,name=prompt_mode,json=promptMode,proto3" json:"prompt_mode,omitempty"`
+	RouterSource  string `protobuf:"bytes,19,opt,name=router_source,json=routerSource,proto3" json:"router_source,omitempty"`
+	SkillCount    uint32 `protobuf:"varint,20,opt,name=skill_count,json=skillCount,proto3" json:"skill_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1414,6 +1420,27 @@ func (x *Usage) GetEstimated() bool {
 		return x.Estimated
 	}
 	return false
+}
+
+func (x *Usage) GetPromptMode() string {
+	if x != nil {
+		return x.PromptMode
+	}
+	return ""
+}
+
+func (x *Usage) GetRouterSource() string {
+	if x != nil {
+		return x.RouterSource
+	}
+	return ""
+}
+
+func (x *Usage) GetSkillCount() uint32 {
+	if x != nil {
+		return x.SkillCount
+	}
+	return 0
 }
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.
@@ -5490,7 +5517,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\rHealthRequest\"H\n" +
 	"\x0eHealthResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1c\n" +
-	"\tproviders\x18\x02 \x03(\tR\tproviders\"\xcb\x04\n" +
+	"\tproviders\x18\x02 \x03(\tR\tproviders\"\xb2\x05\n" +
 	"\x05Usage\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12!\n" +
@@ -5512,7 +5539,12 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x11usage_unavailable\x18\x0f \x01(\bR\x10usageUnavailable\x12\x1d\n" +
 	"\n" +
 	"error_code\x18\x10 \x01(\tR\terrorCode\x12\x1c\n" +
-	"\testimated\x18\x11 \x01(\bR\testimated\"\xe4\x04\n" +
+	"\testimated\x18\x11 \x01(\bR\testimated\x12\x1f\n" +
+	"\vprompt_mode\x18\x12 \x01(\tR\n" +
+	"promptMode\x12#\n" +
+	"\rrouter_source\x18\x13 \x01(\tR\frouterSource\x12\x1f\n" +
+	"\vskill_count\x18\x14 \x01(\rR\n" +
+	"skillCount\"\xe4\x04\n" +
 	"\vUsageLimits\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\rR\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x02 \x01(\rR\foutputTokens\x12\x1d\n" +

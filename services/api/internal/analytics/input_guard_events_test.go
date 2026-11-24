@@ -25,3 +25,20 @@ func TestInputGuardDecisionKeepsOnlyClosedValues(t *testing.T) {
 		t.Fatalf("unknown enum values must be dropped: %v", bad)
 	}
 }
+
+func TestAIGenerationCarriesPromptModeAndRouterSourceAsClosedValues(t *testing.T) {
+	got := safeProperties("$ai_generation", map[string]any{
+		"source": "api", "platform": "web", "app_version": "0.1.0", "feature": "lesson", "model": "m",
+		"prompt_mode": "routed", "router_source": "cache", "skill_count": uint32(3),
+	})
+	if got["prompt_mode"] != "routed" || got["router_source"] != "cache" || got["skill_count"] != uint32(3) {
+		t.Fatalf("lost: %v", got)
+	}
+	bad := safeProperties("$ai_generation", map[string]any{"feature": "lesson", "prompt_mode": "diagram_layout body", "router_source": "x"})
+	if _, ok := bad["prompt_mode"]; ok {
+		t.Fatalf("free text kept: %v", bad)
+	}
+	if _, ok := bad["router_source"]; ok {
+		t.Fatalf("unknown router source kept: %v", bad)
+	}
+}

@@ -686,6 +686,14 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
 		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
 		ids("provider", "model", "task", "pricing_version", "error_code", "envelope", "cache_class")
+		// ADR 0025: closed values and a count, never a skill body or any text.
+		if v, ok := input["prompt_mode"].(string); ok && (v == "monolithic" || v == "routed") {
+			out["prompt_mode"] = v
+		}
+		if v, ok := input["router_source"].(string); ok && slices.Contains([]string{"rules", "cache", "model", "default", "breaker"}, v) {
+			out["router_source"] = v
+		}
+		numeric("skill_count")
 		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
 			if out[canonical] == nil && out[legacy] != nil {
 				out[canonical] = out[legacy]
