@@ -58,7 +58,32 @@ sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Dir::Ca
 ["ci:playwright-deps"]
 description = "Install Chromium system dependencies, including on browser cache hits"
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec playwright install-deps chromium"
+run = '''
+set -eu
+
+apt_config=/etc/apt/apt.conf.d/99duolify-playwright-timeouts
+printf '%s\n' \
+  'Acquire::Retries "3";' \
+  'Acquire::http::Timeout "30";' \
+  'Acquire::https::Timeout "30";' | sudo tee "$apt_config" >/dev/null
+trap 'sudo rm -f "$apt_config"' EXIT
+
+for attempt in 1 2 3; do
+  if timeout 150s pnpm exec playwright install-deps chromium; then
+    exit 0
+  else
+    status=$?
+  fi
+
+  if [ "$attempt" -lt 3 ]; then
+    echo "Playwright system dependency installation failed (attempt $attempt/3, exit $status); retrying in 10 seconds" >&2
+    sleep 10
+  fi
+done
+
+echo "Playwright system dependency installation failed after 3 attempts" >&2
+exit "$status"
+'''
 
 ["ci:proto-drift"]
 description = "Reject changed, deleted and newly generated untracked protobuf bindings"
