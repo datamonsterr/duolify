@@ -63,6 +63,10 @@ export function useWallet(revision: string) {
   return useLearnerRead("/v1/me/credits", revision, isWallet);
 }
 
+export function useStreak(revision: string) {
+  return useLearnerRead("/v1/gamification/streak", revision, isStreak);
+}
+
 /** The available credit total, or the unavailable label while loading or offline. */
 export function useBalanceLabel(wallet: WalletResponse | undefined) {
   const { t, number } = useUiPreferences();

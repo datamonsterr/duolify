@@ -34,7 +34,7 @@
     "src/features/design/chat/fixtures.ts": 21,
     "src/features/design/chat/GuidedChatDemo.tsx": 16,
     "src/features/design/CourseCard.tsx": 7,
-    "src/features/design/Courses.tsx": 26,
+    "src/features/design/Courses.tsx": 15,
     "src/features/design/ExampleCourses.tsx": 8,
     "src/features/design/localization/PreferenceControls.tsx": 3,
     "src/features/gamification/DailyGoal.tsx": 23,
