@@ -205,6 +205,16 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	if note.Status == "raw_only" || note.Status == "enriched" {
 		return nil
 	}
+	// A Voice note is formatted only on a grant (free turn or an explicit paid Format). Without one
+	// the note stays as saved: nothing is formatted and nothing is charged.
+	voice, grant, err := s.voiceGrant(ctx, learnerID, noteID)
+	if err != nil {
+		return err
+	}
+	if voice && grant == "" {
+		_, err = s.pool.Exec(ctx, `UPDATE quick_notes SET status='raw_only',updated_at=now() WHERE id=$1 AND learner_id=$2 AND status IN ('enrichment_pending','enrichment_failed')`, noteUUID, learnerUUID)
+		return err
+	}
 	var claimID pgtype.UUID
 	err = s.pool.QueryRow(ctx, `UPDATE quick_notes SET status='enriching',enrichment_claim_id=gen_random_uuid(),enrichment_lease_until=clock_timestamp()+interval '2 minutes',updated_at=now()
  WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND reservation_id IS NOT DISTINCT FROM $4
@@ -243,9 +253,31 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		if settleErr != nil || statusErr != nil {
 			resultErr = errors.Join(resultErr, settleErr, statusErr)
 		}
+		if voice {
+			// Formatting failed: the note stays raw, a free turn comes back, a paid request is dropped.
+			refunded, refundErr := refundFormatGrant(cleanupCtx, s.pool, learnerID, noteID)
+			if _, e := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status='raw_only',updated_at=now() WHERE id=$1 AND learner_id=$2 AND status IN ('enrichment_pending','enrichment_failed')`, noteUUID, learnerUUID); e != nil {
+				refundErr = errors.Join(refundErr, e)
+			}
+			if refundErr != nil {
+				resultErr = errors.Join(resultErr, refundErr)
+			}
+			if refunded {
+				_ = s.events.Capture(learnerID, "quick_note_format_refunded", map[string]any{"source": "api", "note_id": noteID, "kind": "free"})
+			}
+		}
 		meta := s.AnalyticsMetadata(cleanupCtx)
 		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerID, noteID, failureReason, meta.Platform, meta.AppVersion)
 	}()
+	if voice && grant == "free" {
+		if err = s.formatFree(ctx, learnerID, note, claimID, &failureReason); err != nil {
+			return err
+		}
+		delivered = true
+		meta := s.AnalyticsMetadata(ctx)
+		_ = EmitQuickNoteEnriched(s.events, learnerID, noteID, meta.Platform, meta.AppVersion)
+		return nil
+	}
 	if s.credits == nil {
 		return errors.New("credits service not configured")
 	}
@@ -304,19 +336,11 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		failureReason = "claim_failed"
 		return err
 	}
-	var allowedLessons []*enginev1.LessonRef
-	var allowedIDs []string
-	if courseID.Valid {
-		lessons, e := s.queries.ListCourseLessonsForCourse(ctx, db.ListCourseLessonsForCourseParams{CourseID: courseID, LearnerID: learnerUUID})
-		if e != nil {
-			return e
-		}
-		for _, lesson := range lessons {
-			id := formatUUID(lesson.ID)
-			allowedLessons = append(allowedLessons, &enginev1.LessonRef{LessonId: id, Title: lesson.Title})
-			allowedIDs = append(allowedIDs, id)
-		}
+	enrichCtx, err := s.loadEnrichContext(ctx, learnerUUID, courseID, note.LessonID)
+	if err != nil {
+		return err
 	}
+	allowedIDs := enrichCtx.allowedIDs
 	limits, err := s.credits.Limits(ctx, learnerID, res.ID, "quick_note")
 	if err != nil {
 		return err
@@ -327,11 +351,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	}
 	callCtx, cancel := context.WithDeadline(ctx, res.DeadlineAt)
 	defer cancel()
-	var lessonRef *enginev1.LessonRef
-	if note.LessonID.Valid {
-		lessonRef = &enginev1.LessonRef{LessonId: formatUUID(note.LessonID), Title: note.SlideTitle}
-	}
-	response, err := s.engineClient.EnrichNote(callCtx, &enginev1.EnrichNoteRequest{Note: note.RawText, Lesson: lessonRef, Learner: &enginev1.LearnerProfile{}, Limits: limits, AllowedLessons: allowedLessons})
+	response, err := s.engineClient.EnrichNote(callCtx, s.enrichRequest(note.RawText, note.LessonID, note.SlideTitle, enrichCtx, voice, limits))
 	if err != nil {
 		failureReason = "engine_failure"
 		return err
@@ -382,6 +402,9 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 			provider = rate.Provider
 		}
 		if _, e = qtx.UpsertQuickNoteEnrichment(ctx, db.UpsertQuickNoteEnrichmentParams{NoteID: noteUUID, LearnerID: learnerUUID, Summary: response.Summary, Tags: response.Tags, Links: FilterGroundedLinks(response.Links, allowedIDs), Version: note.RawVersion, Model: model, Provider: provider}); e != nil {
+			return e
+		}
+		if e = storeFormatting(ctx, tx, noteUUID, learnerUUID, response); e != nil {
 			return e
 		}
 		if _, e = qtx.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{ID: noteUUID, LearnerID: learnerUUID, Status: "enriched", ReservationID: resUUID, QuoteID: quoteUUID}); e != nil {
@@ -447,4 +470,130 @@ func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string
 		busy = 0
 		processed++
 	}
+}
+
+// enrichContext is what the engine needs beside the note: the Course's lessons to link and the
+// titles that place the note in the Course.
+type enrichContext struct {
+	allowed     []*enginev1.LessonRef
+	allowedIDs  []string
+	courseTitle string
+	lessonTitle string
+}
+
+func (s *Service) loadEnrichContext(ctx context.Context, learnerUUID, courseID, lessonID pgtype.UUID) (enrichContext, error) {
+	var out enrichContext
+	if !courseID.Valid {
+		return out, nil
+	}
+	lessons, err := s.queries.ListCourseLessonsForCourse(ctx, db.ListCourseLessonsForCourseParams{CourseID: courseID, LearnerID: learnerUUID})
+	if err != nil {
+		return out, err
+	}
+	for _, lesson := range lessons {
+		id := formatUUID(lesson.ID)
+		out.allowed = append(out.allowed, &enginev1.LessonRef{LessonId: id, Title: lesson.Title})
+		out.allowedIDs = append(out.allowedIDs, id)
+		if lessonID.Valid && lesson.ID == lessonID {
+			out.lessonTitle = lesson.Title
+		}
+	}
+	if err = s.pool.QueryRow(ctx, `SELECT title FROM courses WHERE id=$1`, courseID).Scan(&out.courseTitle); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out, err
+	}
+	return out, nil
+}
+
+func (s *Service) enrichRequest(raw string, lessonID pgtype.UUID, slideTitle string, c enrichContext, dictated bool, limits *enginev1.UsageLimits) *enginev1.EnrichNoteRequest {
+	var lessonRef *enginev1.LessonRef
+	if lessonID.Valid {
+		lessonRef = &enginev1.LessonRef{LessonId: formatUUID(lessonID), Title: slideTitle}
+	}
+	return &enginev1.EnrichNoteRequest{Note: raw, Lesson: lessonRef, Learner: &enginev1.LearnerProfile{}, Limits: limits, AllowedLessons: c.allowed, CourseTitle: c.courseTitle, LessonTitle: c.lessonTitle, SlideTitle: slideTitle, Dictated: dictated}
+}
+
+// storeFormatting saves the title and cleaned body beside the enrichment and spends the grant.
+// An empty answer leaves them empty: the Learner sees the raw note.
+func storeFormatting(ctx context.Context, tx pgx.Tx, noteUUID, learnerUUID pgtype.UUID, r *enginev1.EnrichNoteResponse) error {
+	if _, err := tx.Exec(ctx, `UPDATE quick_note_enrichments SET title=$3,formatted_body=$4 WHERE note_id=$1 AND learner_id=$2`, noteUUID, learnerUUID, strings.TrimSpace(r.Title), strings.TrimSpace(r.FormattedBody)); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `UPDATE quick_notes SET format_grant=NULL,format_grant_day=NULL WHERE id=$1 AND learner_id=$2`, noteUUID, learnerUUID)
+	return err
+}
+
+// formatFree runs a granted free formatting turn: no reservation, no charge, every engine bound
+// kept. The engine's answer commits with the claim check in one transaction.
+func (s *Service) formatFree(ctx context.Context, learnerID string, note db.GetQuickNoteWithEnrichmentByIDRow, claimID pgtype.UUID, failureReason *string) error {
+	learnerUUID, noteUUID := note.LearnerID, note.ID
+	courseID, err := s.authorizedNoteCourse(ctx, learnerUUID, note.CourseID, note.LessonID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(note.RawText) == "" {
+		return ErrInvalidText
+	}
+	if s.engineClient == nil {
+		*failureReason = "engine_unavailable"
+		return errors.New("engine client not configured")
+	}
+	quote, err := pricing.NewQuotes(s.pool).WithEvents(s.events).Create(ctx, learnerID, pricing.QuoteInput{Action: "quick_note"})
+	if err != nil {
+		return err
+	}
+	timeout := time.Duration(quote.Bounds["timeout_ms"])*time.Millisecond*time.Duration(max(int64(1), quote.Bounds["max_attempts"])) + 5*time.Second
+	deadline := time.Now().Add(timeout)
+	limits, err := credits.LimitsForQuote(quote, deadline)
+	if err != nil {
+		return err
+	}
+	enrichCtx, err := s.loadEnrichContext(ctx, learnerUUID, courseID, note.LessonID)
+	if err != nil {
+		return err
+	}
+	callCtx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+	response, err := s.engineClient.EnrichNote(callCtx, s.enrichRequest(note.RawText, note.LessonID, note.SlideTitle, enrichCtx, true, limits))
+	if err != nil {
+		*failureReason = "engine_failure"
+		return err
+	}
+	if response == nil || response.Unavailable || strings.TrimSpace(response.FormattedBody) == "" {
+		*failureReason = "engine_failure"
+		return errors.New("engine returned no formatting")
+	}
+	if err = ValidateEnrichmentBounds(response.Summary, response.Tags); err != nil {
+		*failureReason = "bounds_exceeded"
+		return err
+	}
+	model, provider := quote.Rate.Model, quote.Rate.Provider
+	if response.Usage != nil && response.Usage.Model != "" {
+		model, provider = response.Usage.Model, response.Usage.Provider
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.queries.WithTx(tx)
+	current, err := qtx.GetQuickNoteForUpdate(ctx, db.GetQuickNoteForUpdateParams{ID: noteUUID, LearnerID: learnerUUID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if current.RawVersion != note.RawVersion || current.Status != "enriching" || current.EnrichmentClaimID != claimID || !current.EnrichmentLeaseUntil.Valid || !time.Now().Before(current.EnrichmentLeaseUntil.Time) {
+		return ErrStaleVersion
+	}
+	if _, err = qtx.UpsertQuickNoteEnrichment(ctx, db.UpsertQuickNoteEnrichmentParams{NoteID: noteUUID, LearnerID: learnerUUID, Summary: response.Summary, Tags: response.Tags, Links: FilterGroundedLinks(response.Links, enrichCtx.allowedIDs), Version: note.RawVersion, Model: model, Provider: provider}); err != nil {
+		return err
+	}
+	if err = storeFormatting(ctx, tx, noteUUID, learnerUUID, response); err != nil {
+		return err
+	}
+	if _, err = qtx.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{ID: noteUUID, LearnerID: learnerUUID, Status: "enriched"}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

@@ -88,27 +88,35 @@ func (in SaveNoteInput) Validate() error {
 
 // NoteDTO represents a quick note returned by the API.
 type NoteDTO struct {
-	ID         string         `json:"id"`
-	LearnerID  string         `json:"learner_id"`
-	ActionKey  string         `json:"action_key"`
-	CourseID   *string        `json:"course_id,omitempty"`
-	LessonID   *string        `json:"lesson_id,omitempty"`
-	SlideID    *int           `json:"slide_id,omitempty"`
-	SlideTitle string         `json:"slide_title"`
-	Source     string         `json:"source"`
-	RawText    string         `json:"raw_text"`
-	RawVersion int            `json:"raw_version,omitempty"`
-	Status     string         `json:"status"`
-	Reviewed   bool           `json:"reviewed"`
-	ReviewedAt *time.Time     `json:"reviewed_at,omitempty"`
-	Version    int32          `json:"version"`
-	Summary    *string        `json:"summary,omitempty"`
-	Tags       []string       `json:"tags,omitempty"`
-	Links      []string       `json:"links,omitempty"`
-	ChatSource *ChatSourceDTO `json:"chat_source,omitempty"`
-	Anchor     *AnchorDTO     `json:"anchor,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	ID         string     `json:"id"`
+	LearnerID  string     `json:"learner_id"`
+	ActionKey  string     `json:"action_key"`
+	CourseID   *string    `json:"course_id,omitempty"`
+	LessonID   *string    `json:"lesson_id,omitempty"`
+	SlideID    *int       `json:"slide_id,omitempty"`
+	SlideTitle string     `json:"slide_title"`
+	Source     string     `json:"source"`
+	RawText    string     `json:"raw_text"`
+	RawVersion int        `json:"raw_version,omitempty"`
+	Status     string     `json:"status"`
+	Reviewed   bool       `json:"reviewed"`
+	ReviewedAt *time.Time `json:"reviewed_at,omitempty"`
+	Version    int32      `json:"version"`
+	Summary    *string    `json:"summary,omitempty"`
+	Tags       []string   `json:"tags,omitempty"`
+	Links      []string   `json:"links,omitempty"`
+	// Title and FormattedBody are the AI formatting of a Voice note, present only while they match
+	// the current raw text. The raw text is always kept and returned.
+	Title         string `json:"title,omitempty"`
+	FormattedBody string `json:"formatted_body,omitempty"`
+	// FormatOffer is true for a Voice note saved raw that the Learner may format on request.
+	FormatOffer bool `json:"format_offer,omitempty"`
+	// FreeFormatsLeft is set on the save response of a Voice note: the free turns left today.
+	FreeFormatsLeft *int           `json:"free_formats_left,omitempty"`
+	ChatSource      *ChatSourceDTO `json:"chat_source,omitempty"`
+	Anchor          *AnchorDTO     `json:"anchor,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 // EnrichmentCredits is the trusted financial boundary used by note workers.
@@ -282,6 +290,13 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 			return nil, err
 		}
 	}
+	// A Voice note is formatted only on a grant (a free turn now, or an explicit Format later);
+	// otherwise it is saved raw and nothing is queued or charged.
+	voice := input.Anchor != nil && input.Anchor.Input == "voice"
+	status := "enrichment_pending"
+	if voice {
+		status = "raw_only"
+	}
 	note, err := s.queries.WithTx(tx).UpsertQuickNote(ctx, db.UpsertQuickNoteParams{
 		LearnerID:  learnerUUID,
 		ActionKey:  input.ActionKey,
@@ -291,7 +306,7 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		SlideTitle: input.SlideTitle,
 		Source:     input.Source,
 		RawText:    input.RawText,
-		Status:     "enrichment_pending",
+		Status:     status,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		if err = tx.Rollback(ctx); err != nil {
@@ -316,11 +331,32 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 			return nil, err
 		}
 	}
-	if _, err = queue.InsertTx(ctx, tx, NoteEnrichArgs{LearnerID: learnerID, NoteID: formatUUID(note.ID), ExpectedVersion: int(note.RawVersion)}, nil); err != nil {
-		return nil, err
+	granted := false
+	if voice {
+		day, _, e := s.localDay(ctx, learnerID)
+		if e != nil {
+			return nil, e
+		}
+		if granted, err = takeFreeTurn(ctx, tx, learnerID, formatUUID(note.ID), day); err != nil {
+			return nil, err
+		}
+		if granted {
+			if _, err = tx.Exec(ctx, `UPDATE quick_notes SET status='enrichment_pending' WHERE id=$1 AND learner_id=$2`, note.ID, learnerUUID); err != nil {
+				return nil, err
+			}
+			note.Status = "enrichment_pending"
+		}
+	}
+	if !voice || granted {
+		if _, err = queue.InsertTx(ctx, tx, NoteEnrichArgs{LearnerID: learnerID, NoteID: formatUUID(note.ID), ExpectedVersion: int(note.RawVersion)}, nil); err != nil {
+			return nil, err
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+	if granted {
+		s.emitFormatGranted(ctx, learnerID, formatUUID(note.ID), "free")
 	}
 	meta := s.AnalyticsMetadata(ctx)
 	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, utf8.RuneCountInString(input.RawText), meta.Platform, meta.AppVersion)
@@ -332,6 +368,12 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 	if input.Anchor != nil {
 		a := &AnchorDTO{PlaybackMs: input.Anchor.PlaybackMs, Rect: input.Anchor.Rect, Input: input.Anchor.Input, SourceState: "available"}
 		dto.Anchor = a
+	}
+	if voice {
+		dto.FormatOffer = !granted
+		if t, e := s.FormatTurns(ctx, learnerID); e == nil {
+			dto.FreeFormatsLeft = &t.Left
+		}
 	}
 	if input.Chat != nil {
 		dto.ChatSource = &ChatSourceDTO{State: "available", ThreadID: &input.Chat.ThreadID, MessageID: &input.Chat.MessageID}
@@ -396,6 +438,9 @@ func (s *Service) GetNote(ctx context.Context, learnerID, noteID string) (*NoteD
 	if err = s.attachAnchors(ctx, learnerID, one); err != nil {
 		return nil, err
 	}
+	if err = s.attachFormatting(ctx, learnerID, one); err != nil {
+		return nil, err
+	}
 	return &one[0], nil
 }
 
@@ -421,6 +466,9 @@ func (s *Service) ListNotes(ctx context.Context, learnerID string) ([]NoteDTO, e
 	if err = s.attachAnchors(ctx, learnerID, dtos); err != nil {
 		return nil, err
 	}
+	if err = s.attachFormatting(ctx, learnerID, dtos); err != nil {
+		return nil, err
+	}
 	return dtos, nil
 }
 
@@ -442,8 +490,33 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/notes")
 	path = strings.TrimPrefix(path, "/")
 
+	if path == "format-turns" && r.Method == http.MethodGet {
+		turns, err := s.FormatTurns(r.Context(), learnerID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to read format turns")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(turns)
+		return
+	}
 	switch r.Method {
 	case http.MethodPost:
+		if strings.HasSuffix(path, "/format") {
+			formatted, err := s.FormatNote(r.Context(), learnerID, strings.TrimSuffix(path, "/format"))
+			switch {
+			case errors.Is(err, ErrNotFound):
+				respondError(w, http.StatusNotFound, "note not found")
+			case errors.Is(err, ErrFormatNotAvailable):
+				respondError(w, http.StatusConflict, "format not available for this note")
+			case err != nil:
+				respondError(w, http.StatusInternalServerError, "failed to format note")
+			default:
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(formatted)
+			}
+			return
+		}
 		if strings.HasSuffix(path, "/enrich") {
 			noteID := strings.TrimSuffix(path, "/enrich")
 			if err := s.ProcessEnrichment(r.Context(), learnerID, noteID); err != nil {

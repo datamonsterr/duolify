@@ -117,9 +117,11 @@ var piiRules = []piiRule{
 	{"outline_proposals", "result_outline", `NULL`},
 	{"publication_drafts", "changelog", redacted},
 	{"publication_drafts", "snapshot", emptyObj},
+	{"quick_note_enrichments", "formatted_body", redacted},
 	{"quick_note_enrichments", "links", `'{}'`},
 	{"quick_note_enrichments", "summary", redacted},
 	{"quick_note_enrichments", "tags", `'{}'`},
+	{"quick_note_enrichments", "title", redacted},
 	{"guided_chat_drafts", "answers", emptyObj},
 	{"quick_notes", "raw_text", redacted},
 	{"quick_notes", "slide_title", redacted},
@@ -145,7 +147,7 @@ course_replan_proposals.decision course_replan_proposals.reason
 moderation_actions.target_type moderation_actions.action moderation_actions.reason_code moderation_actions.prior_verdict courses.moderation_state moderation_appeals.status content_reports.target_type content_reports.reason content_reports.status moderation_queue_items.target_type moderation_queue_items.status course_reviews.verdict course_review_screenings.verdict course_review_screenings.reason_codes course_review_screenings.policy_version
 character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
 character_versions.compile_sha256 character_suppressions.snapshot_id character_suppressions.reason_code shared_character_assets.object_key
-course_invite_deliveries.channel course_invites.cancel_reason course_invites.method
+quick_notes.format_grant course_invite_deliveries.channel course_invites.cancel_reason course_invites.method
 course_copies.content_hash course_copies.source course_copies.example_slug course_enrollments.level_override shared_asset_retention.prefix course_object_purges.prefix
 course_lesson_stubs.reused_from_snapshot courses.visibility marketplace_listings.category marketplace_listings.language
 credit_check_ins.time_zone

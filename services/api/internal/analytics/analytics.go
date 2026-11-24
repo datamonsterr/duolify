@@ -107,7 +107,7 @@ func allowlisted(event string) bool {
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied", "character_voice_fallback", "character_snapshot_published",
 		"check_in_credits_granted", "daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
-		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
+		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_format_granted", "quick_note_format_refunded", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
 		"marketplace_browsed", "marketplace_searched", "course_viewed", "example_courses_viewed", "example_course_enrolled",
@@ -793,6 +793,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		numeric("length")
 		if src, ok := input["entry_point"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
 			out["entry_point"] = src
+		}
+	case "quick_note_format_granted", "quick_note_format_refunded":
+		ids("note_id")
+		numeric("free_left")
+		if kind, ok := input["kind"].(string); ok && (kind == "free" || kind == "paid") {
+			out["kind"] = kind
 		}
 	case "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted":
 		ids("note_id", "reason", "error_code")
