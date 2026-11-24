@@ -208,7 +208,13 @@ export function GuidedScriptChat({
 
   // Final submit once, after the confirm card is answered.
   useEffect(() => {
-    if (!complete || submitted.current || status === "done") return;
+    if (
+      !complete ||
+      submitted.current ||
+      status === "done" ||
+      status === "failed"
+    )
+      return;
     if (needsNetwork && !online) return;
     submitted.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect

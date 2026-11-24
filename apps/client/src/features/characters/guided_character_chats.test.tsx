@@ -105,6 +105,8 @@ describe("character.create", () => {
       await screen.findByRole("button", { name: "Create character" }),
     );
     await said("That didn't go through. Try again.");
+    // A failed save waits for the Learner; it never retries on its own.
+    expect(characterLibrary.createV2).toHaveBeenCalledTimes(1);
     fireEvent.click(await screen.findByText("Try again"));
     await waitFor(() =>
       expect(characterLibrary.createV2).toHaveBeenCalledTimes(2),
