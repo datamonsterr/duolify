@@ -52,17 +52,8 @@ printf 'key=apt-playwright-%s-%s-%s-%s\n' "${ImageOS:?}" "${ImageVersion:?}" "$(
 '''
 
 ["ci:tauri-deps"]
-description = "Install Tauri 2 Linux prerequisites (WebKitGTK 4.1); downloads are kept in ~/.cache/apt-archives for actions/cache"
-run = '''
-set -eu
-archives="$HOME/.cache/apt-archives"
-mkdir -p "$archives/partial"
-sudo apt-get update -qq -o Acquire::Retries=3
-sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Dir::Cache::archives="$archives" \
-  libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
-  build-essential curl wget file libxdo-dev libssl-dev \
-  libayatana-appindicator3-dev librsvg2-dev
-'''
+description = "Install Tauri Linux prerequisites from the runner-specific apt cache"
+run = "bash scripts/ci/tauri-deps.sh"
 
 ["ci:playwright-deps"]
 description = "Install Chromium system dependencies, including on browser cache hits"
