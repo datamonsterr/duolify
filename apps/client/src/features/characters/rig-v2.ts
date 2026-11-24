@@ -1,21 +1,14 @@
 import partsJson from "../../../../../services/api/internal/characters/rig/parts.v2.json";
 import {
   EXPRESSIONS_V2,
+  POSES,
   type CharacterSpecV2,
   type ExpressionV2,
   type Pose,
 } from "./types-v2";
 
 export type RigView = "avatar" | "body";
-export const POSES: Pose[] = [
-  "idle",
-  "talk",
-  "point",
-  "think",
-  "celebrate",
-  "wave",
-  "shrug",
-];
+export { POSES };
 
 type Node = string | Node[] | Record<string, unknown> | null | undefined;
 interface Library {

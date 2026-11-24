@@ -145,7 +145,7 @@ pub fn log_promotion_status(service: &Service) {
     }
 }
 /// Every model-backed RPC and the Golden set task whose live pass enables it.
-pub const GATED: [(&str, &str); 16] = [
+pub const GATED: [(&str, &str); 17] = [
     ("PreviewCourse", "course_preview"),
     ("GenerateCourseOutline", "course_outline"),
     ("GenerateLesson", "lesson_slides"),
@@ -161,6 +161,7 @@ pub const GATED: [(&str, &str); 16] = [
     ("ScreenCourse", "course_screen"),
     ("ScreenReview", "screen_review"),
     ("MapCharacter", "character_create"),
+    ("MapCharacter", "character_spec"),
     ("Transcribe", "transcribe"),
 ];
 type RpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
@@ -391,6 +392,7 @@ fn slides(c: &Completion, require_topics: bool) -> Result<Vec<pb::Slide>, Status
                         speaker_key: s["speaker_key"].as_str().unwrap_or_default().into(),
                         text: s["text"].as_str().unwrap_or_default().into(),
                         expression: s["expression"].as_str().unwrap_or_default().into(),
+                        pose: s["pose"].as_str().unwrap_or_default().into(),
                         start_ms: s["start_ms"].as_u64().unwrap_or(0) as u32,
                         duration_ms: s["duration_ms"].as_u64().unwrap_or(0) as u32,
                     })
@@ -818,7 +820,16 @@ impl EngineService for Service {
     ) -> Result<Response<pb::MapCharacterResponse>, Status> {
         let req = request.into_inner();
         // E10-06: no env switch can promote this feature; only live character_create evidence.
-        self.live_model("MapCharacter", "character_create")?;
+        let task = match req.draft_schema_version {
+            0 | 1 => "character_create",
+            2 => "character_spec",
+            _ => {
+                return Err(Status::invalid_argument(
+                    "unsupported Character draft version",
+                ));
+            }
+        };
+        self.live_model("MapCharacter", task)?;
         let b = req
             .limits
             .ok_or_else(|| Status::invalid_argument("quote bounds required"))?;
@@ -849,12 +860,36 @@ impl EngineService for Service {
             cache_read_nanos: b.cache_read_nanos,
             deadline_unix_ms: b.deadline_unix_ms,
         };
+        if req.draft_schema_version == 2 {
+            let (out, attributes) = engine_core::characters::attributes::map_attributes(
+                &self.router,
+                &req.prompt,
+                &limits,
+            )
+            .await
+            .map_err(|_| Status::unavailable("provider_unavailable"))?;
+            return Ok(Response::new(pb::MapCharacterResponse {
+                attributes_json: if attributes.complete {
+                    attributes.json()
+                } else {
+                    String::new()
+                },
+                partial_attributes_json: if !attributes.complete && !attributes.values.is_empty() {
+                    attributes.json()
+                } else {
+                    String::new()
+                },
+                attempts: out.attempts.iter().map(attempt_usage).collect(),
+                ..Default::default()
+            }));
+        }
         let out = engine_core::characters::map_character(&self.router, &req.prompt, &limits)
             .await
             .map_err(|_| Status::unavailable("provider_unavailable"))?;
         Ok(Response::new(pb::MapCharacterResponse {
             spec_json: out.completion.map(|c| c.text).unwrap_or_default(),
             attempts: out.attempts.iter().map(attempt_usage).collect(),
+            ..Default::default()
         }))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]

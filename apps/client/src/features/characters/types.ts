@@ -1,4 +1,4 @@
-import type { CharacterSpecV2 } from "./types-v2";
+import type { CharacterSpecV2, ExpressionV2, Pose } from "./types-v2";
 export type Expression = "idle" | "happy" | "sad" | "thinking" | "celebrate";
 
 export type BodyShape = "round" | "bean" | "star";
@@ -82,7 +82,8 @@ export interface SlideSegment {
   speaker_key: string;
   speaker_label: string;
   text: string;
-  expression: Expression;
+  expression: ExpressionV2;
+  pose?: Pose;
   start_ms: number;
   duration_ms: number;
   narration?: SegmentNarration;

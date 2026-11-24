@@ -1221,6 +1221,28 @@ async fn evaluate_narration(input: &serde_json::Value) -> Result<String> {
 }
 
 async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
+    if let Some(responses) = input["recorded_attributes"].as_array() {
+        let responses = responses
+            .iter()
+            .map(|value| {
+                Some(engine_core::Completion {
+                    text: value.to_string(),
+                    input_tokens: 200,
+                    output_tokens: 100,
+                    ..Default::default()
+                })
+            })
+            .collect();
+        let provider = Arc::new(RecordedCredits(Mutex::new(responses)));
+        let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+        let (outcome, proposal) = engine_core::characters::attributes::map_attributes(
+            &router,
+            input["prompt"].as_str().unwrap_or_default(),
+            &crate::live::character_attributes_limits(input),
+        )
+        .await?;
+        return Ok(crate::live::character_attributes_output(outcome, proposal).text);
+    }
     if task == "character_snapshot" || input.get("snapshot_case").is_some() {
         let cast = input["published_cast"].clone();
         let before = serde_json::to_vec(&cast)?;

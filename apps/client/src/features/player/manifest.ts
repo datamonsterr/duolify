@@ -2,6 +2,12 @@ import { session } from "../accounts/session";
 import { bridgeScript } from "../lesson-player/bridge";
 import { openLesson, preparedDocument } from "./cache";
 import type { LessonCastSnapshot, SlideSegment } from "../characters/types";
+import {
+  EXPRESSIONS_V2,
+  POSES,
+  type ExpressionV2,
+  type Pose,
+} from "../characters/types-v2";
 export type Checkpoint = { id: string; at_ms: number };
 export type ManifestSlide = {
   html_sha256: string;
@@ -42,7 +48,6 @@ const record = (value: unknown): value is Record<string, unknown> =>
 function omit(value: Record<string, unknown>, name: string) {
   return Object.fromEntries(Object.entries(value).filter(([k]) => k !== name));
 }
-const expressions = ["idle", "happy", "sad", "thinking", "celebrate"];
 function validCast(value: unknown) {
   if (value === undefined) return true;
   if (!record(value) || !record(value.speakers)) return false;
@@ -106,17 +111,15 @@ function validSegmentNarration(
 function validSegments(
   value: unknown,
   duration: number,
-  cast?: unknown,
   lesson = "",
   slide = "",
 ) {
   if (value === undefined) return true;
   if (!Array.isArray(value) || value.length > 12) return false;
-  const known = record(cast) && record(cast.speakers) ? cast.speakers : {};
   return value.every(
     (s, index) =>
       record(s) &&
-      keys(omit(s, "narration"), [
+      keys(omit(omit(s, "narration"), "pose"), [
         "speaker_key",
         "speaker_label",
         "text",
@@ -127,13 +130,13 @@ function validSegments(
       validSegmentNarration(lesson, slide, index, s.narration) &&
       typeof s.speaker_key === "string" &&
       id.test(s.speaker_key) &&
-      Object.prototype.hasOwnProperty.call(known, s.speaker_key) &&
       typeof s.speaker_label === "string" &&
       s.speaker_label.length <= 100 &&
       typeof s.text === "string" &&
       s.text.length > 0 &&
       s.text.length <= 280 &&
-      expressions.includes(String(s.expression)) &&
+      EXPRESSIONS_V2.includes(s.expression as ExpressionV2) &&
+      (s.pose === undefined || POSES.includes(s.pose as Pose)) &&
       Number.isSafeInteger(s.start_ms) &&
       Number.isSafeInteger(s.duration_ms) &&
       Number(s.start_ms) >= 0 &&
@@ -295,7 +298,6 @@ export function isManifest(value: unknown): value is Manifest {
       !validSegments(
         slide.segments,
         Number(slide.duration_ms),
-        value.cast,
         String(value.lesson_id),
         slide.slide_id,
       ) ||

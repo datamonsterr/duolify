@@ -28,7 +28,7 @@ pub const CANONICAL_TASKS: [&str; 6] = [
 /// Every launch AI feature's task: the engine-server `GATED` tasks plus `lesson_narration`.
 /// The ready pipeline fails when committed evidence does not promote all of them
 /// (`duolify-eval evidence --require-launch`); engine-server tests keep the lists in step.
-pub const LAUNCH_TASKS: [&str; 17] = [
+pub const LAUNCH_TASKS: [&str; 18] = [
     "course_preview",
     "course_outline",
     "lesson_slides",
@@ -44,6 +44,7 @@ pub const LAUNCH_TASKS: [&str; 17] = [
     "course_screen",
     "screen_review",
     "character_create",
+    "character_spec",
     "lesson_narration",
     "transcribe",
 ];
@@ -170,6 +171,18 @@ pub const SOURCES: &[(&str, &str)] = &[
     (
         "engine-core/src/characters/mod.rs",
         include_str!("../characters/mod.rs"),
+    ),
+    (
+        "engine-core/src/characters/attributes.rs",
+        include_str!("../characters/attributes.rs"),
+    ),
+    (
+        "services/api/internal/characters/schema/v2.json",
+        include_str!("../../../../../services/api/internal/characters/schema/v2.json"),
+    ),
+    (
+        "services/api/internal/characters/schema/species.v2.json",
+        include_str!("../../../../../services/api/internal/characters/schema/species.v2.json"),
     ),
     (
         "engine-core/src/characters/narrate.rs",

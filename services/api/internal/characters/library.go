@@ -74,7 +74,7 @@ var ErrNotFound = errors.New("not_found")
 
 func boundedReason(reason string) string {
 	switch reason {
-	case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable", "read_only":
+	case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "hateful_content", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable", "read_only":
 		return reason
 	}
 	return "screening_unavailable"

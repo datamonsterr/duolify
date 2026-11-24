@@ -365,6 +365,11 @@ impl LlmProvider for MockProvider {
             serde_json::json!({"verdict":verdict,"reason_codes":codes}).to_string()
         } else if data
             .as_ref()
+            .is_some_and(|v| v["task"] == "character_create" && v["draft_schema_version"] == 2)
+        {
+            r#"{"attributes":[{"field":"body.kind","value":"robot"}]}"#.to_owned()
+        } else if data
+            .as_ref()
             .is_some_and(|v| v["task"] == "character_create")
         {
             include_str!(

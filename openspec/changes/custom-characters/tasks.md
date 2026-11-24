@@ -91,7 +91,7 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 ## 9. Engine prompt to attributes mapping (not blocked; M)
 
 - [ ] 9.1 Golden cases first (see 14); then Engine structured-output mapping that returns only catalog ids and colours, never inferring attributes from names or nationalities; at most one repair or one fallback model.
-- [ ] 9.2 Paired additive proto change (API and Engine in one PR): `pose` on `CharacterSegment`, v2 spec transport; `buf breaking` clean.
+- [x] 9.2 Paired additive proto change (API and Engine in one PR): `pose` on `CharacterSegment`, v2 spec transport; `buf breaking` clean.
 - [ ] 9.3 Integration: prompt path returns a draft the Learner edits; credit reserve/settle/release unchanged (25 Credits, ADR 0013); on failure open the free selector pre-filled with any validated partial attributes.
 
 ## 10. Selector UI and live preview (L; unblocked with placeholder art, ship flag off until 8.3)
@@ -108,8 +108,8 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 ## 12. Cast references in Slides, chat and lists (M)
 
-- [ ] 12.1 E2E first: a generated Lesson shows two Characters with different poses and expressions per segment; missing or taken-down member renders the default; offline replay.
-- [ ] 12.2 Implement pose in manifest and player; avatars in Tutor chat header, Cast list and library; v1 segments without pose derive a pose from the expression.
+- [x] 12.1 E2E first: a generated Lesson shows two Characters with different poses and expressions per segment; missing or taken-down member renders the default; offline replay.
+- [x] 12.2 Implement pose in manifest and player; avatars in Tutor chat header, Cast list and library; v1 segments without pose derive a pose from the expression.
 
 ## 13. Mascot contract (S; after `conversational-flows-and-mascot` specs settle)
 

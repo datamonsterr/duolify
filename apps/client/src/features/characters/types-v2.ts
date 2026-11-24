@@ -9,6 +9,15 @@ export type ExpressionV2 =
   | "confused";
 export type Pose =
   "idle" | "talk" | "point" | "think" | "celebrate" | "wave" | "shrug";
+export const POSES: Pose[] = [
+  "idle",
+  "talk",
+  "point",
+  "think",
+  "celebrate",
+  "wave",
+  "shrug",
+];
 
 export interface Styled {
   style: string;

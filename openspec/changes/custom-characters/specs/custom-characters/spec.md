@@ -5,7 +5,7 @@ A Learner SHALL be able to create an original Character from a prompt specifying
 
 #### Scenario: Create from a prompt
 - **WHEN** a Learner submits an allowed prompt and confirms a funded quote
-- **THEN** one validated Character version is saved privately and the Learner can preview its appearance and info
+- **THEN** one validated draft is returned privately and the Learner can preview and edit it before saving one Character version
 
 #### Scenario: Failed regeneration
 - **WHEN** regeneration returns malformed or unsafe output after bounded attempts

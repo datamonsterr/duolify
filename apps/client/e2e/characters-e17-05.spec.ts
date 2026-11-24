@@ -1,15 +1,31 @@
 import { test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
+import { readFileSync } from "node:fs";
+import {
+  captureCharacterReview,
+  characterReviewViews,
+} from "./characters-review";
 
-for (const width of [1280, 390]) {
-  test(`pinned generated cast follows playback at ${width}px`, async ({
+const documents = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../services/api/internal/characters/schema/v2.fixtures.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+).cases;
+
+for (const view of characterReviewViews) {
+  test(`pinned generated cast follows playback at ${view.width}px ${view.color}`, async ({
     page,
     request,
+    context,
   }) => {
-    await page.setViewportSize({ width, height: 900 });
+    await page.setViewportSize({ width: view.width, height: view.height });
     await page.emulateMedia({
       reducedMotion: "reduce",
-      colorScheme: width === 390 ? "dark" : "light",
+      colorScheme: view.color,
     });
     await page.goto("/profile");
     const tokens = await page.evaluate(() =>
@@ -31,6 +47,12 @@ for (const width of [1280, 390]) {
       );
       const manifest = await response.json();
       manifest.cast = fixture.cast;
+      manifest.cast.speakers.guide.document = documents.find(
+        (c: { name: string }) => c.name === "valid robot",
+      ).spec;
+      manifest.cast.speakers.supporter.document = documents.find(
+        (c: { name: string }) => c.name === "valid animal",
+      ).spec;
       for (const slide of manifest.slides)
         slide.segments = [
           {
@@ -38,6 +60,7 @@ for (const width of [1280, 390]) {
             speaker_label: "Pinned guide",
             text: "Observe the sky.",
             expression: "happy",
+            pose: "point",
             start_ms: 0,
             duration_ms: 1500,
           },
@@ -46,10 +69,18 @@ for (const width of [1280, 390]) {
             speaker_label: "Pinned supporter",
             text: "Earth turns.",
             expression: "thinking",
+            pose: "wave",
             start_ms: 1500,
             duration_ms: 1500,
           },
         ];
+      manifest.slides[1].segments[1].speaker_key = "supporter_2";
+      manifest.cast.speakers.supporter_2 = {
+        ...manifest.cast.speakers.supporter,
+        speaker_key: "supporter_2",
+        suppressed: true,
+      };
+      manifest.slides[2].segments[1].speaker_key = "missing";
       await route.fulfill({ json: manifest });
     });
     await page.goto(`/lesson/${lesson_id}`);
@@ -57,11 +88,20 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     const frame = page.frameLocator('iframe[title="Slide 1"]');
     const time = page.getByRole("slider", { name: "Slide time" });
+    await time.fill("0");
+    await expect(
+      frame.locator('[data-speaker-key="guide"] svg'),
+    ).toHaveAttribute("data-pose", "point");
     await time.fill("1800");
     await expect(
       frame.locator('[data-speaker-key="supporter"]'),
     ).toHaveAttribute("data-expression", "thinking");
+    await expect(
+      frame.locator('[data-speaker-key="supporter"] svg'),
+    ).toHaveAttribute("data-pose", "wave");
     await expect(frame.locator("#dialogue-text")).toHaveText("Earth turns.");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await captureCharacterReview(page, "lesson", view);
     await page.getByRole("button", { name: "Speed 1x", exact: true }).click();
     await expect(time).toHaveValue("1800");
     await time.fill("0");
@@ -76,5 +116,32 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     await time.fill("1800");
     await expect(frame.locator("#dialogue-text")).toHaveText("Earth turns.");
+    await expect(page.getByText("Available offline")).toBeVisible();
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+    });
+    await context.setOffline(true);
+    await page.route("**/v1/**", (route) =>
+      route.abort("internetdisconnected"),
+    );
+    await page.reload();
+    await expect(page.getByText("Available offline")).toBeVisible();
+    await expect(
+      frame.locator('[data-speaker-key="guide"] svg'),
+    ).toHaveAttribute("data-pose", "point");
+    for (const [index, key, reason] of [
+      [2, "supporter_2", "suppressed"],
+      [3, "missing", "missing_speaker"],
+    ] as const) {
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      const fallback = page.frameLocator(`iframe[title="Slide ${index}"]`);
+      await expect(
+        fallback.locator(`[data-speaker-key="${key}"] svg`),
+      ).toBeVisible();
+      await expect(fallback.locator(".cast-stage")).toHaveAttribute(
+        "data-cast-fallback",
+        new RegExp(reason),
+      );
+    }
   });
 }

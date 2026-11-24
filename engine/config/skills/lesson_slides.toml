@@ -86,9 +86,9 @@ description = "The request carries character_personas."
 tasks = ["lesson_slides"]
 version = 1
 order = 70
-tokens = 69
+tokens = 110
 default = false
-body = """Skill character_cast: each slide may list segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate. Keep the speakers in turn and each persona's voice recognisable."""
+body = """Skill character_cast: each slide may list segments[] {speaker_key,text,pose,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, pose one of idle|talk|point|think|celebrate|wave|shrug, expression one of idle|happy|sad|thinking|celebrate|surprised|confused. Pick a pose and an expression independently for each segment. Keep the speakers in turn and each persona's voice recognisable."""
 
 [[skill]]
 id = "age_band_tone"

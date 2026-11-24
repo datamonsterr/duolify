@@ -128,11 +128,16 @@ message SynthesizeNarrationResponse {
 message MapCharacterRequest {
   string prompt = 1;
   UsageLimits limits = 2;
+  // Zero requests the legacy v1 spec. Two requests catalog-only attributes for a v2 draft.
+  uint32 draft_schema_version = 3;
 }
 
 message MapCharacterResponse {
   string spec_json = 1;
   repeated Usage attempts = 2;
+  string attributes_json = 3;
+  // Safe catalog attributes salvaged from an undeliverable response.
+  string partial_attributes_json = 4;
 }
 
 message ScreenCharacterRequest {
@@ -334,6 +339,8 @@ message CharacterSegment {
   string expression = 3;
   uint32 start_ms = 4;
   uint32 duration_ms = 5;
+  // Empty on v1 segments; the player derives a pose from the expression.
+  string pose = 6;
 }
 
 message Question {

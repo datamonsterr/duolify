@@ -95,7 +95,7 @@ func TestApprovedCharacterPricingLifecycle(t *testing.T) {
 		}
 	}
 	t.Setenv("PRICING_OWNER_ID", owner)
-	job, err := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "approved-create", Prompt: "An original moon gardener"})
+	job, err := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "approved-create", Prompt: "A tall robot", DraftSchemaVersion: characters.SchemaV2})
 	if err != nil || job.Quote == nil {
 		t.Fatalf("quote=%+v err=%v", job, err)
 	}
@@ -126,7 +126,8 @@ func TestApprovedCharacterPricingLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := s.GetCreate(ctx, owner, job.ID)
-	if err != nil || result.State != "succeeded" {
+	if err != nil || result.State != "succeeded" || result.Character != nil || result.Draft == nil ||
+		result.Draft.Body.Kind != "robot" || result.Draft.Body.Height != "tall" {
 		t.Fatalf("result=%+v %v", result, err)
 	}
 	after, err := wallet.GetWallet(ctx, owner)
@@ -137,7 +138,23 @@ func TestApprovedCharacterPricingLifecycle(t *testing.T) {
 	if err := f.DB.Pool.QueryRow(ctx, `SELECT -coalesce(sum(amount),0) FROM credit_entries WHERE learner_id=$1 AND kind='spend'`, owner).Scan(&spent); err != nil || spent != 25 {
 		t.Fatalf("spent=%d %v", spent, err)
 	}
-	regen, err := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "approved-regenerate", Prompt: "A different original gardener", CharacterID: result.Character.ID, ExpectedVersion: 1})
+	if records, err := s.List(ctx, owner); err != nil || len(records) != 0 {
+		t.Fatalf("draft appeared in the library before review: %+v %v", records, err)
+	}
+	result.Draft.Info.Name = "Moon gardener"
+	draft, err := json.Marshal(result.Draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := s.CreateBySelectors(ctx, owner, characters.SelectorCreateRequest{Spec: draft})
+	if err != nil || saved.Document == nil || saved.Document.Info.Name != "Moon gardener" {
+		t.Fatalf("save draft=%+v %v", saved, err)
+	}
+	afterEdit, err := wallet.GetWallet(ctx, owner)
+	if err != nil || afterEdit.Purchased != after.Purchased || afterEdit.Reserved != 0 {
+		t.Fatalf("selector charged after mapping: %+v %v", afterEdit, err)
+	}
+	regen, err := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "approved-regenerate", Prompt: "A different original gardener", CharacterID: saved.ID, ExpectedVersion: 1, DraftSchemaVersion: characters.SchemaV2})
 	if err != nil || regen.Quote == nil || regen.Quote.ContentCeiling != 25 || regen.Quote.DailyFreeEligible {
 		t.Fatalf("regen=%+v %v", regen, err)
 	}

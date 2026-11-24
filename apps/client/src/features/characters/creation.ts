@@ -1,5 +1,6 @@
 import { session } from "../accounts/session";
 import type { CharacterRecord } from "./library";
+import type { CharacterSpecV2 } from "./types-v2";
 export type CreateJob = {
   id: string;
   state: string;
@@ -12,7 +13,17 @@ export type CreateJob = {
     expires_at?: string;
   };
   character?: CharacterRecord;
+  draft?: CharacterSpecV2;
+  target?: CharacterRecord;
 };
+export const characterJobRecoveryKey = () =>
+  `duolify.character-job.${session.current()?.id ?? "session"}`;
+
+export function forgetCharacterJob(id: string) {
+  const key = characterJobRecoveryKey();
+  if (sessionStorage.getItem(key) === id) sessionStorage.removeItem(key);
+}
+
 export const characterCreation = {
   availability: () =>
     session.request<{
@@ -25,6 +36,7 @@ export const characterCreation = {
     prompt: string;
     character_id?: string;
     expected_version?: number;
+    draft_schema_version?: 2;
   }) => session.request<CreateJob>("/v1/characters/jobs", "POST", input),
   confirm: (id: string, quote: string) =>
     session.request<CreateJob>(`/v1/characters/jobs/${id}/confirm`, "POST", {

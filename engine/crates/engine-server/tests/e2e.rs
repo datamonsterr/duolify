@@ -112,6 +112,7 @@ async fn all_rpcs() {
                 fallback_model: "z-ai/glm-5.3-flash".into(),
                 ..Default::default()
             }),
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -122,7 +123,7 @@ async fn all_rpcs() {
     assert!(
         c.map_character(pb::MapCharacterRequest {
             prompt: "original".into(),
-            limits: None
+            ..Default::default()
         })
         .await
         .is_err()

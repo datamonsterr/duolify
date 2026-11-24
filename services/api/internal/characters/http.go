@@ -137,7 +137,7 @@ func (h *Handler) library(w http.ResponseWriter, r *http.Request) {
 			setRetryAfter(w, err)
 		case "version_conflict", "published_cast_locked", "read_only":
 			status = 409
-		case "invalid_spec", "invalid_cast", "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection":
+		case "invalid_spec", "invalid_cast", "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "hateful_content", "prompt_injection":
 		default:
 			code = "unavailable"
 			status = 503

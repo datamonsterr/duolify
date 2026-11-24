@@ -542,7 +542,10 @@ E12-07: Verify external mappings and catalogue economics. Introduces `pricing_ve
 
 E17-04: `character_create_jobs` contains learner-scoped idempotency keys,
 operation/state, pinned quote and opaque reservation references, transient prompt
-payloads and accepted immutable Character results. Private data is exportable;
+payloads, accepted legacy Character results, and validated v2 selector drafts.
+V2 prompt jobs store their draft with settlement, while the free selector
+validates and screens the chosen document when saving a Character version.
+Private data is exportable;
 account deletion cascades jobs and linked screenings, erasure tombstones replay
 before serving restore. Character deletion purges its job payloads within 30 days;
 independent Lesson snapshots survive under their own policy. Prompts expire at

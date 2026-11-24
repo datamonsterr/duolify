@@ -7,7 +7,9 @@ import { compileRigSvg } from "./rig";
 import { validateCharacterSpec } from "./schema";
 import "./characters.css";
 import { CreateCharacter } from "./CreateCharacter";
+import { forgetCharacterJob } from "./creation";
 import { CharacterCreator } from "./CharacterCreator";
+import { CastAvatar } from "./CastAvatar";
 import { CharacterPreview as CharacterPreviewV2 } from "./CharacterPreview";
 import type { CharacterSpecV2 } from "./types-v2";
 import { AppLink } from "../../lib/navigation";
@@ -55,9 +57,12 @@ export function CharacterLibrary() {
     CharacterRecord | undefined
   >();
   const [selected, setSelected] = useState<CharacterRecord | null>(null);
-  const [creator, setCreator] = useState<{ record?: CharacterRecord } | null>(
-    null,
-  );
+  const [creator, setCreator] = useState<{
+    record?: CharacterRecord;
+    draft?: CharacterSpecV2;
+    draftFailure?: string;
+    promptJob?: string;
+  } | null>(null);
   const t = useCharacterT();
   const [draft, setDraft] = useState<CharacterSpec | null>(null);
   const [deleting, setDeleting] = useState<CharacterRecord | null>(null);
@@ -139,13 +144,21 @@ export function CharacterLibrary() {
         <CharacterCreator
           key={creator.record?.id ?? "new"}
           record={creator.record}
-          onClose={() => setCreator(null)}
+          draft={creator.draft}
+          draftFailure={creator.draftFailure}
+          onClose={() => {
+            if (creator.promptJob) forgetCharacterJob(creator.promptJob);
+            setCreator(null);
+            setError("");
+          }}
           onSaved={(record) => {
             setRecords((current) => [
               ...(current ?? []).filter((r) => r.id !== record.id),
               record,
             ]);
-            if (!creator.record) setCreator(null);
+            if (creator.promptJob) forgetCharacterJob(creator.promptJob);
+            if (!creator.record || creator.promptJob) setCreator(null);
+            setError("");
           }}
         />
       )}
@@ -158,6 +171,30 @@ export function CharacterLibrary() {
         <CreateCharacter
           key={regenerating?.id ?? "new"}
           record={regenerating}
+          onDraft={(job) => {
+            const target = job.target ?? regenerating;
+            const existing = target?.document;
+            const draft = job.draft;
+            setCreator({
+              record: target,
+              draft:
+                existing && draft
+                  ? {
+                      ...draft,
+                      info: existing.info,
+                      identity: existing.identity,
+                      personality: existing.personality,
+                      voice_key: existing.voice_key,
+                    }
+                  : draft,
+              promptJob: job.id,
+              draftFailure:
+                job.state === "failed"
+                  ? `${job.reason_code || job.state}. No character credits were spent.`
+                  : undefined,
+            });
+            setRegenerating(undefined);
+          }}
           onCreated={(record) => {
             setRecords((current) => [
               ...(current ?? []).filter((r) => r.id !== record.id),
@@ -202,7 +239,11 @@ export function CharacterLibrary() {
               <h2>{record.spec.info.name}</h2>
               <p>{record.spec.info.bio}</p>
               <small>Version {record.version} · Private</small>
-              <CharacterPreview spec={record.spec} document={record.document} />
+              <CastAvatar
+                spec={record.spec}
+                document={record.document}
+                size={96}
+              />
               <Button
                 onClick={() => {
                   setSelected(record);
