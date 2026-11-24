@@ -351,23 +351,65 @@ fn lesson_rules() -> String {
     )
 }
 
-/// Skill ids for a routed lesson, in priority order: skills decided by rule from request fields
-/// (locale, character cast), then the task's default set. Skills that need a content judgement
-/// (diagram, code, math, table, timeline) wait for the router and are not chosen here.
-pub fn lesson_skill_ids(locale: &str, has_cast: bool) -> Vec<String> {
-    let mut ids = Vec::new();
+/// Skills decided by rule, never by the model: narration pacing always, then locale, cast and
+/// learner level. (`steering_focus` is not a skill: steering already rides in the policy.)
+pub const RULE_SKILLS: &[&str] = &[
+    "narration_pacing",
+    "language_practice",
+    "character_cast",
+    "age_band_tone",
+];
+
+/// Rule-decided skill ids for a routed lesson, in priority order.
+pub fn lesson_skill_ids(locale: &str, has_cast: bool, level: &str) -> Vec<String> {
+    let mut ids = vec!["narration_pacing".to_string()];
     if !locale.is_empty() && !locale.to_ascii_lowercase().starts_with("en") {
         ids.push("language_practice".to_string());
     }
     if has_cast {
         ids.push("character_cast".to_string());
     }
-    if let Some(ts) = crate::skills::bundled().task("lesson_slides") {
-        let mut defaults: Vec<_> = ts.skills.values().filter(|s| s.default).collect();
-        defaults.sort_by(|a, b| (a.order, &a.id).cmp(&(b.order, &b.id)));
-        ids.extend(defaults.into_iter().map(|s| s.id.clone()));
+    if !level.trim().is_empty() {
+        ids.push("age_band_tone".to_string());
     }
     ids
+}
+
+/// Rules, cache, decision model, then default set for a lesson. Never fails, never blocks
+/// longer than the router timeout.
+pub async fn select_lesson_skills(
+    locale: &str,
+    has_cast: bool,
+    level: &str,
+    title: &str,
+    goal: &str,
+    topic: &str,
+) -> crate::router::Selection {
+    let input = crate::router::RouterInput {
+        task: "lesson_slides".into(),
+        title: title.into(),
+        goal: goal.into(),
+        topic: topic.into(),
+        level: level.into(),
+        locale: locale.into(),
+        flags: if has_cast {
+            vec!["cast".into()]
+        } else {
+            vec![]
+        },
+    };
+    crate::router::select(
+        crate::skills::bundled(),
+        "lesson_slides",
+        lesson_skill_ids(locale, has_cast, level),
+        RULE_SKILLS,
+        &Default::default(),
+        &input,
+        crate::router::installed(),
+        crate::router::shared_cache(),
+        crate::router::TIMEOUT,
+    )
+    .await
 }
 
 /// The routed lesson prompt: `system` is the byte-stable core plus the picked skills, `user` the
@@ -376,7 +418,16 @@ pub fn routed_lesson_prompt(
     context: &str,
     ids: &[String],
 ) -> Result<crate::skills::Prompt, crate::skills::SkillError> {
-    crate::skills::bundled().assemble(
+    routed_lesson_prompt_in(crate::skills::bundled(), context, ids)
+}
+
+/// `routed_lesson_prompt` against an explicit library (tests, evals).
+pub fn routed_lesson_prompt_in(
+    lib: &crate::skills::Library,
+    context: &str,
+    ids: &[String],
+) -> Result<crate::skills::Prompt, crate::skills::SkillError> {
+    lib.assemble(
         "lesson_slides",
         &lesson_rules(),
         ids,

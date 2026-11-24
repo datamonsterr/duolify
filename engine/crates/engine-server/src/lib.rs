@@ -1389,8 +1389,18 @@ impl EngineService for Service {
         };
         let neutral = "Use a neutral default narrator style for every speaker_key in character_personas; ignore persona flavour.";
         let (system, prompts) = if routed {
-            let locale = req.learner.as_ref().map_or("", |l| l.locale.as_str());
-            let ids = engine_core::lessontest::lesson_skill_ids(locale, !cast.is_empty());
+            let learner = req.learner.as_ref();
+            let lesson = req.lesson.as_ref();
+            let selection = engine_core::lessontest::select_lesson_skills(
+                learner.map_or("", |l| l.locale.as_str()),
+                !cast.is_empty(),
+                learner.map_or("", |l| l.level.as_str()),
+                lesson.map_or("", |l| l.title.as_str()),
+                lesson.map_or("", |l| l.goal.as_str()),
+                learner.map_or("", |l| l.topic.as_str()),
+            )
+            .await;
+            let ids = selection.ids;
             let p = engine_core::lessontest::routed_lesson_prompt(&context_text, &ids)
                 .map_err(|e| Status::internal(e.to_string()))?;
             let prompts = if cast.is_empty() {

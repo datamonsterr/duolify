@@ -132,6 +132,15 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../../config/regions.toml"),
     ),
     ("engine-core/src/regions.rs", include_str!("../regions.rs")),
+    // Skill router (ADR 0025): decides which skills a routed prompt loads.
+    (
+        "engine-core/src/router/mod.rs",
+        include_str!("../router/mod.rs"),
+    ),
+    (
+        "engine-providers/src/decisions.rs",
+        include_str!("../../../engine-providers/src/decisions.rs"),
+    ),
     // Prompt skills (ADR 0025): the loader and every skill file shape what the model is asked.
     (
         "engine-core/src/skills/mod.rs",

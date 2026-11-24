@@ -1,3 +1,4 @@
+pub mod decisions;
 pub mod elevenlabs;
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
@@ -632,6 +633,11 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
         bail!("OPENROUTER_API_KEY must not be empty");
     }
     let url = "https://openrouter.ai/api/v1/chat/completions";
+    engine_core::router::install(Arc::new(decisions::DecisionsRouter::new(
+        openrouter.clone(),
+        decisions::ENDPOINT.into(),
+        decisions::ROUTER_MODEL.into(),
+    )));
     engine_core::ProviderRouter::new(
         Arc::new(HttpProvider::openrouter(openrouter.clone(), url.into())),
         Arc::new(HttpProvider::openrouter(openrouter, url.into())),
