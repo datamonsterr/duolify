@@ -17,7 +17,7 @@ Future implementation checklist; this change delivers specification and a measur
 ## 2. Provider system/user split and dynamic max_tokens (M)
 
 - [x] 2.1 Integration: `request_model` sends `system` (prefix) and `user` (data) for routed prompts and the single `user` message for monolithic prompts; steering policy envelope unchanged.
-- [ ] 2.2 Integration: `max_tokens` = min(task cap, ceiling-derived output) with task minimum; usage records `cached_input_tokens` and bills the cache-read rate.
+- [x] 2.2 (built: `eval::routed_max_tokens` for routed calls only, lesson cap 6,000, minimum 1,200, quote ceiling and USD room bound it; cache-read billing was already in `credits::check_usage` and the API settlement, and `Attempt` carries `cache_read_tokens`) Integration: `max_tokens` = min(task cap, ceiling-derived output) with task minimum; usage records `cached_input_tokens` and bills the cache-read rate.
 - [x] 2.3 Unit: layout has no volatile value before the first user byte; same prefix across two requests is byte-identical.
 - [x] 2.4 Implement; replace Rust `Debug` rendering of the lesson request (`format!("{context:?}")` in `engine-server`) with compact JSON behind the same switch and measure the token delta on the golden fixtures.
 
@@ -49,7 +49,7 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 ## 6. Caching layout and cost gate (S)
 
 - [ ] 6.1 Integration: two lessons with the same skills report cached input tokens against recorded usage; cache-read billing matches `prices.toml`.
-- [ ] 6.2 Unit: `services/api/internal/pricing/economics.go` protected-cost check uses the routed worst-case input bound; fixture for each routed task.
+- [x] 6.2 (routed worst case = quote input plus the skill budget, `routedPrefixTokens`; no routed fixture per task because the prefix table is checked against the skills files) Unit: `services/api/internal/pricing/economics.go` protected-cost check uses the routed worst-case input bound; fixture for each routed task.
 - [ ] 6.3 Implement the bound in `engine_route_check.go` and the quote path; no pricing version change.
 
 ## 7. Eval harness and golden cases (L)

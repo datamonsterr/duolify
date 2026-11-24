@@ -199,6 +199,28 @@ pub async fn run_bounded_checked<F: Fn(&str) -> std::result::Result<(), String>>
     .await
 }
 
+/// Output cap of a routed lesson (design.md section 6): a 1,961-token mean lesson leaves headroom
+/// without letting a runaway generation reach the quote ceiling.
+pub const LESSON_OUTPUT_CAP: u32 = 6000;
+/// A routed call never asks for fewer output tokens than this (unless the quote ceiling is lower).
+pub const ROUTED_OUTPUT_MIN: u32 = 1200;
+
+/// `max_tokens` of a routed prompt: the task cap, bounded by what the USD ceiling leaves after the
+/// estimated prompt, never below the task minimum and never above the quote's output ceiling.
+/// Monolithic prompts keep sending the quote ceiling unchanged.
+pub fn routed_max_tokens(task: &str, l: &Limits, est_input_tokens: u32) -> u32 {
+    let cap = if task == "lesson" {
+        LESSON_OUTPUT_CAP
+    } else {
+        u32::MAX
+    };
+    let input_cost =
+        u64::from(est_input_tokens).saturating_mul(l.input_nanos.max(l.cache_write_nanos));
+    let room = l.max_cost_nanos.saturating_sub(input_cost) / l.output_nanos.max(1);
+    let want = u64::from(cap).min(room).min(u64::from(u32::MAX)) as u32;
+    want.max(ROUTED_OUTPUT_MIN).min(l.output_tokens)
+}
+
 /// Per-call answer shape for a task route that serves several shapes (lesson generation versus
 /// retry variants on `lesson`).
 #[derive(Default, Clone)]
@@ -285,6 +307,13 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
         }
         route_cfg.system = shape.system.clone();
         let input = inputs[(index as usize).min(inputs.len() - 1)];
+        let max_out = shape.system.as_ref().map_or(l.output_tokens, |s| {
+            routed_max_tokens(
+                task,
+                l,
+                crate::skills::estimate_tokens(s) + crate::skills::estimate_tokens(input),
+            )
+        });
         // The repair turn only rides along while the whole request stays inside the envelope.
         route_cfg.repair = repair.take().filter(|r| {
             input.len() + r.previous.len() + r.message.len() <= l.input_tokens as usize
@@ -317,7 +346,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
         };
         let response = tokio::time::timeout(
             timeout_duration,
-            provider.complete_route(&route_cfg, input, l.output_tokens),
+            provider.complete_route(&route_cfg, input, max_out),
         )
         .await;
 

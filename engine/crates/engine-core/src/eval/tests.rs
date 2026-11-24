@@ -689,3 +689,109 @@ async fn a_silent_fallback_is_a_typed_first_token_timeout_not_a_third_provider()
         Some(&StreamFailure::FirstTokenTimeout)
     );
 }
+
+struct CaptureProvider(Arc<std::sync::atomic::AtomicU32>);
+
+#[async_trait]
+impl LlmProvider for CaptureProvider {
+    fn name(&self) -> &'static str {
+        "capture"
+    }
+    async fn complete(&self, model: &str, _input: &str) -> anyhow::Result<Completion> {
+        Ok(Completion {
+            text: "{}".into(),
+            provider: "capture".into(),
+            model: model.into(),
+            input_tokens: 10,
+            output_tokens: 10,
+            cache_write_tokens: 0,
+            cache_read_tokens: 6,
+            usage_unavailable: false,
+        })
+    }
+    async fn complete_bounded(
+        &self,
+        model: &str,
+        input: &str,
+        max_output: u32,
+    ) -> anyhow::Result<Completion> {
+        self.0
+            .store(max_output, std::sync::atomic::Ordering::SeqCst);
+        self.complete(model, input).await
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
+        anyhow::bail!("no stream")
+    }
+}
+
+fn limits_with_output(output_tokens: u32) -> Limits {
+    Limits {
+        input_tokens: 20_000,
+        output_tokens,
+        timeout_ms: 5_000,
+        max_attempts: 1,
+        max_cost_nanos: 100_000_000_000,
+        input_nanos: 35,
+        output_nanos: 140,
+        cache_write_nanos: 35,
+        cache_read_nanos: 2,
+        deadline_unix_ms: 0,
+    }
+}
+
+async fn sent_max_tokens(task: &str, system: Option<String>, out: u32) -> u32 {
+    let seen = Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let p: Arc<dyn LlmProvider> = Arc::new(CaptureProvider(seen.clone()));
+    let router = ProviderRouter::new(p.clone(), p).unwrap();
+    let shape = Shape {
+        system,
+        ..Default::default()
+    };
+    run_bounded_formatted(
+        &router,
+        task,
+        &["data"],
+        &limits_with_output(out),
+        shape,
+        |_| Ok(()),
+        true,
+    )
+    .await
+    .unwrap();
+    seen.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[tokio::test]
+async fn routed_calls_cap_max_tokens_and_monolithic_calls_keep_the_quote_ceiling() {
+    // Monolithic: the quote's ceiling, unchanged.
+    assert_eq!(sent_max_tokens("lesson", None, 9_000).await, 9_000);
+    // Routed lesson: the 6,000 cap; a lower quote ceiling still wins; the minimum holds.
+    assert_eq!(
+        sent_max_tokens("lesson", Some("core".into()), 9_000).await,
+        6_000
+    );
+    assert_eq!(
+        sent_max_tokens("lesson", Some("core".into()), 800).await,
+        800
+    );
+    assert_eq!(
+        sent_max_tokens("lesson", Some("core".into()), 1_500).await,
+        1_500
+    );
+    // Other routed tasks keep the quote ceiling.
+    assert_eq!(
+        sent_max_tokens("preview", Some("core".into()), 7_000).await,
+        7_000
+    );
+}
+
+#[test]
+fn routed_max_tokens_respects_the_usd_ceiling_and_the_minimum() {
+    let mut l = limits_with_output(9_000);
+    // Room for 3,000 output tokens only: 3,000 * 140 + 1,000 * 35 = 455,000.
+    l.max_cost_nanos = 455_000;
+    assert_eq!(routed_max_tokens("lesson", &l, 1_000), 3_000);
+    // Almost no room: the task minimum applies, bounded by the quote ceiling.
+    l.max_cost_nanos = 1_000;
+    assert_eq!(routed_max_tokens("lesson", &l, 1_000), ROUTED_OUTPUT_MIN);
+}
