@@ -40,6 +40,9 @@ test(
     expect(body).not.toContain(email);
     await expect(page.getByText(/Encrypted export downloaded\./)).toBeVisible();
     await flow.step("encrypted export downloaded");
+    // The chat dialog stays open after the export; close it before the next action.
+    await exportDialog.getByRole("status").getByRole("button").click();
+    await expect(exportDialog).toHaveCount(0);
 
     await account.getByRole("button", { name: "Delete account" }).click();
     const deleteDialog = page.getByRole("dialog", { name: "Delete account" });

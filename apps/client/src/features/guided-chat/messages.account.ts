@@ -11,7 +11,7 @@ export const accountEn = {
   "g.export.done": "Encrypted export downloaded.",
   "g.export.error": "We couldn't prepare that. Try again.",
   "g.delete.q":
-    "Delete your account? Data goes within 30 days. This can't be undone.",
+    "Delete your account? Data goes in 30 days; learners keep copies. No undo.",
   "g.delete.action": "Delete forever",
   "g.delete.error": "We couldn't delete that. Try again.",
   "g.account.reauth": "Verify your identity",
@@ -27,7 +27,7 @@ export const accountAr: Record<keyof typeof accountEn, string> = {
   "g.export.done": "تم تنزيل النسخة المشفّرة.",
   "g.export.error": "تعذّر التجهيز. حاول مرة أخرى.",
   "g.delete.q":
-    "Delete your account? Data goes in 30 days; learners keep copies.",
+    "هل تحذف حسابك؟ تُحذف بياناتك خلال 30 يومًا ويحتفظ المتعلمون بنسخهم. لا تراجع.",
   "g.delete.action": "احذف نهائيًا",
   "g.delete.error": "تعذّر الحذف. حاول مرة أخرى.",
   "g.account.reauth": "تحقّق من هويتك",
