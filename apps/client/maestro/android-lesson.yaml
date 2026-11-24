@@ -10,9 +10,6 @@ androidWebViewHierarchy: devtools
     maxRetries: 3
     commands:
       - tapOn: Courses
-      - extendedWaitUntil:
-          visible: Start Product Management Foundations
-          timeout: 30000
       - scrollUntilVisible:
           element: Start Product Management Foundations
       - tapOn: Start Product Management Foundations
