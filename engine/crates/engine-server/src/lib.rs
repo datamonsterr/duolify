@@ -1423,7 +1423,8 @@ impl EngineService for Service {
         // Validate bounds early; the boundary itself is rebuilt per prompt by hardened_prompt.
         engine_core::steering::prompt_section(&instructions)
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
-        let context_text = engine_core::lessontest::render_context(&context);
+        let context_json = serde_json::to_value(&context).map_err(|e| internal(e.into()))?;
+        let context_text = engine_core::lessontest::lesson_context(&context_json, None).to_string();
         let routed = engine_core::skills::bundled().mode("lesson_slides")
             == engine_core::skills::PromptMode::Routed;
         let personas = if cast.is_empty() {
@@ -1507,6 +1508,8 @@ impl EngineService for Service {
         };
         let generated_slides = slides(&c, true)?;
         let value = content(&c)?;
+        let quality_warnings = engine_core::lessontest::quality_warnings(&value);
+        tracing::info!(?quality_warnings, "lesson quality warnings");
         let test_questions: Vec<pb::Question> = serde_json::from_value::<
             Vec<engine_core::lessontest::retry::Question>,
         >(value["test"].clone())

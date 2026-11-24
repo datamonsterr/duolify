@@ -18,12 +18,12 @@ pub fn validate_narration(narration: &str, duration_ms: u32) -> Result<()> {
     if tag_re.is_match(trimmed) {
         bail!("narration text must not contain markup");
     }
-    // Rough speaking rate bounds: ~100 to 220 words per minute (~1.6 to 3.6 words per sec)
+    // Bound narration to at most 3.3 words per second.
     let word_count = trimmed.split_whitespace().count();
     let seconds = (duration_ms as f64) / 1000.0;
     if seconds > 0.0 {
         let words_per_sec = (word_count as f64) / seconds;
-        if words_per_sec > 6.0 {
+        if words_per_sec > 3.3 {
             bail!("narration length exceeds slide duration bounds");
         }
     }
@@ -331,7 +331,7 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
 }
 
 /// The JSON contract every generated lesson answers (`validate_lesson` enforces it).
-pub const LESSON_SHAPE: &str = "Return one JSON object with title, slides (slide_id, html, narration, duration_ms, topic_ids), test and variant_pool (topic_id, variants). Keep it short: 2 to 4 slides teaching 1 or 2 topic_ids. Slide html has one root element id=\"root\" and inline CSS only: no scripts, URLs, HTML entities or backslashes. narration is plain text; duration_ms is 3000 to 60000 and at least 400 per narration word. Test: one question per taught topic_id, unique question_ids, 2 to 6 different choices. variant_pool: one variant per tested topic with a new question_id, variant_of set to the test question_id, a reworded prompt, the same choice texts in a different order and answer_index on the same correct text.";
+pub const LESSON_SHAPE: &str = "Return one JSON object with title, slides (slide_id, html, narration, duration_ms, topic_ids), test and variant_pool (topic_id, variants). Teach one objective: start with prerequisite recall or a hook question, then a concept, worked example and check; end with a summary. Each wrong choice names a misconception; explain why for every question. At most 40 visible words per slide. Narration explains rather than reads the slide; allow at least 330 ms per narration word. Slide html has one root element id=\"root\" and inline CSS only: no scripts, URLs, HTML entities or backslashes. duration_ms is 3000 to 60000. Test: one question per taught topic_id, unique question_ids, 2 to 6 different choices. variant_pool: one variant per tested topic with a new question_id, variant_of set to the test question_id, a reworded prompt, the same choice texts in a different order and answer_index on the same correct text.";
 
 /// Extra guidance for the repair turn when a slide trips the static safety check.
 const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &amp; or &nbsp;, backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes)";
@@ -346,7 +346,7 @@ pub fn lesson_prompt(context: &str) -> String {
 /// core of a routed one (`skills`).
 fn lesson_rules() -> String {
     format!(
-        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE}{regions}",
+        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Use lesson_length from context: short 3 slides and 2 questions, medium 5 slides and 3 questions, long 8 slides and 5 questions; default medium. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE}{regions}",
         regions = crate::regions::shape()
     )
 }
@@ -480,6 +480,56 @@ pub fn compact_context(request: &serde_json::Value) -> String {
     }
     strip(&mut v);
     v.to_string()
+}
+
+/// The allowlisted lesson prompt context, with only recent history.
+pub fn lesson_context(
+    request: &serde_json::Value,
+    lesson_length: Option<&str>,
+) -> serde_json::Value {
+    let history = request["history"].as_array().cloned().unwrap_or_default();
+    serde_json::json!({
+        "outline": request["outline"], "lesson": request["lesson"], "learner": request["learner"],
+        "history": &history[history.len().saturating_sub(5)..],
+        "lesson_length": lesson_length.unwrap_or("medium")
+    })
+}
+
+/// Heuristic quality signals only; these never reject a generated lesson.
+pub fn quality_warnings(lesson: &serde_json::Value) -> Vec<&'static str> {
+    let style = Regex::new(r"(?is)<(?:style|script)\b[^>]*>.*?</(?:style|script)\s*>").unwrap();
+    let tags = Regex::new(r"<[^>]*>").unwrap();
+    let mut warnings = Vec::new();
+    for slide in lesson["slides"].as_array().into_iter().flatten() {
+        let html = slide["html"].as_str().unwrap_or_default();
+        let stripped = style.replace_all(html, " ");
+        let visible = tags.replace_all(&stripped, " ");
+        let screen: Vec<String> = visible
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|s| !s.is_empty())
+            .map(str::to_lowercase)
+            .collect();
+        let narration = slide["narration"].as_str().unwrap_or_default();
+        let spoken: Vec<String> = narration
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|s| !s.is_empty())
+            .map(str::to_lowercase)
+            .collect();
+        let duration = slide["duration_ms"].as_f64().unwrap_or(0.0);
+        let wpm = spoken.len() as f64 * 60000.0 / duration.max(1.0);
+        let overlap = spoken.iter().filter(|w| screen.contains(w)).count() as f64
+            / spoken.len().max(1) as f64;
+        for (bad, code) in [
+            (screen.len() > 40, "visible_words"),
+            (!(110.0..=200.0).contains(&wpm), "narration_wpm"),
+            (overlap > 0.6, "narration_overlap"),
+        ] {
+            if bad && !warnings.contains(&code) {
+                warnings.push(code);
+            }
+        }
+    }
+    warnings
 }
 
 /// The lesson request as prompt data: today's `Debug` rendering while `lesson_slides` is
