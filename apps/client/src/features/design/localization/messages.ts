@@ -60,6 +60,7 @@ export const en = {
   "outline.goal_error": "Enter a lesson goal.",
   "outline.expand": "Expand {name}",
   "outline.collapse": "Collapse {name}",
+  "player.more_controls": "More controls",
   "settings.sessions": "Manage sessions",
   "path.start_short": "Start",
   "path.review": "Lesson {index}, {name}, completed. Review",

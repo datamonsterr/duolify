@@ -17,6 +17,7 @@ export const ar: Record<MessageId, Message> = {
   "outline.goal_error": "أدخل هدف الدرس.",
   "outline.expand": "توسيع {name}",
   "outline.collapse": "طي {name}",
+  "player.more_controls": "المزيد من عناصر التحكم",
   "settings.sessions": "إدارة الجلسات",
   "path.start_short": "ابدأ",
   "path.review": "الدرس {index}، {name}، مكتمل. مراجعة",

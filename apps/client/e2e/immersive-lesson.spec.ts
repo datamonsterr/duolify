@@ -847,3 +847,31 @@ test.describe("desktop never enters on rotation", () => {
     await expect(page.locator(".player.immersive")).toHaveCount(0);
   });
 });
+
+test("control overlay groups targets over a translucent scrim and mirrors in RTL", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openLesson(page);
+  await pauseFramed(page);
+  await enter(page);
+  const bottom = page.locator(".imm-bottom");
+  await expect(bottom).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(bottom).toHaveCSS("background-image", /linear-gradient/);
+  const left = page.locator(".imm-playback");
+  const right = page.locator(".imm-tools");
+  const ltrLeft = (await left.boundingBox())!;
+  const ltrRight = (await right.boundingBox())!;
+  expect(ltrLeft.x + ltrLeft.width).toBeLessThan(ltrRight.x);
+  for (const button of await page.locator(".imm-row button:visible").all()) {
+    const box = (await button.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  await page.evaluate(() => {
+    document.documentElement.dir = "rtl";
+  });
+  expect((await left.boundingBox())!.x).toBeGreaterThan(
+    (await right.boundingBox())!.x,
+  );
+});
