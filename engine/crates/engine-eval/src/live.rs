@@ -780,7 +780,7 @@ pub async fn evaluate(
                     .and_then(|c| guard::parse_verdict(&c.text).ok());
                 (Decision::from_verdict(surface, verdict), o)
             };
-            let result = json!({
+            let mut result = json!({
                 "allowed": decision.allowed,
                 "reason_code": decision.reason.map(|r| r.code()).unwrap_or(""),
                 "source": decision.source.code(),
@@ -788,6 +788,11 @@ pub async fn evaluate(
                 "surface": input["surface"],
                 "arm": "guard",
             });
+            // Parity rows (`duolify-eval parity-rows`) carry the screen row's expectation.
+            if let Some(expected) = input["expected_blocked"].as_bool() {
+                result["blocked_as_expected"] = json!(decision.allowed != expected);
+                result["unavailable"] = json!(decision.source == Source::Failure);
+            }
             let has_completion = outcome.completion.is_some();
             let mut live = bounded(outcome, result);
             // A pre-filter decision makes no model call, so there is no completion to price.

@@ -53,6 +53,12 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    if args.len() >= 2 && args[1] == "parity-rows" {
+        return engine_eval::parity::run_rows(&args);
+    }
+    if args.len() >= 2 && args[1] == "parity" {
+        return engine_eval::parity::run(&args);
+    }
     if args.len() >= 2 && args[1] == "compare" {
         return engine_eval::compare::run(&args);
     }

@@ -41,3 +41,17 @@ GUARD_CLASSIFIER=fast cargo run -p engine-eval --bin duolify-eval -- --provider 
 ```
 
 Compare the two guard models by editing `GUARD_MODEL` in `engine-providers/src/decisions.rs` on a throwaway branch. Router thresholds are data: tune `--threshold` per skill on these rows, never on the 12 spike cases.
+
+## Guard parity with the four screens (task 5.3)
+
+The API keeps calling the four screens until the consolidated guard agrees with them on the same rows. From `engine/`, run by the controller (live, `OPENROUTER_API_KEY` set; roughly 9 screen calls and 9 guard calls, a few thousandths of a dollar):
+
+```sh
+D=../evals/datasets/duolify-golden
+cargo run -p engine-eval --bin duolify-eval -- parity-rows $D/golden.jsonl /tmp/parity-rows.jsonl   # any scratch path
+cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/golden.jsonl --limit 0 --budget 0.5 --reports ../evals/reports/parity-screens      # screens: use the report's steer, character, course and review rows
+cargo run -p engine-eval --bin duolify-eval -- --provider live --data /tmp/parity-rows.jsonl --limit 0 --budget 0.5 --reports ../evals/reports/parity-guard
+cargo run -p engine-eval --bin duolify-eval -- parity ../evals/reports/parity-screens/<report>.json ../evals/reports/parity-guard/<report>.json
+```
+
+`parity` lists every row where the screens and the guard differ and exits non-zero unless there is parity: the same rows on both sides and no row the screens pass that the guard fails. Only then switch the four screens (task 5.3), one surface per PR.
