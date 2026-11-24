@@ -244,7 +244,7 @@ test.describe("mobile touch and preferences", () => {
     expect(nav!.y).toBeGreaterThanOrEqual(main!.y + main!.height);
     hold = true;
     await page.getByRole("button", { name: "Refresh courses" }).tap();
-    const preparing = page.getByRole("button", { name: "Preparing…" });
+    const preparing = page.getByRole("button", { name: "Refresh courses" });
     await expect(preparing).toBeDisabled();
     await expect(preparing).toHaveAttribute("aria-busy", "true");
     await expect(preparing).toHaveCSS("background-color", "rgb(221, 241, 255)");

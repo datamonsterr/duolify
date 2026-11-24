@@ -87,7 +87,9 @@ test.describe("E7-01 Read an auditable credit wallet", () => {
 
       // Verify Available balance
       await expect(page.getByText("Available", { exact: true })).toBeVisible();
-      await expect(page.getByText("212", { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("main").getByText("212", { exact: true }),
+      ).toBeVisible();
 
       // Verify Daily free credits meter & values
       await expect(page.getByText("28 / 46")).toBeVisible();
@@ -143,7 +145,9 @@ test.describe("E7-01 Read an auditable credit wallet", () => {
 
       // Navigate back to wallet
       await page.getByRole("button", { name: "Wallet", exact: true }).click();
-      await expect(page.getByText("212", { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("main").getByText("212", { exact: true }),
+      ).toBeVisible();
     });
   }
 
@@ -217,13 +221,17 @@ test.describe("E7-01 Read an auditable credit wallet", () => {
     });
 
     await page.goto("/credits");
-    await expect(page.getByText("212", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByText("212", { exact: true }),
+    ).toBeVisible();
 
     // Invalidate Redis and reload
     redisFlushed = true;
     await page.reload();
     // Yields identical derived balance from ledger
-    await expect(page.getByText("212", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByText("212", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("28 / 46")).toBeVisible();
   });
 });

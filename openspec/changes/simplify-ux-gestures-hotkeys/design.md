@@ -77,3 +77,7 @@ Each item is recorded here before it is coded. Wording is the owner's, as relaye
 - C5. Courses: one compact toolbar row (create, refresh as icon button, My courses and Discover tabs, streak and credits chips); lead with the course list.
 - C6. Credits: buttons sized to content, each action row on one line where it fits.
 - D7. Remove the right rail; fold streak, XP and credits into one compact block in the left sidebar; remove the left-bottom footnote.
+
+### Owner words, 2026-11-23 (recorded before coding PR `feat/ux-courses-credits`)
+- C5, courses: "Today each row holds one or two left-aligned buttons ('Create a course', 'Refresh courses', the My courses/Discover tabs, the streak and credits chips). The learner scrolls a long way before seeing any course. Group the actions into one compact toolbar row and lead with the course list." Decision: tabs lead, then refresh (icon only, named), streak and credits chips (icon plus number, each a link), then Create on desktop; on phone Create stays docked at the bottom. The search field sits directly under the toolbar and keeps its name for screen readers only (placeholder, no visible label). The empty state is one line.
+- C6, credits: "Buttons are full width and wrap onto the next line. Size them to their content and keep each action row on one line where it fits." Decision: buttons keep their content width (no grid stretch), labels never wrap inside a button, whole buttons wrap on phone, Refresh prices is an icon button on the same row as the credit views.

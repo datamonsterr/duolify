@@ -302,6 +302,7 @@ name = "engine-proto"
 version = "0.1.0"
 dependencies = [
  "prost",
+ "serde",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",

@@ -330,3 +330,28 @@ fn a_duration_that_overflows_u32_is_rejected_not_truncated() {
     let e = validate_lesson(&lesson).unwrap_err().to_string();
     assert!(e.contains("duration_ms"), "{e}");
 }
+
+#[test]
+fn compact_context_drops_defaults_and_limits_and_keeps_data() {
+    let req = serde_json::json!({
+        "outline": {"title": "Go", "description": "", "units": [{"id": "u-1", "lessons": [], "order": 0}]},
+        "lesson": {"id": "l-1", "title": "Slices"},
+        "history": [],
+        "limits": {"input_tokens": 1234, "output_nanos": 99},
+        "character_personas_json": ""
+    });
+    let c = compact_context(&req);
+    assert_eq!(
+        c,
+        r#"{"lesson":{"id":"l-1","title":"Slices"},"outline":{"title":"Go","units":[{"id":"u-1"}]}}"#
+    );
+}
+
+#[test]
+fn render_context_is_the_debug_text_while_the_task_is_monolithic() {
+    #[derive(Debug, serde::Serialize)]
+    struct Ctx {
+        a: u32,
+    }
+    assert_eq!(render_context(&Ctx { a: 0 }), "Ctx { a: 0 }");
+}

@@ -132,6 +132,19 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../../config/regions.toml"),
     ),
     ("engine-core/src/regions.rs", include_str!("../regions.rs")),
+    // Prompt skills (ADR 0025): the loader and every skill file shape what the model is asked.
+    (
+        "engine-core/src/skills/mod.rs",
+        include_str!("../skills/mod.rs"),
+    ),
+    (
+        "engine/config/skills/lesson_slides.toml",
+        include_str!("../../../../config/skills/lesson_slides.toml"),
+    ),
+    (
+        "engine/config/skills/tutor_chat.toml",
+        include_str!("../../../../config/skills/tutor_chat.toml"),
+    ),
     (
         "engine-core/src/accounts/mod.rs",
         include_str!("../accounts/mod.rs"),

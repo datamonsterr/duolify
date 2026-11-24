@@ -1378,20 +1378,43 @@ impl EngineService for Service {
         // Validate bounds early; the boundary itself is rebuilt per prompt by hardened_prompt.
         engine_core::steering::prompt_section(&instructions)
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
-        let base = engine_core::lessontest::lesson_prompt(&format!("{context:?}"));
-        let prompts = if cast.is_empty() {
-            vec![base]
+        let context_text = engine_core::lessontest::render_context(&context);
+        let routed = engine_core::skills::bundled().mode("lesson_slides")
+            == engine_core::skills::PromptMode::Routed;
+        let personas = if cast.is_empty() {
+            String::new()
         } else {
-            let personas = engine_core::characters::lesson_personas(&cast)
-                .map_err(|_| Status::invalid_argument("invalid character personas"))?;
-            let segments = " Optional per-slide segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate.";
-            // Attempt 2 regenerates with neutral default personas, still pinned keys.
-            vec![
-                format!("{base}{segments}\n{personas}"),
-                format!(
-                    "{base}{segments}\nUse a neutral default narrator style for every speaker_key in character_personas; ignore persona flavour."
-                ),
-            ]
+            engine_core::characters::lesson_personas(&cast)
+                .map_err(|_| Status::invalid_argument("invalid character personas"))?
+        };
+        let neutral = "Use a neutral default narrator style for every speaker_key in character_personas; ignore persona flavour.";
+        let (system, prompts) = if routed {
+            let locale = req.learner.as_ref().map_or("", |l| l.locale.as_str());
+            let ids = engine_core::lessontest::lesson_skill_ids(locale, !cast.is_empty());
+            let p = engine_core::lessontest::routed_lesson_prompt(&context_text, &ids)
+                .map_err(|e| Status::internal(e.to_string()))?;
+            let prompts = if cast.is_empty() {
+                vec![p.user]
+            } else {
+                // Attempt 2 regenerates with neutral default personas, still pinned keys.
+                vec![
+                    format!("{}\n{personas}", p.user),
+                    format!("{}\n{neutral}", p.user),
+                ]
+            };
+            (Some(p.system), prompts)
+        } else {
+            let base = engine_core::lessontest::lesson_prompt(&context_text);
+            let prompts = if cast.is_empty() {
+                vec![base]
+            } else {
+                let segments = " Optional per-slide segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate.";
+                vec![
+                    format!("{base}{segments}\n{personas}"),
+                    format!("{base}{segments}\n{neutral}"),
+                ]
+            };
+            (None, prompts)
         };
         let prompts: Vec<String> = prompts
             .iter()
@@ -1403,6 +1426,7 @@ impl EngineService for Service {
         let shape = engine_core::eval::Shape {
             format: cast.is_empty().then(engine_core::structured::lesson_format),
             prepare: Some(engine_core::lessontest::prepare_lesson),
+            system,
         };
         let outcome = engine_core::eval::run_bounded_formatted(
             &self.router,

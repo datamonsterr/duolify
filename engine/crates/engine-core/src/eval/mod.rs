@@ -208,6 +208,9 @@ pub struct Shape {
     /// Deterministic, validator-neutral fix-up applied after extraction and before validation
     /// (for example `lessontest::prepare_lesson`); `None` from it keeps the text.
     pub prepare: Option<fn(&str) -> Option<String>>,
+    /// Byte-stable system prefix of a routed prompt (`skills::Prompt::system`); `None` keeps
+    /// today's single user message.
+    pub system: Option<String>,
 }
 
 /// `run_bounded_checked` with an explicit answer shape for this call.
@@ -276,6 +279,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
         if shape.format.is_some() {
             route_cfg.response_format = shape.format.clone();
         }
+        route_cfg.system = shape.system.clone();
         let input = inputs[(index as usize).min(inputs.len() - 1)];
         // The repair turn only rides along while the whole request stays inside the envelope.
         route_cfg.repair = repair.take().filter(|r| {
