@@ -1,6 +1,7 @@
 // Copy for the authored fixture script (e2e harness and screenshots). Not part of the app
 // catalogue: the harness and tests register it with `registerFixtureCopy()`.
-import { ar, en } from "../design/localization/messages";
+import { en } from "../design/localization/messages";
+import { ar } from "../design/localization/messages.ar";
 
 const fixtureEn = {
   "fixture.name.q": "What should I call you?",
