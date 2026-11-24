@@ -12,11 +12,11 @@ test("settings and profile drafts persist", async ({ page }) => {
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await page.goto("/settings#look");
-  await page.getByLabel("Appearance").selectOption("dark");
+  await page.getByRole("radio", { name: "Dark" }).tap();
   await page.getByRole("button", { name: "Save settings" }).tap();
   await expect(page.getByText("Settings saved")).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Appearance")).toHaveValue("dark");
+  await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
   await page.goto("/settings#privacy");
   await page.getByLabel("Analytics").uncheck();
   await page.getByRole("button", { name: "Save settings" }).tap();
