@@ -8,7 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import { trackAppearance, trackPreference } from "../../../lib/analytics";
-import { createFormatter, resolveLocale, type Locale } from "./messages";
+import {
+  arabicLoaded,
+  createFormatter,
+  loadArabic,
+  resolveLocale,
+  type Locale,
+} from "./messages";
 export type Preferences = {
   locale: Locale;
   appearance: "system" | "light" | "dark";
@@ -96,6 +102,12 @@ export function UiPreferencesProvider({
         ? "dark"
         : "light"
       : preferences.appearance;
+  // Arabic loads on demand; until then the formatter falls back to English ids.
+  const [, arabicReady] = useState(arabicLoaded());
+  useEffect(() => {
+    if (preferences.locale === "ar" && !arabicLoaded())
+      void loadArabic().then(() => arabicReady(true));
+  }, [preferences.locale]);
   useEffect(() => {
     const root = document.documentElement;
     root.lang = preferences.locale === "en-XA" ? "en" : preferences.locale;
