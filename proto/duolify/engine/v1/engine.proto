@@ -539,6 +539,12 @@ message EnrichNoteRequest {
   LearnerProfile learner = 3;
   UsageLimits limits = 4;
   repeated LessonRef allowed_lessons = 5;
+  // Voice quick note context: where in the course the note was taken. Titles only, never note text.
+  string course_title = 6;
+  string lesson_title = 7;
+  string slide_title = 8;
+  // True when the note was dictated, so the formatter also repairs dictation errors.
+  bool dictated = 9;
 }
 
 message EnrichNoteResponse {
@@ -548,6 +554,9 @@ message EnrichNoteResponse {
   Usage usage = 4;
   repeated Usage attempts = 5;
   bool unavailable = 6;
+  // Short title and the cleaned-up body. Empty when formatting was not possible; the raw note stays.
+  string title = 7;
+  string formatted_body = 8;
 }
 
 message QuickReply {

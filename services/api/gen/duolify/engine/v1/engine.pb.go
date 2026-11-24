@@ -4119,8 +4119,14 @@ type EnrichNoteRequest struct {
 	Learner        *LearnerProfile        `protobuf:"bytes,3,opt,name=learner,proto3" json:"learner,omitempty"`
 	Limits         *UsageLimits           `protobuf:"bytes,4,opt,name=limits,proto3" json:"limits,omitempty"`
 	AllowedLessons []*LessonRef           `protobuf:"bytes,5,rep,name=allowed_lessons,json=allowedLessons,proto3" json:"allowed_lessons,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Voice quick note context: where in the course the note was taken. Titles only, never note text.
+	CourseTitle string `protobuf:"bytes,6,opt,name=course_title,json=courseTitle,proto3" json:"course_title,omitempty"`
+	LessonTitle string `protobuf:"bytes,7,opt,name=lesson_title,json=lessonTitle,proto3" json:"lesson_title,omitempty"`
+	SlideTitle  string `protobuf:"bytes,8,opt,name=slide_title,json=slideTitle,proto3" json:"slide_title,omitempty"`
+	// True when the note was dictated, so the formatter also repairs dictation errors.
+	Dictated      bool `protobuf:"varint,9,opt,name=dictated,proto3" json:"dictated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EnrichNoteRequest) Reset() {
@@ -4188,14 +4194,45 @@ func (x *EnrichNoteRequest) GetAllowedLessons() []*LessonRef {
 	return nil
 }
 
+func (x *EnrichNoteRequest) GetCourseTitle() string {
+	if x != nil {
+		return x.CourseTitle
+	}
+	return ""
+}
+
+func (x *EnrichNoteRequest) GetLessonTitle() string {
+	if x != nil {
+		return x.LessonTitle
+	}
+	return ""
+}
+
+func (x *EnrichNoteRequest) GetSlideTitle() string {
+	if x != nil {
+		return x.SlideTitle
+	}
+	return ""
+}
+
+func (x *EnrichNoteRequest) GetDictated() bool {
+	if x != nil {
+		return x.Dictated
+	}
+	return false
+}
+
 type EnrichNoteResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Summary       string                 `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
-	Tags          []string               `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
-	Links         []string               `protobuf:"bytes,3,rep,name=links,proto3" json:"links,omitempty"`
-	Usage         *Usage                 `protobuf:"bytes,4,opt,name=usage,proto3" json:"usage,omitempty"`
-	Attempts      []*Usage               `protobuf:"bytes,5,rep,name=attempts,proto3" json:"attempts,omitempty"`
-	Unavailable   bool                   `protobuf:"varint,6,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Summary     string                 `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
+	Tags        []string               `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
+	Links       []string               `protobuf:"bytes,3,rep,name=links,proto3" json:"links,omitempty"`
+	Usage       *Usage                 `protobuf:"bytes,4,opt,name=usage,proto3" json:"usage,omitempty"`
+	Attempts    []*Usage               `protobuf:"bytes,5,rep,name=attempts,proto3" json:"attempts,omitempty"`
+	Unavailable bool                   `protobuf:"varint,6,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
+	// Short title and the cleaned-up body. Empty when formatting was not possible; the raw note stays.
+	Title         string `protobuf:"bytes,7,opt,name=title,proto3" json:"title,omitempty"`
+	FormattedBody string `protobuf:"bytes,8,opt,name=formatted_body,json=formattedBody,proto3" json:"formatted_body,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4270,6 +4307,20 @@ func (x *EnrichNoteResponse) GetUnavailable() bool {
 		return x.Unavailable
 	}
 	return false
+}
+
+func (x *EnrichNoteResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EnrichNoteResponse) GetFormattedBody() string {
+	if x != nil {
+		return x.FormattedBody
+	}
+	return ""
 }
 
 type QuickReply struct {
@@ -5599,20 +5650,27 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\n" +
 	"error_code\x18\x04 \x01(\tH\x00R\terrorCode\x12G\n" +
 	"\fstream_error\x18\x05 \x01(\v2\".duolify.engine.v1.ChatStreamErrorH\x00R\vstreamErrorB\a\n" +
-	"\x05event\"\x99\x02\n" +
+	"\x05event\"\x9c\x03\n" +
 	"\x11EnrichNoteRequest\x12\x12\n" +
 	"\x04note\x18\x01 \x01(\tR\x04note\x124\n" +
 	"\x06lesson\x18\x02 \x01(\v2\x1c.duolify.engine.v1.LessonRefR\x06lesson\x12;\n" +
 	"\alearner\x18\x03 \x01(\v2!.duolify.engine.v1.LearnerProfileR\alearner\x126\n" +
 	"\x06limits\x18\x04 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\x12E\n" +
-	"\x0fallowed_lessons\x18\x05 \x03(\v2\x1c.duolify.engine.v1.LessonRefR\x0eallowedLessons\"\xe0\x01\n" +
+	"\x0fallowed_lessons\x18\x05 \x03(\v2\x1c.duolify.engine.v1.LessonRefR\x0eallowedLessons\x12!\n" +
+	"\fcourse_title\x18\x06 \x01(\tR\vcourseTitle\x12!\n" +
+	"\flesson_title\x18\a \x01(\tR\vlessonTitle\x12\x1f\n" +
+	"\vslide_title\x18\b \x01(\tR\n" +
+	"slideTitle\x12\x1a\n" +
+	"\bdictated\x18\t \x01(\bR\bdictated\"\x9d\x02\n" +
 	"\x12EnrichNoteResponse\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x12\n" +
 	"\x04tags\x18\x02 \x03(\tR\x04tags\x12\x14\n" +
 	"\x05links\x18\x03 \x03(\tR\x05links\x12.\n" +
 	"\x05usage\x18\x04 \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage\x124\n" +
 	"\battempts\x18\x05 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\x12 \n" +
-	"\vunavailable\x18\x06 \x01(\bR\vunavailable\"2\n" +
+	"\vunavailable\x18\x06 \x01(\bR\vunavailable\x12\x14\n" +
+	"\x05title\x18\a \x01(\tR\x05title\x12%\n" +
+	"\x0eformatted_body\x18\b \x01(\tR\rformattedBody\"2\n" +
 	"\n" +
 	"QuickReply\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +

@@ -26,9 +26,23 @@ export type NoteSyncFn = (note: {
   source: NoteSource;
   anchor?: NoteAnchor;
   rawText: string;
-}) => Promise<{ id: string; status: string }>;
+}) => Promise<SyncedNote>;
 
-export type SavedNote = { actionKey: string; id?: string };
+/** What the API says about a saved note. Voice notes also carry the free-format state. */
+export type SyncedNote = {
+  id: string;
+  status: string;
+  free_formats_left?: number;
+  format_offer?: boolean;
+};
+
+export type SavedNote = {
+  actionKey: string;
+  id?: string;
+  freeFormatsLeft?: number;
+  /** The note was saved raw and the Learner may format it on request. */
+  formatOffer?: boolean;
+};
 
 /**
  * The one save path for a Quick note: device queue first (stable action key), then the API when
@@ -79,22 +93,24 @@ export async function saveNote({
     };
     const res = onSync
       ? await onSync(note)
-      : await session.request<{ id: string; status: string }>(
-          "/v1/notes",
-          "POST",
-          {
-            action_key: queued.actionKey,
-            course_id: context.courseId,
-            lesson_id: context.lessonId,
-            slide_id: context.slideId,
-            slide_title: context.slideTitle,
-            source: context.source,
-            anchor: anchorToWire(anchor),
-            raw_text: body,
-          },
-        );
+      : await session.request<SyncedNote>("/v1/notes", "POST", {
+          action_key: queued.actionKey,
+          course_id: context.courseId,
+          lesson_id: context.lessonId,
+          slide_id: context.slideId,
+          slide_title: context.slideTitle,
+          source: context.source,
+          anchor: anchorToWire(anchor),
+          raw_text: body,
+        });
     noteQueue.markSynced(queued.actionKey, res.id);
-    return { actionKey: queued.actionKey, id: res.id, synced: true };
+    return {
+      actionKey: queued.actionKey,
+      id: res.id,
+      synced: true,
+      freeFormatsLeft: res.free_formats_left,
+      formatOffer: res.format_offer,
+    };
   } catch {
     return { actionKey: queued.actionKey, synced: false };
   }

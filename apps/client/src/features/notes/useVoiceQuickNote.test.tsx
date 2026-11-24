@@ -6,6 +6,12 @@ const saveNote = vi.fn();
 const undoSavedNote = vi.fn();
 const showToast = vi.fn();
 const track = vi.fn();
+const requestFormat = vi.fn();
+const setFormatTurnsLeft = vi.fn();
+vi.mock("./format-turns", () => ({
+  requestFormat: (...a: unknown[]) => requestFormat(...a),
+  setFormatTurnsLeft: (...a: unknown[]) => setFormatTurnsLeft(...a),
+}));
 vi.mock("./save-note", () => ({
   saveNote: (...a: unknown[]) => saveNote(...a),
   undoSavedNote: (...a: unknown[]) => undoSavedNote(...a),
@@ -173,5 +179,42 @@ describe("useVoiceQuickNote", () => {
     expect(release).toHaveBeenCalledOnce();
     again.unmount();
     expect(startVoiceQuickNote()).toBe(false);
+  });
+
+  it("keeps Undo and tells the badge how many free formats are left", async () => {
+    saveNote.mockResolvedValue({
+      actionKey: "k1",
+      id: "n1",
+      synced: true,
+      freeFormatsLeft: 3,
+    });
+    const { hook } = setup();
+    act(() => hook.result.current.onRecording(true));
+    await act(() =>
+      hook.result.current.onTranscript({ text: "hello", language: "en" }),
+    );
+    expect(setFormatTurnsLeft).toHaveBeenCalledWith(3);
+    expect(showToast.mock.calls[0][0].action.label).toBe("Undo");
+  });
+
+  it("past the free formats the saved toast offers one action, Format, and asks the API only when pressed", async () => {
+    saveNote.mockResolvedValue({
+      actionKey: "k1",
+      id: "n1",
+      synced: true,
+      freeFormatsLeft: 0,
+      formatOffer: true,
+    });
+    requestFormat.mockResolvedValue({ status: "enrichment_pending" });
+    const { hook } = setup();
+    act(() => hook.result.current.onRecording(true));
+    await act(() =>
+      hook.result.current.onTranscript({ text: "hello", language: "en" }),
+    );
+    const toast = showToast.mock.calls[0][0];
+    expect(toast.action.label).toBe("Format");
+    expect(requestFormat).not.toHaveBeenCalled();
+    act(() => toast.action.onAction());
+    expect(requestFormat).toHaveBeenCalledWith("n1");
   });
 });

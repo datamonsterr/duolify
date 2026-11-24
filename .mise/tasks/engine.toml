@@ -32,7 +32,7 @@ run = "cargo fmt --all"
 ["engine:eval-golden"]
 description = "Live eval of the pinned golden revision (local bytes verified against evals/pinned-datasets.toml) on the production route, all cases, no judge; needs OPENROUTER_API_KEY"
 dir = "engine"
-run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --data ../evals/datasets/duolify-golden/golden.jsonl --dataset datamonsterr/duolify-golden --revision d902ce8cfacc2abf8d585930e2a15d471515b07a --limit 0"
+run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --data ../evals/datasets/duolify-golden/golden.jsonl --dataset datamonsterr/duolify-golden --revision 37e6ba473f97c04021b0a16d51dc7ef33f8046e1 --limit 0"
 
 ["engine:promote"]
 description = "Record a passing live eval report of this build as the promotion evidence a deployed engine embeds (evals/promotion/live-report.json)"

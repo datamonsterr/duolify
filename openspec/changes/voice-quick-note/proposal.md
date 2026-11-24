@@ -28,7 +28,7 @@ Today a voice note needs the rail Note button, which opens the Quick note panel,
 - Engine: `note_enrich` prompt and checks.
 
 ## Credits
-Enrichment reserves and settles Credits today (`quick_note` action, see `quick-notes` and `credits`). That rule is unchanged: formatting rides on the same job and the same charge. No price changes. A Learner with no spendable Credits keeps the raw note with status `enrichment_pending`.
+Owner decision (2026-11-24): AI formatting of Voice quick notes is free for 5 turns per Learner per day (server counter in Postgres, reset on the existing daily-cap clock, enforced by the API). The Voice note rail icon shows the free turns left. After 0 the note is still saved raw for free, nothing is formatted or charged automatically, and the Saved toast offers one action, Format, at the existing `quick_note` Credit price. No price changes. See design.md for the mechanism and the provider cost per call.
 
 ## Data backup
 `title` and `formatted_body` are columns on the Quick note row: they follow its backup, account export, retention and erasure, and the backup anonymiser MUST blank both. The raw transcript is never overwritten. The migration is covered by `mise run ci:migration-versions` and the backup drill fixture.

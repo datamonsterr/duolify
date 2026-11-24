@@ -402,6 +402,12 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 	if json.Unmarshal(raw, &q) != nil || q.Action != action {
 		return nil, ErrReservation
 	}
+	return LimitsForQuote(q, deadline)
+}
+
+// LimitsForQuote derives the engine's bounds from a quote and a deadline. The free quick-note
+// formatting path uses it with an unreserved quote: it spends no credits but keeps every bound.
+func LimitsForQuote(q pricing.Quote, deadline time.Time) (*enginev1.UsageLimits, error) {
 	worst := q.WorstRate()
 	// The engine tries the nearest fallback next; its rates are bounded by the dearest model of the route.
 	var fallback pricing.ModelRate

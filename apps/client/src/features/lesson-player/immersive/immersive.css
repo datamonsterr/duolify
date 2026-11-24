@@ -653,8 +653,27 @@ html[data-imm-rotated="true"][data-imm-panel] .imm-caption {
 .imm-answer-compose .voice-bubble-wrap {
   justify-self: start;
 }
+/* Free formats left today: a small circle on the icon's corner, hidden at zero. */
+.imm-voice-badge {
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline-end: -2px;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding-inline: 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
 /* The rail's Voice note is the shared round voice bubble, sized like its neighbours. */
 .imm-voice-note {
+  position: relative;
   display: inline-flex;
   justify-content: center;
   min-inline-size: var(--size-target);

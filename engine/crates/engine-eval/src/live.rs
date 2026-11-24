@@ -313,12 +313,20 @@ pub async fn evaluate(
                 serde_json::from_value(input["learner"].clone()).ok();
             let allowed: Vec<notes::LessonRef> =
                 serde_json::from_value(input["allowed_lessons"].clone()).unwrap_or_default();
-            let out = notes::enrich(
+            let text = |k: &str| input[k].as_str().unwrap_or_default().to_string();
+            let context = notes::NoteContext {
+                course_title: text("course_title"),
+                lesson_title: text("lesson_title"),
+                slide_title: text("slide_title"),
+                dictated: input["dictated"].as_bool().unwrap_or_default(),
+            };
+            let out = notes::enrich_with_context(
                 router,
                 input["note"].as_str().unwrap_or_default(),
                 lesson.as_ref(),
                 learner.as_ref(),
                 &allowed,
+                &context,
                 &limits(input, 8000, 1000, 30000),
             )
             .await?;

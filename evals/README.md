@@ -205,7 +205,7 @@ Ceilings per clip: WER 0.20 (English, Spanish), 0.40 (Vietnamese), 0.50 (the two
 
 ## Live set (`datamonsterr/duolify-golden`)
 
-The private dataset `datamonsterr/duolify-golden` holds the 90-case live set (`evals/datasets/duolify-golden/golden.jsonl`, the exact published bytes) and the recordings under `audio/`. Revision `d902ce8cfacc2abf8d585930e2a15d471515b07a` is pinned in `pinned-datasets.toml` (it adds 49 `transcribe` cases after 41 unchanged rows; the 41-case revision `ef44a169…` added five region-grounded `tutor_chat` cases after 36 unchanged rows; the earlier 36-case revision `1bf626ff…` (four Slide region lesson cases), 32-case revision `943decec…` and 20-case revision `b7979d57…` stay pinned; their rows are the first 32 and 20 lines, unchanged). Cases cover preview, outline, three lessons, a lesson test, two tutor chats (one with a long history), note enrichment, setup and brief chat, all four safety screens (`steer_screen`, `character_screen`, `course_screen`, `screen_review`) with benign and must-block rows, and three cases each for:
+The private dataset `datamonsterr/duolify-golden` holds the 93-case live set (`evals/datasets/duolify-golden/golden.jsonl`, the exact published bytes) and the recordings under `audio/`. Revision `37e6ba473f97c04021b0a16d51dc7ef33f8046e1` is pinned in `pinned-datasets.toml` (it adds three voice quick note `note_enrich` formatting cases after 90 unchanged rows; the 90-case revision `d902ce8c…` added 49 `transcribe` cases after 41 unchanged rows; the 41-case revision `ef44a169…` added five region-grounded `tutor_chat` cases after 36 unchanged rows; the earlier 36-case revision `1bf626ff…` (four Slide region lesson cases), 32-case revision `943decec…` and 20-case revision `b7979d57…` stay pinned; their rows are the first 32 and 20 lines, unchanged). Cases cover preview, outline, three lessons, a lesson test, two tutor chats (one with a long history), note enrichment, setup and brief chat, all four safety screens (`steer_screen`, `character_screen`, `course_screen`, `screen_review`) with benign and must-block rows, and three cases each for:
 
 - `outline_chat_change`: an added lesson lands in the named unit with every lesson's text kept; a hostile lesson title in the learner's draft stays data while the requested unit is retitled and nothing leaks; a request with a NUL control character is refused before any provider call.
 - `outline_replan`: a focus instruction changes the remaining lessons while both protected lessons and their unit stay in place; an instruction that tries to rewrite finished lessons and leak the policy cannot change a protected lesson or leak, delivered or not; an unknown protected lesson is refused before any provider call.
@@ -238,8 +238,12 @@ Region-grounded tutor cases (`live-tutor-region-*`, immersive-mobile-lesson-play
 Run a small, budgeted sample (no `HF_TOKEN` secret is set on GitHub, so ready PRs record an explicit `missing_secrets` report and keep live promotion disabled):
 
 ```bash
-HF_GOLDEN_DATASET=datamonsterr/duolify-golden HF_GOLDEN_REVISION=d902ce8cfacc2abf8d585930e2a15d471515b07a \
+HF_GOLDEN_DATASET=datamonsterr/duolify-golden HF_GOLDEN_REVISION=37e6ba473f97c04021b0a16d51dc7ef33f8046e1 \
 HF_TOKEN=... OPENROUTER_API_KEY=... ELEVENLABS_API_KEY=... ELEVENLABS_VOICE_ID=... EVAL_BUDGET_USD=0.5 EVAL_SAMPLE_LIMIT=90 mise run engine:eval-live
 ```
 
 To enable live evals on ready PRs, add the `HF_TOKEN` (read access to the private dataset), `OPENROUTER_API_KEY`, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` repository secrets and set `HF_GOLDEN_REVISION`/`HF_GOLDEN_DATASET` in the workflow environment.
+
+## Voice quick note formatting (`note_enrich`)
+
+`note_enrich` also formats a note: `title` (at most 80 characters) and `formatted_body` (at most 4000), using the optional `course_title`, `lesson_title`, `slide_title` and `dictated` inputs. Offline rows `voice-note-format-*` in `fixtures/golden.sample.jsonl` cover dictation repair with course terms, the note's own language, an injection inside the note, and an invalid title (the note is not delivered, so the API keeps the raw note). Live rows `live-voice-note-format-*` are in the pinned dataset revision above. The steering and transcription rows noted as gaps above stay as they are: the transcription rows already live in revision `d902ce8c…` and the steering rows are recorded mocks with no live form yet.

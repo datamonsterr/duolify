@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { VoiceBubble, type VoiceBubbleControls } from "../../voice/VoiceBubble";
+import {
+  refreshFormatTurns,
+  useFormatTurnsLeft,
+} from "../../notes/format-turns";
 import { useVoiceQuickNote } from "../../notes/useVoiceQuickNote";
 import { ToastHost } from "../../../components/toast";
 import { Icon } from "../../design/Icon";
@@ -207,6 +211,10 @@ export default function ImmersiveNotes({
   };
 
   const { t } = useUiPreferences();
+  const freeLeft = useFormatTurnsLeft();
+  useEffect(() => {
+    void refreshFormatTurns();
+  }, []);
   const chooseArea = () => {
     selectArea();
     setAutoFocusRegion(true);
@@ -258,6 +266,16 @@ export default function ImmersiveNotes({
           disabled={composer !== null || answer !== null}
           {...voiceNote}
         />
+        {freeLeft !== null && freeLeft > 0 && (
+          <span
+            className="imm-voice-badge"
+            role="img"
+            aria-label={t("imm.free_formats_left", { count: freeLeft })}
+            data-testid="voice-note-free-left"
+          >
+            {freeLeft}
+          </span>
+        )}
       </div>
     </>
   );

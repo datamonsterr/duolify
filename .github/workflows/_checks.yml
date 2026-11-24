@@ -781,7 +781,7 @@ jobs:
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
           # Pinned revision (evals/pinned-datasets.toml); a repo variable may pin a newer reviewed one.
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'd902ce8cfacc2abf8d585930e2a15d471515b07a' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || '37e6ba473f97c04021b0a16d51dc7ef33f8046e1' }}
           # 90 = every case of the pinned revision; a smaller sample cannot cover all 17 tasks.
           EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '90' }}
           EVAL_BUDGET_USD: ${{ vars.EVAL_BUDGET_USD || '0.50' }}

@@ -1769,12 +1769,19 @@ impl EngineService for Service {
             deadline_unix_ms: bounds.deadline_unix_ms,
         };
 
-        let outcome = engine_core::notes::enrich(
+        let context = engine_core::notes::NoteContext {
+            course_title: req.course_title,
+            lesson_title: req.lesson_title,
+            slide_title: req.slide_title,
+            dictated: req.dictated,
+        };
+        let outcome = engine_core::notes::enrich_with_context(
             &self.router,
             &req.note,
             lesson.as_ref(),
             learner.as_ref(),
             &allowed_lessons,
+            &context,
             &limits,
         )
         .await
@@ -1785,6 +1792,8 @@ impl EngineService for Service {
 
         if let Some(res) = outcome.result {
             Ok(Response::new(pb::EnrichNoteResponse {
+                title: res.title,
+                formatted_body: res.formatted_body,
                 summary: res.summary,
                 tags: res.tags,
                 links: res.links,
@@ -1794,6 +1803,8 @@ impl EngineService for Service {
             }))
         } else {
             Ok(Response::new(pb::EnrichNoteResponse {
+                title: String::new(),
+                formatted_body: String::new(),
                 summary: String::new(),
                 tags: vec![],
                 links: vec![],
