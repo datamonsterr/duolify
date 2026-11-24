@@ -179,11 +179,11 @@ test("keyboard focus, reduced motion, skip and Settings replay", async ({
   await expect(page.getByTestId("tour-card").locator("h2")).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(
-    dialog(page).getByRole("button", { name: "Skip tour" }),
+    dialog(page).getByRole("button", { name: "Next", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
-    dialog(page).getByRole("button", { name: "Next", exact: true }),
+    dialog(page).getByRole("button", { name: "Skip tour" }),
   ).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(dialog(page)).toHaveAttribute("data-step-index", "2");
