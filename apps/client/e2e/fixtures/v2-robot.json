@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "rig_version": "original-v2",
+  "catalog_version": 1,
+  "info": {
+    "name": "New character",
+    "bio": "",
+    "backstory": ""
+  },
+  "identity": {
+    "pronouns": "",
+    "label": ""
+  },
+  "body": {
+    "kind": "robot",
+    "age_band": "adult",
+    "build": "average",
+    "height": "medium",
+    "glasses": {
+      "style": "none",
+      "color": "#1A1A24"
+    },
+    "base": "boxy",
+    "primary_color": "#9DB4C0",
+    "secondary_color": "#E4572E",
+    "markings": "panels",
+    "antenna": "single",
+    "locomotion": "legs",
+    "eyes": {
+      "shape": "screen",
+      "color": "#7CFFB2"
+    },
+    "mouth": "line"
+  },
+  "clothes": {
+    "top": {
+      "style": "tee",
+      "color": "#4DA6F0"
+    },
+    "bottom": {
+      "style": "pants",
+      "color": "#2E4057"
+    },
+    "shoes": {
+      "style": "sneakers",
+      "color": "#F5F1E8"
+    },
+    "outerwear": {
+      "style": "none",
+      "color": "#1A1A24"
+    },
+    "pattern": "solid",
+    "accessories": []
+  },
+  "personality": {
+    "traits": ["curious"],
+    "speaking_style": "Gentle and clear",
+    "persona_prompt": "Explain simply and encourage the Learner."
+  },
+  "expressions": [
+    "idle",
+    "happy",
+    "sad",
+    "thinking",
+    "celebrate",
+    "surprised",
+    "confused"
+  ],
+  "voice_key": "voice-provisional-guide"
+}

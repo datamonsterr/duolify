@@ -475,7 +475,11 @@ func ValidateSpecV2(spec *SpecV2) error {
 	if err := checkV2(generic); err != nil {
 		return err
 	}
-	return crossCheckV2(spec)
+	// A typed nil *SpecError must not become a non-nil error.
+	if err := crossCheckV2(spec); err != nil {
+		return err
+	}
+	return nil
 }
 
 func crossCheckV2(spec *SpecV2) *SpecError {
