@@ -23,6 +23,7 @@ import { missingFailure, missingMessages } from "./features/sharing/missing";
 import "./features/sharing/sharing.css";
 import { CourseModerationBanner } from "./features/sharing/CourseModerationBanner";
 import { AppLink } from "./lib/navigation";
+import { CloseButton } from "./features/design/sheet/CloseButton";
 
 /** The course tree. Shared with the Learn home so it can start this fetch as soon as the list names the course. */
 export function courseTreeQuery(courseId: string, owner: string) {
@@ -268,6 +269,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
               closeOnEscape(e, () => setQuotingId(null), "learn");
             }}
           >
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <CloseButton onClick={() => setQuotingId(null)} />
+            </div>
             <QuotePanel
               consent={{
                 onAccepted: (quote) =>

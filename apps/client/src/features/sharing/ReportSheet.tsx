@@ -18,6 +18,7 @@ import {
   type ReportFailure,
   type ReportTarget,
 } from "./reports";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 type State =
   | { kind: "form" }
@@ -122,14 +123,7 @@ export function ReportSheet({
       >
         <div className="report-head">
           <h2 id={titleId}>{title}</h2>
-          <button
-            type="button"
-            className="report-close"
-            aria-label="Close"
-            onClick={close}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
+          <CloseButton onClick={close} />
         </div>
         {state.kind === "done" ? (
           <div className="report-done">

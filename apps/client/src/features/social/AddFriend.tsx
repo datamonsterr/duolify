@@ -20,6 +20,7 @@ import {
   type SendResult,
 } from "./friends";
 import "./social.css";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 const GuidedAddFriend = lazy(() =>
   import("./GuidedAddFriend").then((m) => ({ default: m.GuidedAddFriend })),
@@ -299,9 +300,7 @@ export function AddFriend({ onClose }: { onClose: () => void }) {
           )}
         </section>
         <div className="social-actions">
-          <button type="button" className="duo-button quiet" onClick={onClose}>
-            Close
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
       </Body>
     </dialog>

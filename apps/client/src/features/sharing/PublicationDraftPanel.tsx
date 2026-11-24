@@ -11,6 +11,7 @@ import {
 } from "./drafts";
 import "./sharing.css";
 import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 type State =
   | { kind: "loading"; text: string }
@@ -130,14 +131,7 @@ export function PublicationDraftPanel({
       <div className="sharing-body">
         <header className="sharing-head">
           <h2 id={`${id}-title`}>Preview publication draft</h2>
-          <button
-            ref={close}
-            type="button"
-            className="duo-button quiet"
-            onClick={onClose}
-          >
-            Close
-          </button>
+          <CloseButton ref={close} onClick={onClose} />
         </header>
         <p className="sharing-note">
           Shared: course content only. Never: your profile, notes, chat,

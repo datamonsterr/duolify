@@ -5,6 +5,7 @@ import {
   moderationFailure,
   type ModerationAction,
 } from "./moderation";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 const focusable =
   "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)";
@@ -100,14 +101,7 @@ export function ReasonDialog(p: Props) {
       >
         <div className="report-head">
           <h2 id={titleId}>{p.title}</h2>
-          <button
-            type="button"
-            className="report-close"
-            aria-label="Close"
-            onClick={close}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
+          <CloseButton onClick={close} />
         </div>
         <form
           className="report-form"

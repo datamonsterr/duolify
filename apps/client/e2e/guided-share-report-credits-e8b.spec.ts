@@ -1,4 +1,4 @@
-import type { APIRequestContext, Page } from "@playwright/test";
+import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { apiBase } from "./servers";
 import { test, expect, resetTokens } from "./accounts-fixture";
 
@@ -216,6 +216,16 @@ async function mockQuoteCourse(page: Page) {
   return calls;
 }
 
+/** Close is the shared 44 px × icon button: named "Close", no visible text. */
+async function iconClose(scope: Locator) {
+  const close = scope.getByRole("button", { name: /^Close/ });
+  await expect(close).toHaveCount(1);
+  await expect(close).toHaveText("×");
+  const box = await close.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+}
+
 test.afterEach(() => {
   resetTokens();
 });
@@ -244,6 +254,7 @@ for (const [width, height, scheme] of [
       await page.goto(`/course/${course}`);
       await page.getByTestId("share-course").click();
       const panel = page.getByTestId("share-course-panel");
+      await iconClose(page.getByRole("dialog", { name: "Share course" }));
 
       // course.share: the old radio group is gone; the chat opens on the current answer.
       await expect(panel.getByRole("radio", { name: "Private" })).toHaveCount(
@@ -295,6 +306,9 @@ for (const [width, height, scheme] of [
       await field.fill(`@${p}.sam`);
       await send(panel);
       await expect(said(panel, "Send this invite?")).toBeVisible();
+      await iconClose(
+        page.getByRole("dialog", { name: /Share course|publication/i }),
+      );
       await shot(
         page,
         "invite",
@@ -331,6 +345,9 @@ for (const [width, height, scheme] of [
         panel.locator('[data-script="course.republish"]'),
       );
       await panel.locator(".gc-widget textarea").fill("Retitled tides.");
+      await iconClose(
+        page.getByRole("dialog", { name: /Share course|publication/i }),
+      );
       await shot(
         page,
         "republish",
@@ -370,9 +387,7 @@ for (const [width, height, scheme] of [
         "Keep it under 500 characters.",
       );
       await expect(sheet.locator(".gc-count")).toHaveText("501/500");
-      await expect(sheet.getByRole("button", { name: /^Close/ })).toHaveText(
-        "×",
-      );
+      await iconClose(sheet);
       await shot(page, "report", "mid", tag);
       await details.fill("Lesson 4 copies a textbook chapter.");
       await send(sheet);
@@ -477,6 +492,7 @@ for (const [width, height, scheme] of [
         dialog.getByText("Content ceiling: 137 credits"),
       ).toBeVisible();
       await expect(said(dialog, "Accept these terms?")).toBeVisible();
+      await iconClose(dialog);
       await expect(
         dialog.getByRole("button", { name: "Accept quote terms" }),
       ).toHaveCount(0);

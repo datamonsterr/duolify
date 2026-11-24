@@ -10,6 +10,7 @@ import {
 } from "react";
 import { trackGuidedUi, type GuidedSheetId } from "../../../lib/analytics";
 import "../chat/guided-chat.css";
+import { CloseButton } from "./CloseButton";
 
 export type SheetProps = {
   open: boolean;
@@ -125,14 +126,10 @@ export function Sheet({
       <header className="guided-panel-header">
         <h2 id={titleId}>{title}</h2>
         {modal && (
-          <button
-            type="button"
-            className="guided-sheet-close"
+          <CloseButton
             onClick={close}
-            aria-label={t("common.close_named", { name: title })}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
+            label={t("common.close_named", { name: title })}
+          />
         )}
       </header>
       {children}

@@ -25,6 +25,7 @@ import { drafts } from "./drafts";
 import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
 import { BirthDatePrompt, publisherAgeError } from "./BirthDatePrompt";
 import { guidedEnabled } from "../guided-chat/flags";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 const GuidedShare = lazy(() =>
   import("./GuidedShare").then((m) => ({ default: m.GuidedShare })),
@@ -244,14 +245,7 @@ export function ShareCoursePanel({
       <div className="sharing-body">
         <header className="sharing-head">
           <h2 id={`${id}-title`}>Share course</h2>
-          <button
-            ref={close}
-            type="button"
-            className="duo-button quiet"
-            onClick={onClose}
-          >
-            Close
-          </button>
+          <CloseButton ref={close} onClick={onClose} />
         </header>
         {loading && (
           <p role="status">

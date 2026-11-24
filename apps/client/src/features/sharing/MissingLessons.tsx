@@ -15,6 +15,7 @@ import {
 import "./sharing.css";
 import { AppLink } from "../../lib/navigation";
 import { trackQuoteShown } from "../../lib/analytics";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 type Sheet =
   | null
@@ -297,14 +298,7 @@ function QuoteSheet({
       >
         <div className="sharing-head">
           <h2 id={titleId}>Generate next lesson</h2>
-          <button
-            type="button"
-            className="duo-button secondary"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            ×
-          </button>
+          <CloseButton onClick={onClose} />
         </div>
         {sheet.kind === "quoting" && (
           <p role="status">
