@@ -62,10 +62,10 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 ## 8. Analytics and dashboards (S)
 
 - [ ] 8.1 Integration: `$ai_generation` carries the new properties, no text, honours opt-out.
-- [ ] 8.2 PostHog dashboard: router source share, default-set rate, guard block and timeout rates by surface, cache-hit share, cost per task by `prompt_mode`; alerts on default-set rate above 20 percent and guard timeout above 5 percent.
+- [x] 8.2 (insights are code in `analytics.AIInsights` and `GuardInsights`, applied by `mise run api:posthog-setup`; the two alert thresholds are documented in the rollout runbook because the setup command does not manage alerts) PostHog dashboard: router source share, default-set rate, guard block and timeout rates by surface, cache-hit share, cost per task by `prompt_mode`; alerts on default-set rate above 20 percent and guard timeout above 5 percent.
 
 ## 9. Rollout behind a per-task switch with promotion evidence (M)
 
 - [ ] 9.1 For each task in spend order: run the A/B live, commit the routed live report, flip `prompt_mode = "routed"` in its own PR when the economics gate passes; otherwise leave monolithic and record the numbers.
 - [ ] 9.2 Roll back procedure documented in `docs/` and tested: flipping the switch restores the previous prompt and ignores cached decisions.
-- [ ] 9.3 Update `docs/agents/skills.md` pointers, `.env.example` (no new variable expected; the Decisions API uses `OPENROUTER_API_KEY`).
+- [x] 9.3 Update `docs/agents/skills.md` pointers, `.env.example` (no new variable expected; the Decisions API uses `OPENROUTER_API_KEY`).
