@@ -309,6 +309,10 @@ test("offline with no active course and nothing downloaded shows the error, not 
   context,
 }) => {
   await page.goto("/profile");
+  // Go offline only once the signed-in shell has rendered. Cutting the network while the
+  // session is still restoring leaves no nav to click, which is a boot race, not the case under test.
+  const learnLink = page.getByRole("link", { name: "Learn" }).first();
+  await expect(learnLink).toBeVisible();
   await page.evaluate(() => {
     for (const key of Object.keys(localStorage))
       if (key.startsWith("duolify:download-index:"))
@@ -318,7 +322,7 @@ test("offline with no active course and nothing downloaded shows the error, not 
   // Real network loss: the browser is offline, so the course list fetch fails with a TypeError.
   await context.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
-  await page.getByRole("link", { name: "Learn" }).first().click();
+  await learnLink.click();
   await expect(page.getByText("Could not load this course.")).toBeVisible();
   await expect(page.getByText("Loading course…")).toHaveCount(0);
   await context.setOffline(false);

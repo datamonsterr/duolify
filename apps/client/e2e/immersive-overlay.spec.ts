@@ -63,6 +63,24 @@ async function paintSlide(page: Page, colour: string) {
       .catch(() => {});
 }
 
+/** Press the mic once it can record: wait out "loading", and retry a press that a slow runner dropped. */
+async function pressMic(page: Page) {
+  const mic = page.getByTestId("voice-mic");
+  await expect(mic).toHaveAttribute("aria-disabled", "false");
+  await expect(async () => {
+    await mic.dispatchEvent("pointerdown", { pointerId: 1, isPrimary: true });
+    try {
+      await expect(page.getByTestId("voice-timer")).toBeVisible({
+        timeout: 2000,
+      });
+    } catch (error) {
+      await mic.dispatchEvent("pointerup", { pointerId: 1, isPrimary: true });
+      throw error;
+    }
+  }).toPass({ timeout: 20_000 });
+  return mic;
+}
+
 /** [r, g, b, a] in 0-255 and 0-1 from rgb()/rgba() or color(srgb ...) computed values. */
 function channels(css: string): number[] {
   const n = (css.match(/-?[\d.]+(?:e-?\d+)?/g) ?? []).map(Number);
@@ -128,8 +146,7 @@ for (const theme of ["dark", "light"] as const) {
     expect(box.width).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeLessThanOrEqual(48);
 
-    await mic.dispatchEvent("pointerdown", { pointerId: 1, isPrimary: true });
-    await expect(page.getByTestId("voice-timer")).toBeVisible();
+    await pressMic(page);
     await page.waitForTimeout(900);
     await shot(page, info, vp, `${theme}-3-bubble-recording`, OUT);
     await mic.dispatchEvent("pointerup", { pointerId: 1, isPrimary: true });
@@ -169,10 +186,7 @@ test("daily cap shows a toast with the reset time", async ({
   });
   await openPanel(page, state.lesson);
   await paintSlide(page, SLIDES.dark);
-  const mic = page.getByTestId("voice-mic");
-  await mic.dispatchEvent("pointerdown", { pointerId: 1, isPrimary: true });
-  // Release only once recording has started; a slow runner can take over a second to open the mic.
-  await expect(page.getByTestId("voice-timer")).toBeVisible();
+  const mic = await pressMic(page);
   await page.waitForTimeout(900);
   await mic.dispatchEvent("pointerup", { pointerId: 1, isPrimary: true });
   await expect(page.getByTestId("toast")).toContainText("voice limit");
