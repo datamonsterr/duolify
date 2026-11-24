@@ -1,3 +1,4 @@
+import type { CharacterSpecV2 } from "./types-v2";
 export type Expression = "idle" | "happy" | "sad" | "thinking" | "celebrate";
 
 export type BodyShape = "round" | "bean" | "star";
@@ -47,6 +48,8 @@ export interface PinnedSpeaker {
   character_id: string;
   character_version: number;
   spec: CharacterSpec;
+  /** v2 document (selector-created Characters); renders kind-aware. Absent for v1 and built-ins. */
+  document?: CharacterSpecV2;
   is_provisional?: boolean;
   suppressed?: boolean;
 }

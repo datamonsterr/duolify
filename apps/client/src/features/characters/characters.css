@@ -112,6 +112,27 @@
 .character-quote strong {
   color: var(--text);
 }
+.cast-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cast-cards li {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  text-align: center;
+}
+.cast-chip {
+  font-size: 0.75rem;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
 
 /* Character creator v2: phone first, two columns from 900px. */
 .cv2-creator {
