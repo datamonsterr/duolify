@@ -1,6 +1,5 @@
 import { OnboardingGate } from "../onboarding/OnboardingGate";
-import { DailyGoal } from "../gamification/DailyGoal";
-import { PreferenceControls } from "../design/localization/PreferenceControls";
+import { AppBarControls } from "./AppBarControls";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
@@ -12,12 +11,7 @@ import {
   useState,
 } from "react";
 import { trackNavigation, trackScreen } from "../../lib/analytics";
-import {
-  RailCreditsCard,
-  RailStreakCard,
-  useBalanceLabel,
-  useWallet,
-} from "./RailCards";
+import { SidebarStats, useBalanceLabel, useWallet } from "./SidebarStats";
 import {
   accountNavigation,
   currentDestination,
@@ -139,7 +133,7 @@ export function AppShell() {
   const status = useRouterState({ select: (state) => state.status });
   const mobile = useMobileLayout();
   const focused = /^\/lesson\/[^/]+(?:\/test)?\/?$/.test(path);
-  // Refreshed on every navigation so spends and purchases show up in the rail.
+  // Refreshed on every navigation so spends and purchases show up in the sidebar.
   const { data: wallet } = useWallet(path);
   const balance = useBalanceLabel(wallet);
   const main = useRef<HTMLElement>(null);
@@ -205,10 +199,11 @@ export function AppShell() {
                   </div>
                 </nav>
               )}
-              <p className="sidebar-foot">{t("shell.motto")}</p>
+              {!mobile && <SidebarStats wallet={wallet} revision={path} />}
             </aside>
             <header className="mobile-header">
               <Brand to="/" />
+              <AppBarControls />
               <Link
                 data-tour="credits"
                 className="credit-shortcut"
@@ -221,12 +216,11 @@ export function AppShell() {
           </>
         )}
         <main className="app-main" id="main-content" tabIndex={-1} ref={main}>
-          {path !== "/settings" && (
-            <details className="appearance-menu">
-              <summary>{t("settings.title")}</summary>
-              <PreferenceControls />
+          {!mobile && (
+            <div className="app-bar-row">
               <span ref={setShortcutSlot} />
-            </details>
+              <AppBarControls />
+            </div>
           )}
           <Outlet />
           <OnboardingGate path={path} />
@@ -241,23 +235,6 @@ export function AppShell() {
         </Suspense>
         {!focused && (
           <>
-            <aside className="support-rail" aria-label={t("shell.progress")}>
-              <RailStreakCard revision={path} />
-              {path !== "/streak" && (
-                <section className="card">
-                  <DailyGoal compact />
-                  <Link
-                    className="shell-link"
-                    to="/streak"
-                    onClick={() => trackNavigation("streak")}
-                  >
-                    {t("shell.goal_settings")}
-                  </Link>
-                </section>
-              )}
-
-              <RailCreditsCard wallet={wallet} />
-            </aside>
             {mobile && (
               <nav className="bottom-tabs" aria-label={t("shell.main")}>
                 {mobileTabs.map((item) => (

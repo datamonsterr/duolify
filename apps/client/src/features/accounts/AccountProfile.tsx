@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LearnerProfile, SetupProfile } from "./LearnerProfile";
 import { Button } from "../design/Button";
@@ -23,6 +23,11 @@ export function AccountProfile() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const chatRef = useRef<HTMLElement>(null);
+  // The chat scrolls itself to its newest line; keep its header in view when it opens.
+  useEffect(() => {
+    if (chatOpen) chatRef.current?.scrollIntoView?.({ block: "start" });
+  }, [chatOpen]);
 
   const { data: coursesData, refetch: refetchCourses } = useQuery({
     queryKey: ["courses"],
@@ -67,7 +72,11 @@ export function AccountProfile() {
             <LearnerProfile />
           </div>
           {chatOpen && (
-            <section role="dialog" aria-label="Update profile by chat">
+            <section
+              ref={chatRef}
+              role="dialog"
+              aria-label="Update profile by chat"
+            >
               <h2>Update by chat</h2>
               <Button variant="secondary" onClick={() => setChatOpen(false)}>
                 Close chat

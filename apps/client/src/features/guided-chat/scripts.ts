@@ -3,6 +3,8 @@ import { courseBrief } from "./brief.script";
 import { authSignin } from "./signin.script";
 import { courseLevel, courseSteer } from "./course.scripts";
 import { onboardingSetup } from "./onboarding.script";
+import { profileEdit, profileGoal } from "./profile.scripts";
+import { socialAddFriend, socialUsername } from "./social.scripts";
 import type { GuidedScript } from "./types";
 
 const opts = (prefix: string, ids: string[]) =>
@@ -177,4 +179,8 @@ export const allScripts: GuidedScript[] = [
   courseSteer,
   accountExport,
   accountDelete,
+  profileEdit,
+  profileGoal,
+  socialUsername,
+  socialAddFriend,
 ];

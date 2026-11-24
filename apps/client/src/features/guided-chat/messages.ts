@@ -6,14 +6,20 @@ import type { accountAr, accountEn } from "./messages.account";
 import type { briefAr, briefEn } from "./messages.brief";
 import type { signinAr, signinEn } from "./messages.signin";
 import type { courseAr, courseEn } from "./messages.course";
+import type { profileAr, profileEn } from "./messages.profile";
+import type { socialAr, socialEn } from "./messages.social";
 import type { setupAr, setupEn } from "./messages.setup";
+import type { landingAr, landingEn } from "../landing/messages.landing";
 
 export const guidedEn = {
   ...({} as typeof setupEn),
   ...({} as typeof briefEn),
   ...({} as typeof accountEn),
   ...({} as typeof signinEn),
+  ...({} as typeof landingEn),
   ...({} as typeof courseEn),
+  ...({} as typeof profileEn),
+  ...({} as typeof socialEn),
   "guided.guide": "Guide",
   "guided.title": "Guided chat",
   "guided.transcript": "Conversation",
@@ -55,7 +61,10 @@ export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   ...({} as typeof setupAr),
   ...({} as typeof briefAr),
   ...({} as typeof accountAr),
+  ...({} as typeof profileAr),
+  ...({} as typeof socialAr),
   ...({} as typeof signinAr),
+  ...({} as typeof landingAr),
   ...({} as typeof courseAr),
   "guided.guide": "المرشد",
   "guided.title": "محادثة موجّهة",

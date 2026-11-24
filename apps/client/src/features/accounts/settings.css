@@ -10,32 +10,122 @@
 .settings-page fieldset {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  /* Label column sized to its longest label; the control column is capped. */
+  grid-template-columns: max-content minmax(0, 20rem);
+  align-items: center;
+  justify-content: start;
+  column-gap: var(--space-6);
+  row-gap: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
 }
 .settings-page legend {
-  font-weight: var(--weight-heavy);
-  padding-inline: var(--space-2);
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .settings-page label {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-height: var(--size-target);
+  overflow-wrap: normal;
+  word-break: normal;
 }
-.settings-page label:has(select) {
-  justify-content: space-between;
+/* A field row puts the label text and its control in the two columns of the fieldset. */
+.settings-page fieldset > label:has(select, input:not([type="checkbox"])) {
+  display: contents;
+}
+.settings-page fieldset > label:has(input[type="checkbox"]) {
+  grid-column: 1 / -1;
+  /* Spans the row without widening the label column. */
+  inline-size: 0;
+  min-inline-size: 100%;
+}
+.settings-page fieldset select,
+.settings-page fieldset input:not([type="checkbox"]) {
+  inline-size: 100%;
+  min-block-size: var(--size-target);
+  box-sizing: border-box;
+}
+.settings-page fieldset input:not([type="checkbox"]) {
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.settings-page .preference-controls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 20rem);
+  align-items: center;
+  justify-content: start;
+  column-gap: var(--space-6);
+  row-gap: var(--space-3);
+  margin: 0;
+}
+.settings-page .preference-controls > * {
+  overflow-wrap: normal;
+}
+.settings-page .preference-select,
+.settings-page .preference-select label {
+  display: contents;
+}
+.settings-page .preference-controls > .preference-motion,
+.settings-page .preference-controls > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+@media (width < 30rem) {
+  .settings-page fieldset,
+  .settings-page .preference-controls {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
+  }
+  .settings-page fieldset > label:has(select, input:not([type="checkbox"])) {
+    display: grid;
+    gap: var(--space-1);
+  }
+}
+.settings-tabs {
+  display: flex;
+  gap: var(--space-1);
+  /* Every tab stays visible; a narrow column wraps them to a second row. */
   flex-wrap: wrap;
+  border-block-end: 1px solid var(--line);
+}
+.settings-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  min-block-size: var(--size-target);
+  padding-inline: var(--space-3);
+  border-block-end: 3px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+}
+.settings-tabs a[aria-current="page"] {
+  color: var(--text);
+  border-block-end-color: var(--primary);
+}
+.settings-tabs .nav-icon,
+.settings-tabs svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
 }
 .settings-page select {
   min-height: var(--size-target);
   border: 2px solid var(--line);
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text);
   font: inherit;
 }
@@ -62,7 +152,7 @@
   padding: 1.5rem;
   border: 1px solid var(--line);
   border-radius: 1.25rem;
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text);
   box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 20%);
 }
@@ -76,7 +166,7 @@
   padding: 0.75rem;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--text);
 }
 @media (max-width: 48rem) {
@@ -105,6 +195,119 @@
 @media (max-width: 48rem) {
   .settings-page fieldset {
     grid-template-columns: 1fr;
+  }
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.settings-head h1 {
+  margin: 0;
+}
+.settings-back {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: var(--size-target);
+  min-block-size: var(--size-target);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+.settings-back .nav-icon {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+.settings-hub ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 3.5rem;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: var(--weight-strong);
+}
+.settings-row span {
+  flex: 1;
+}
+.settings-chevron {
+  color: var(--muted);
+}
+:dir(rtl) .settings-chevron,
+:dir(rtl) .settings-back .nav-icon {
+  transform: scaleX(-1);
+}
+@media (width < 48rem) {
+  .settings-page fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.settings-page input[type="checkbox"] {
+  flex: none;
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  accent-color: var(--primary);
+}
+.settings-hub > .duo-button {
+  margin-block-start: var(--space-4);
+}
+@media (width < 48rem) {
+  /* The section title is already the page heading. */
+  .settings-page fieldset > legend {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .settings-page fieldset {
+    border: 0;
+    padding: 0;
+  }
+}
+@media (width < 48rem) {
+  /* Reach map: the primary action stays in the lower third even when the section is short. */
+  .settings-page form {
+    display: flex;
+    flex-direction: column;
+    min-block-size: calc(100dvh - 17rem);
+  }
+  .settings-page form > .action-dock {
+    margin-block-start: auto;
+  }
+}
+
+/* Primary action of a phone view: docked at the bottom of the scrolling main area, inline-end biased,
+   above the tab bar (a separate grid row) and clear of the safe area. */
+.action-dock {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  background-color: var(--canvas);
+  border-block-start: 1px solid var(--line);
+}
+.action-dock > .duo-button {
+  min-block-size: var(--size-target);
+}
+@media (width < 48rem) {
+  .action-dock > .duo-button {
+    flex: 1;
   }
 }
 .settings-page .your-guide {
@@ -139,4 +342,23 @@
   border-radius: 50%;
   border: 2px solid var(--border, #ddd);
   flex: none;
+}
+
+.settings-page fieldset > .preference-controls,
+.settings-page fieldset > details {
+  grid-column: 1 / -1;
+  inline-size: 0;
+  min-inline-size: 100%;
+}
+.settings-page fieldset > .preference-controls {
+  grid-template-columns: subgrid;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.settings-page .settings-reset {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-block-start: var(--space-2);
 }

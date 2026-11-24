@@ -8,9 +8,8 @@
     "src/features/accounts/LearnerProfile.tsx": 2,
     "src/features/accounts/RouteGuard.tsx": 8,
     "src/features/accounts/Sessions.tsx": 14,
-    "src/features/accounts/Settings.tsx": 35,
     "src/features/accounts/SetupChat.tsx": 67,
-    "src/features/accounts/SignIn.tsx": 33,
+    "src/features/accounts/SignIn.tsx": 29,
     "src/features/accounts/SsoBridge.tsx": 12,
     "src/features/characters/CharacterExportConfirmation.tsx": 6,
     "src/features/characters/CharacterLibrary.tsx": 32,
@@ -35,7 +34,7 @@
     "src/features/design/chat/fixtures.ts": 21,
     "src/features/design/chat/GuidedChatDemo.tsx": 16,
     "src/features/design/CourseCard.tsx": 7,
-    "src/features/design/Courses.tsx": 30,
+    "src/features/design/Courses.tsx": 15,
     "src/features/design/ExampleCourses.tsx": 8,
     "src/features/design/localization/PreferenceControls.tsx": 3,
     "src/features/gamification/DailyGoal.tsx": 23,
@@ -82,7 +81,6 @@
     "src/features/sharing/UnpublishDialog.tsx": 8,
     "src/features/shell/AdaptiveLayouts.tsx": 2,
     "src/features/shell/navigation.ts": 11,
-    "src/features/shell/RailCards.tsx": 8,
     "src/features/shell/RouteBoundary.tsx": 13,
     "src/features/social/AddFriend.tsx": 22,
     "src/features/social/ConfirmBlock.tsx": 6,
@@ -204,12 +202,6 @@
         "error-words"
       ],
       "settings.local": [
-        "fk-grade"
-      ],
-      "settings.motion_hint": [
-        "caption-chars"
-      ],
-      "shell.motto": [
         "fk-grade"
       ],
       "tutor.approval_body": [

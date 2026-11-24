@@ -2,6 +2,13 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { apiBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 // Real API: the browser's /v1/social calls are forwarded to the E2E API server.
 async function proxySocial(page: Page, request: APIRequestContext) {
   await page.route("**/v1/social/**", async (route) => {
@@ -135,7 +142,7 @@ for (const mobile of [false, true]) {
     await expect(add).toBeFocused();
 
     // Settings: rename, cooldown, hold.
-    await page.goto("/settings");
+    await page.goto("/settings#account");
     await page.getByRole("button", { name: "Change username" }).click();
     const rename = page.getByRole("textbox", { name: "New username" });
     await rename.fill(`${p}.mina2`);
@@ -161,6 +168,7 @@ for (const mobile of [false, true]) {
     expect((await heldRename.json()).code).toBe("username_taken");
 
     // Privacy: failed save keeps the previous value; success hides from prefix search.
+    await page.goto("/settings#privacy");
     const findable = page.getByRole("checkbox", {
       name: "Findable by username",
     });

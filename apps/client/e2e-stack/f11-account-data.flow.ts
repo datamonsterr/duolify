@@ -14,7 +14,7 @@ test(
   async ({ page, flow }) => {
     const email = uniqueEmail("f11");
     await signUp(page, email, undefined, "/settings");
-    await page.goto("/settings");
+    await page.goto("/settings#privacy");
     const account = page.getByRole("region", {
       name: "Account data and privacy",
     });

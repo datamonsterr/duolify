@@ -7,6 +7,7 @@ const posthog = vi.hoisted(() => ({
   init: vi.fn(),
 }));
 vi.mock("posthog-js/dist/module.no-external", () => ({ default: posthog }));
+import { defaultDraft } from "./draft";
 import { TutorChat } from "../chat/TutorChat";
 import type {
   PersonaRoster,
@@ -323,4 +324,27 @@ it("emits tutor_character_selected only for an explicit confirmed choice, withou
   await pick(/Pip/);
   expect(events()).toHaveLength(1);
   posthog.has_opted_out_capturing.mockReturnValue(false);
+});
+
+it("shows the pinned tutor's v2 avatar in the header instead of the mascot", async () => {
+  const base = roster();
+  const withDoc = roster({
+    tutors: [
+      { ...base.tutors[0]!, document: defaultDraft("robot") },
+      ...base.tutors.slice(1),
+    ],
+  });
+  render(
+    <TutorChat
+      courseId="c1"
+      service={service(undefined, async () => withDoc)}
+    />,
+  );
+  open();
+  await screen.findByRole("button", { name: "Tutor: Pip" });
+  await vi.waitFor(() =>
+    expect(
+      document.querySelector(".tutor-top .cv2-preview svg"),
+    ).not.toBeNull(),
+  );
 });

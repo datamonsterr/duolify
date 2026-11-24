@@ -27,7 +27,7 @@ async function openLearn(page: Page) {
     }),
   );
   await page.goto("/");
-  await expect(page.locator(".appearance-menu summary")).toBeVisible();
+  await expect(page.locator(".app-bar-language:visible")).toBeVisible();
 }
 
 test("shows shortcuts, contains focus, and dismisses one layer per Escape", async ({
@@ -35,8 +35,6 @@ test("shows shortcuts, contains focus, and dismisses one layer per Escape", asyn
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openLearn(page);
-  const appearance = page.locator(".appearance-menu");
-  await appearance.locator("summary").click();
   const trigger = page.getByRole("button", { name: "Shortcuts", exact: true });
   await trigger.focus();
   await page.keyboard.press("?");
@@ -68,9 +66,6 @@ test("shows shortcuts, contains focus, and dismisses one layer per Escape", asyn
   await page.keyboard.press("Escape");
   await expect(help).toBeHidden();
   await expect(trigger).toBeFocused();
-  await expect(appearance).toHaveAttribute("open", "");
-  await page.keyboard.press("Escape");
-  await expect(appearance).not.toHaveAttribute("open", "");
   await expect(page).toHaveURL(/\/$/);
 });
 
@@ -110,9 +105,12 @@ test("keeps text entry and composition safe and leaves browser tab keys alone", 
 test("shows help as a bottom sheet at phone width", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openLearn(page);
-  await page.keyboard.press("?");
   const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
-  await expect(help).toBeVisible();
+  // The hotkey layer loads lazily; press again until it is listening.
+  await expect(async () => {
+    await page.keyboard.press("?");
+    await expect(help).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
   const bounds = await help.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds!.y + bounds!.height).toBe(844);

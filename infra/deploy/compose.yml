@@ -87,7 +87,12 @@ x-api-image: &api-image
 services:
   proxy:
     image: ${WEB_IMAGE:-${IMAGE_REGISTRY:-duolify}/web:${IMAGE_TAG:-local}}
-    build: {context: ../.., dockerfile: apps/client/Dockerfile, target: web}
+    build:
+      context: ../..
+      dockerfile: apps/client/Dockerfile
+      target: web
+      args:
+        VITE_LANDING_MEDIA_BASE: ${VITE_LANDING_MEDIA_BASE:-}
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       # Origins of the web Content-Security-Policy (security-headers.caddy). API_ORIGIN stays empty while the
@@ -226,6 +231,8 @@ services:
       ENGINE_PROVIDER_MODE: ${ENGINE_PROVIDER_MODE:-mock}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Skill-router decision cache and daily budget breaker (disposable state; unset keeps them process-local).
+      REDIS_URL: redis://redis:6379/0
       # Live narration needs NARRATION_LIVE_ENABLED=true plus the ElevenLabs key and voice; otherwise the mock speaks.
       NARRATION_LIVE_ENABLED: ${NARRATION_LIVE_ENABLED:-false}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}

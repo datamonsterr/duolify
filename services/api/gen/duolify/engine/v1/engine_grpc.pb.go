@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	EngineService_ScreenInstruction_FullMethodName     = "/duolify.engine.v1.EngineService/ScreenInstruction"
+	EngineService_GuardInput_FullMethodName            = "/duolify.engine.v1.EngineService/GuardInput"
 	EngineService_ReplanOutline_FullMethodName         = "/duolify.engine.v1.EngineService/ReplanOutline"
 	EngineService_ScreenCharacter_FullMethodName       = "/duolify.engine.v1.EngineService/ScreenCharacter"
 	EngineService_MapCharacter_FullMethodName          = "/duolify.engine.v1.EngineService/MapCharacter"
@@ -48,6 +49,10 @@ const (
 type EngineServiceClient interface {
 	// ScreenInstruction classifies untrusted style/focus data at platform expense.
 	ScreenInstruction(ctx context.Context, in *ScreenInstructionRequest, opts ...grpc.CallOption) (*ScreenInstructionResponse, error)
+	// GuardInput is the input guard (ADR 0025): one verdict for learner free text on any surface,
+	// at platform expense. The engine applies the surface's failure rule; the response never
+	// echoes the text.
+	GuardInput(ctx context.Context, in *GuardInputRequest, opts ...grpc.CallOption) (*GuardInputResponse, error)
 	// ReplanOutline proposes remaining content; protected lessons must be echoed unchanged.
 	ReplanOutline(ctx context.Context, in *ReplanOutlineRequest, opts ...grpc.CallOption) (*ReplanOutlineResponse, error)
 	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
@@ -98,6 +103,16 @@ func (c *engineServiceClient) ScreenInstruction(ctx context.Context, in *ScreenI
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ScreenInstructionResponse)
 	err := c.cc.Invoke(ctx, EngineService_ScreenInstruction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) GuardInput(ctx context.Context, in *GuardInputRequest, opts ...grpc.CallOption) (*GuardInputResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GuardInputResponse)
+	err := c.cc.Invoke(ctx, EngineService_GuardInput_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -301,6 +316,10 @@ func (c *engineServiceClient) Transcribe(ctx context.Context, in *TranscribeRequ
 type EngineServiceServer interface {
 	// ScreenInstruction classifies untrusted style/focus data at platform expense.
 	ScreenInstruction(context.Context, *ScreenInstructionRequest) (*ScreenInstructionResponse, error)
+	// GuardInput is the input guard (ADR 0025): one verdict for learner free text on any surface,
+	// at platform expense. The engine applies the surface's failure rule; the response never
+	// echoes the text.
+	GuardInput(context.Context, *GuardInputRequest) (*GuardInputResponse, error)
 	// ReplanOutline proposes remaining content; protected lessons must be echoed unchanged.
 	ReplanOutline(context.Context, *ReplanOutlineRequest) (*ReplanOutlineResponse, error)
 	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
@@ -349,6 +368,9 @@ type UnimplementedEngineServiceServer struct{}
 
 func (UnimplementedEngineServiceServer) ScreenInstruction(context.Context, *ScreenInstructionRequest) (*ScreenInstructionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ScreenInstruction not implemented")
+}
+func (UnimplementedEngineServiceServer) GuardInput(context.Context, *GuardInputRequest) (*GuardInputResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GuardInput not implemented")
 }
 func (UnimplementedEngineServiceServer) ReplanOutline(context.Context, *ReplanOutlineRequest) (*ReplanOutlineResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReplanOutline not implemented")
@@ -436,6 +458,24 @@ func _EngineService_ScreenInstruction_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EngineServiceServer).ScreenInstruction(ctx, req.(*ScreenInstructionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_GuardInput_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GuardInputRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).GuardInput(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_GuardInput_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).GuardInput(ctx, req.(*GuardInputRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -742,6 +782,10 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ScreenInstruction",
 			Handler:    _EngineService_ScreenInstruction_Handler,
+		},
+		{
+			MethodName: "GuardInput",
+			Handler:    _EngineService_GuardInput_Handler,
 		},
 		{
 			MethodName: "ReplanOutline",
