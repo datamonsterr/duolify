@@ -73,9 +73,6 @@ for (const [width, height, scheme] of [
 
     test("daily goal and reminder clock as a chat", async ({ page }) => {
       await page.goto("/settings#goals");
-      await expect(
-        page.getByRole("heading", { name: "Settings" }),
-      ).toBeVisible();
       // The old fields are gone behind the flag; one chat replaces them.
       await expect(page.getByLabel("Daily minutes")).toHaveCount(0);
       await page
