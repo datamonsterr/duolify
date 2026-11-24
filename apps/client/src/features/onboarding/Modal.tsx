@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useRef, type ReactNode, type KeyboardEvent } from "react";
 
 // Native top-layer modal follows the existing Sheet's focus/return pattern.
@@ -50,11 +51,7 @@ export function Modal({
         onSkip();
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onSkip();
-          return;
-        }
+        if (closeOnEscape(event, onSkip, "learn")) return;
         if (event.key === "Tab") {
           const items = [
             ...dialog.current!.querySelectorAll<HTMLElement>(

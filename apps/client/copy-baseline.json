@@ -9,7 +9,7 @@
     "src/features/accounts/RouteGuard.tsx": 8,
     "src/features/accounts/Sessions.tsx": 14,
     "src/features/accounts/SetupChat.tsx": 67,
-    "src/features/accounts/SignIn.tsx": 33,
+    "src/features/accounts/SignIn.tsx": 29,
     "src/features/accounts/SsoBridge.tsx": 12,
     "src/features/characters/CharacterExportConfirmation.tsx": 6,
     "src/features/characters/CharacterLibrary.tsx": 32,

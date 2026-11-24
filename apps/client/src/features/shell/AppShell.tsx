@@ -3,7 +3,14 @@ import { DailyGoal } from "../gamification/DailyGoal";
 import { AppBarControls } from "./AppBarControls";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { trackNavigation, trackScreen } from "../../lib/analytics";
 import {
   RailCreditsCard,
@@ -25,6 +32,9 @@ import { ShellSession } from "./ShellSession";
 import { useMarketplaceEnabled } from "../../lib/features";
 import { ModerationNoticesLink } from "../sharing/ModerationNoticesLink";
 import { Brand } from "../design/brand/Brand";
+import { useHelpShortcut } from "../hotkeys/escape";
+
+const ShellHotkeys = lazy(() => import("../hotkeys/ShellHotkeys"));
 
 const icons: Record<string, string> = {
   home: "M3 11 12 4l9 7v9h-6v-6H9v6H3z",
@@ -133,6 +143,11 @@ export function AppShell() {
   const { data: wallet } = useWallet(path);
   const balance = useBalanceLabel(wallet);
   const main = useRef<HTMLElement>(null);
+  const [shortcutSlot, setShortcutSlot] = useState<HTMLSpanElement | null>(
+    null,
+  );
+  const [helpOpen, setHelpOpen] = useState(false);
+  useHelpShortcut(helpOpen, () => setHelpOpen(true), screenForPath(path));
   const positions = useRef(new Map<string, number>());
   const lastScreen = useRef<string | null>(null);
   useLayoutEffect(() => {
@@ -207,10 +222,23 @@ export function AppShell() {
           </>
         )}
         <main className="app-main" id="main-content" tabIndex={-1} ref={main}>
-          {!mobile && <AppBarControls />}
+          {!mobile && (
+            <div className="app-bar-row">
+              <span ref={setShortcutSlot} />
+              <AppBarControls />
+            </div>
+          )}
           <Outlet />
           <OnboardingGate path={path} />
         </main>
+        <Suspense fallback={null}>
+          <ShellHotkeys
+            path={path}
+            slot={shortcutSlot}
+            open={helpOpen}
+            setOpen={setHelpOpen}
+          />
+        </Suspense>
         {!focused && (
           <>
             <aside className="support-rail" aria-label={t("shell.progress")}>
