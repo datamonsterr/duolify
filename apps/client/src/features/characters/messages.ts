@@ -62,8 +62,14 @@ export const charactersV2En = {
   "characters.v2.f.clothes_pattern": "Pattern",
   "characters.v2.f.clothes_accessories": "Accessories",
   "characters.v2.f.info_name": "Name",
-  "characters.v2.f.identity_pronouns": "Pronouns (optional)",
-  "characters.v2.f.identity_label": "Label (optional)",
+  "characters.v2.f.identity_pronouns": "Pronouns",
+  "characters.v2.f.identity_label": "Gender or label (optional)",
+  "characters.v2.pronoun.other_label": "Your pronouns",
+  "characters.v2.pronoun.she": "She/her",
+  "characters.v2.pronoun.he": "He/him",
+  "characters.v2.pronoun.they": "They/them",
+  "characters.v2.pronoun.other": "Other",
+  "characters.v2.pronoun.none": "Not set",
   "characters.v2.f.voice_key": "Voice",
   "characters.v2.f.personality_traits": "Traits (comma separated)",
   "characters.v2.f.personality_speaking_style": "Speaking style",
@@ -142,8 +148,14 @@ export const charactersV2Ar: Record<CharactersV2Id, string> = {
   "characters.v2.f.clothes_pattern": "النقش",
   "characters.v2.f.clothes_accessories": "الإكسسوارات",
   "characters.v2.f.info_name": "الاسم",
-  "characters.v2.f.identity_pronouns": "الضمائر (اختياري)",
-  "characters.v2.f.identity_label": "وصف (اختياري)",
+  "characters.v2.f.identity_pronouns": "الضمائر",
+  "characters.v2.pronoun.other_label": "ضمائرك",
+  "characters.v2.pronoun.she": "هي",
+  "characters.v2.pronoun.he": "هو",
+  "characters.v2.pronoun.they": "هم (محايد)",
+  "characters.v2.pronoun.other": "أخرى",
+  "characters.v2.pronoun.none": "غير محدد",
+  "characters.v2.f.identity_label": "الجنس أو وصف (اختياري)",
   "characters.v2.f.voice_key": "الصوت",
   "characters.v2.f.personality_traits": "الصفات (مفصولة بفواصل)",
   "characters.v2.f.personality_speaking_style": "أسلوب الكلام",
@@ -193,7 +205,10 @@ const OPTION_AR: Record<string, string> = {
   checks: "مربعات",
 };
 const humanizeId = (id: string) =>
-  id.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  id
+    .replace(/^voice-provisional-/, "")
+    .replace(/_/g, " ")
+    .replace(/^./, (c) => c.toUpperCase());
 /** Label for a catalog id; Arabic covers the core ids, the rest fall back to the English word. */
 export const optionLabel = (id: string, locale: string) =>
   locale === "ar" ? (OPTION_AR[id] ?? humanizeId(id)) : humanizeId(id);

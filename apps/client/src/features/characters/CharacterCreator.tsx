@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "../design/Button";
 import { useCharacterT } from "./useCharacterT";
-import { CharacterPreview } from "./CharacterPreview";
+import { CharacterStage } from "./CharacterStage";
 import {
   CharacterSelector,
   CharacterTabs,
@@ -9,7 +9,7 @@ import {
 } from "./CharacterSelector";
 import { applyDraftPatch, defaultDraft } from "./draft";
 import { characterLibrary, type CharacterRecord } from "./library";
-import { POSES, type RigView } from "./rig-v2";
+import { POSES } from "./rig-v2";
 import { validateSpecV2 } from "./schema-v2";
 import {
   EXPRESSIONS_V2,
@@ -33,7 +33,6 @@ export function CharacterCreator({
     () => record?.document ?? defaultDraft("human"),
   );
   const [tab, setTab] = useState<Tab>("kind");
-  const [view, setView] = useState<RigView>("avatar");
   const [pose, setPose] = useState<Pose>("idle");
   const [expression, setExpression] = useState<ExpressionV2>("idle");
   const [rejected, setRejected] = useState(false);
@@ -85,24 +84,7 @@ export function CharacterCreator({
           </Button>
         </div>
         <div className="cv2-stage">
-          <button
-            type="button"
-            className="cv2-avatar"
-            aria-pressed={view === "body"}
-            aria-label={t(
-              view === "avatar"
-                ? "characters.v2.view.body"
-                : "characters.v2.view.avatar",
-            )}
-            onClick={() => setView(view === "avatar" ? "body" : "avatar")}
-          >
-            <CharacterPreview
-              spec={spec}
-              view={view}
-              pose={pose}
-              expression={expression}
-            />
-          </button>
+          <CharacterStage spec={spec} pose={pose} expression={expression} />
           <button
             type="button"
             className="cv2-icon"
