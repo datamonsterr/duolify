@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { friendsPath, type FriendEntry } from "../social/friends";
 import { session } from "../accounts/session";
 import {
@@ -10,6 +17,11 @@ import {
   type InviteTarget,
   type SentInvite,
 } from "./invites";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedInvite = lazy(() =>
+  import("./GuidedInvite").then((m) => ({ default: m.GuidedInvite })),
+);
 
 const statusLabel: Record<SentInvite["status"], string> = {
   pending: "Pending",
@@ -59,7 +71,11 @@ export function InviteFriends({
   }, [courseId]);
   useEffect(() => (shared ? load() : undefined), [shared, load]);
 
-  async function send(target: InviteTarget, key: string, done?: () => void) {
+  async function send(
+    target: InviteTarget,
+    key: string,
+    done?: () => void,
+  ): Promise<boolean> {
     setBusy(key);
     setFailure(undefined);
     setNotice("");
@@ -72,6 +88,7 @@ export function InviteFriends({
       done?.();
       const fresh = await invites.sent(courseId).catch(() => undefined);
       if (fresh) setSent(fresh.invites);
+      return true;
     } catch (error) {
       const kind = inviteFailure(error);
       if (kind !== "offline") keys.current.delete(key);
@@ -81,6 +98,7 @@ export function InviteFriends({
           .sent(courseId)
           .then((fresh) => setSent(fresh.invites))
           .catch(() => undefined);
+      return false;
     } finally {
       setBusy("");
     }
@@ -104,6 +122,7 @@ export function InviteFriends({
     }
   }
 
+  const guided = guidedEnabled("rest");
   const pending = new Set(
     sent.filter((i) => i.status === "pending").map((i) => i.recipient.username),
   );
@@ -131,34 +150,43 @@ export function InviteFriends({
         </div>
       ) : (
         <>
-          <form
-            className="sharing-invite-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const username = cleanName(name);
-              if (username)
-                void send({ username }, `u:${username}`, () => setName(""));
-            }}
-          >
-            <label>
-              <span>Friend's username</span>
-              <input
-                value={name}
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                dir="auto"
-                onChange={(event) => setName(event.target.value)}
+          {guided && (
+            <Suspense fallback={null}>
+              <GuidedInvite
+                onSend={(username) => send({ username }, `u:${username}`)}
               />
-            </label>
-            <button
-              type="submit"
-              className="duo-button"
-              disabled={busy !== "" || cleanName(name) === ""}
+            </Suspense>
+          )}
+          {!guided && (
+            <form
+              className="sharing-invite-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const username = cleanName(name);
+                if (username)
+                  void send({ username }, `u:${username}`, () => setName(""));
+              }}
             >
-              Send invite
-            </button>
-          </form>
+              <label>
+                <span>Friend's username</span>
+                <input
+                  value={name}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  dir="auto"
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              <button
+                type="submit"
+                className="duo-button"
+                disabled={busy !== "" || cleanName(name) === ""}
+              >
+                Send invite
+              </button>
+            </form>
+          )}
           {failure && (
             <p className="sharing-error" role="alert">
               {inviteMessages[failure]}

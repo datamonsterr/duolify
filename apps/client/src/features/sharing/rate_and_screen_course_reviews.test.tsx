@@ -1,3 +1,4 @@
+import { beforeEach as keepOldForms } from "vitest";
 import {
   act,
   fireEvent,
@@ -164,3 +165,6 @@ it("confirms deletion and updates the aggregate after removing one review", asyn
     "DELETE",
   );
 });
+
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+keepOldForms(() => localStorage.setItem("duolify.guided.rest", "off"));

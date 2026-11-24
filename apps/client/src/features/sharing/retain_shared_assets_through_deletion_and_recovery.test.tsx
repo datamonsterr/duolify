@@ -1,3 +1,4 @@
+import { beforeEach as keepOldForms } from "vitest";
 import {
   fireEvent,
   render,
@@ -188,3 +189,6 @@ describe("share panel unpublish entry", () => {
     );
   });
 });
+
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+keepOldForms(() => localStorage.setItem("duolify.guided.rest", "off"));

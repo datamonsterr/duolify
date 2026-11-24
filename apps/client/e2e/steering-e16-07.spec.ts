@@ -1,5 +1,12 @@
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 const course = "c1111111-1111-4111-8111-111111111111";
 for (const mobile of [false, true]) {
   test.describe(`E16-07 ${mobile ? "mobile" : "desktop"}`, () => {

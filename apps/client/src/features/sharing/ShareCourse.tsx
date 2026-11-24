@@ -1,5 +1,13 @@
 import { closeOnEscape } from "../hotkeys/escape";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import {
   linkFailure,
   linkMessages,
@@ -16,6 +24,11 @@ import "./sharing.css";
 import { drafts } from "./drafts";
 import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
 import { BirthDatePrompt, publisherAgeError } from "./BirthDatePrompt";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedShare = lazy(() =>
+  import("./GuidedShare").then((m) => ({ default: m.GuidedShare })),
+);
 
 /** Owner entry point on the course view. */
 export function ShareCourse({ courseId }: { courseId: string }) {
@@ -121,20 +134,27 @@ export function ShareCoursePanel({
     };
   }, []);
 
-  async function run(work: Busy, task: () => Promise<void>) {
+  /** Resolves false when the change did not go through, so a chat can keep its answers. */
+  async function run(
+    work: Busy,
+    task: () => Promise<boolean | void>,
+  ): Promise<boolean> {
     setBusy(work);
     setFailure(null);
     setNotice(null);
     try {
-      await task();
+      return (await task()) !== false;
     } catch (error) {
       if (publisherAgeError(error) === "birth_date_required") {
         setResumeAfterAge(() => () => void run(work, task));
-      } else if (publisherAgeError(error) === "adult_required") {
+        return true;
+      }
+      if (publisherAgeError(error) === "adult_required") {
         setFailure("adult");
       } else {
         setFailure(linkFailure(error));
       }
+      return false;
     } finally {
       setBusy(null);
     }
@@ -160,7 +180,7 @@ export function ShareCoursePanel({
               ? "Screening is pending. Your course stays private. Learning is not affected."
               : "Needs a quick review. It stays private until review is available.",
         );
-        return;
+        return false;
       }
       setLink(result.link);
       setVersion({ n: result.version, lessons: result.lessons });
@@ -190,6 +210,7 @@ export function ShareCoursePanel({
   }
 
   const shared = state?.visibility === "link" && state.active;
+  const guided = guidedEnabled("rest");
   return (
     <dialog
       ref={dialog}
@@ -266,7 +287,15 @@ export function ShareCoursePanel({
             onCancel={() => setResumeAfterAge(null)}
           />
         )}
-        {state && (
+        {state && guided && (
+          <Suspense fallback={null}>
+            <GuidedShare
+              shared={shared}
+              onChange={(next) => (next === "link" ? publish() : revoke())}
+            />
+          </Suspense>
+        )}
+        {state && !guided && (
           <fieldset className="sharing-visibility" disabled={busy !== null}>
             <legend>Who can see this course?</legend>
             <Choice

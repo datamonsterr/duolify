@@ -1,8 +1,15 @@
 import { ReservationPanel } from "../credits/ReservationPanel";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { exposePricing, trackQuoteShown } from "../../lib/analytics";
 import { quoteAPI, type ActionQuote } from "./quotes";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedQuoteConsent = lazy(() =>
+  import("./GuidedQuoteConsent").then((m) => ({
+    default: m.GuidedQuoteConsent,
+  })),
+);
 export function QuotePanel({
   narrationCharacters,
   recoveryQuoteId,
@@ -79,16 +86,19 @@ export function QuotePanel({
     void create();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!consent]);
-  async function accept() {
-    if (!quote || expired) return;
+  /** Resolves false when the terms were not accepted, so a chat can offer a retry. */
+  async function accept(): Promise<boolean> {
+    if (!quote || expired) return false;
     setBusy(true);
     setError(false);
     try {
       await quoteAPI.accept(quote.id);
       setQuote({ ...quote, accepted: true });
       consent?.onAccepted({ ...quote, accepted: true });
+      return true;
     } catch {
       setError(true);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -195,6 +205,18 @@ export function QuotePanel({
             <p role="alert">
               Quote expired. Renew and review before accepting.
             </p>
+          ) : consent && guidedEnabled("rest") ? (
+            <Suspense fallback={null}>
+              <GuidedQuoteConsent
+                key={quote.id}
+                onAccept={accept}
+                onCancel={() => {
+                  setQuote(undefined);
+                  setError(false);
+                  consent.onCancel();
+                }}
+              />
+            </Suspense>
           ) : (
             <Button disabled={busy || error} onClick={() => void accept()}>
               Accept quote terms

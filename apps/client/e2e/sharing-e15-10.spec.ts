@@ -7,6 +7,13 @@ import type {
 import { apiBase, webBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 type Tokens = { access_token: string };
 type Who = { headers: { Authorization: string }; tokens: Tokens };
 

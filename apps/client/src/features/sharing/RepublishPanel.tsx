@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useId, useState } from "react";
 import { drafts } from "./drafts";
 import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
 import { BirthDatePrompt, publisherAgeError } from "./BirthDatePrompt";
@@ -11,6 +11,11 @@ import {
   type Republished,
   type Versions,
 } from "./republish";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedRepublish = lazy(() =>
+  import("./GuidedRepublish").then((m) => ({ default: m.GuidedRepublish })),
+);
 
 /** Owner controls to publish a new immutable version, inside the Share panel. */
 export function RepublishPanel({ courseId }: { courseId: string }) {
@@ -42,10 +47,12 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
   }, [courseId]);
   useEffect(() => load(), [load]);
 
+  const guided = guidedEnabled("rest");
   const live = versions?.versions.find((v) => v.live)?.number ?? 0;
   const left = versions?.republishes_remaining ?? 0;
 
-  async function publish(consent = false) {
+  /** Resolves false only on a hard failure, so a chat keeps its answers for a retry. */
+  async function publish(consent = false, notes = text): Promise<boolean> {
     setBusy(true);
     setFailure(null);
     setResult(null);
@@ -56,23 +63,25 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
         if (disclosure.character_count > 0) {
           if (!disclosure.exports_enabled) {
             setReleaseGated(true);
-            return;
+            return true;
           }
           setCharacters(disclosure.names);
           setConfirmed(false);
-          return;
+          return true;
         }
       }
-      const got = await republish.publish(courseId, text, consent);
+      const got = await republish.publish(courseId, notes, consent);
       setResult(got);
       if (got.verdict === "pass") setText("");
       setVersions(await republish.versions(courseId).catch(() => versions));
+      return true;
     } catch (error) {
       if (publisherAgeError(error) === "birth_date_required") {
-        setResumeAfterAge(() => () => void publish(consent));
-      } else {
-        setFailure(republishFailure(error));
+        setResumeAfterAge(() => () => void publish(consent, notes));
+        return true;
       }
+      setFailure(republishFailure(error));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -112,31 +121,47 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
       )}
       {versions && (
         <>
-          <label htmlFor={`${id}-log`}>What's new in this version</label>
-          <textarea
-            id={`${id}-log`}
-            className="sharing-textarea"
-            value={text}
-            maxLength={MAX_CHANGELOG}
-            rows={3}
-            disabled={busy}
-            onChange={(event) => setText(event.target.value)}
-          />
-          <p className="sharing-note">
-            {text.length} / {MAX_CHANGELOG}
-          </p>
+          {guided && left > 0 && (
+            <Suspense fallback={null}>
+              <GuidedRepublish
+                onPublish={(changelog) => {
+                  setText(changelog);
+                  return publish(false, changelog);
+                }}
+              />
+            </Suspense>
+          )}
+          {!guided && (
+            <>
+              <label htmlFor={`${id}-log`}>What's new in this version</label>
+              <textarea
+                id={`${id}-log`}
+                className="sharing-textarea"
+                value={text}
+                maxLength={MAX_CHANGELOG}
+                rows={3}
+                disabled={busy}
+                onChange={(event) => setText(event.target.value)}
+              />
+              <p className="sharing-note">
+                {text.length} / {MAX_CHANGELOG}
+              </p>
+            </>
+          )}
           <p className="sharing-note">
             {left} of {versions.limit} new versions left today. Each version is
             checked for safety before it goes live.
           </p>
-          <button
-            type="button"
-            className="duo-button"
-            disabled={busy || left <= 0}
-            onClick={() => void publish()}
-          >
-            Publish new version
-          </button>
+          {!guided && (
+            <button
+              type="button"
+              className="duo-button"
+              disabled={busy || left <= 0}
+              onClick={() => void publish()}
+            >
+              Publish new version
+            </button>
+          )}
         </>
       )}
       {characters && !confirmed && (

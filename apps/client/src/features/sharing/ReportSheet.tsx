@@ -1,5 +1,14 @@
 import { closeOnEscape } from "../hotkeys/escape";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { guidedEnabled } from "../guided-chat/flags";
 import {
   reportFailure,
   reportMaxChars,
@@ -15,6 +24,10 @@ type State =
   | { kind: "sending" }
   | { kind: "failed"; failure: ReportFailure }
   | { kind: "done"; merged: boolean };
+
+const GuidedReport = lazy(() =>
+  import("./GuidedReport").then((m) => ({ default: m.GuidedReport })),
+);
 
 const focusable =
   "button:not(:disabled), input:not(:disabled), textarea:not(:disabled)";
@@ -55,15 +68,22 @@ export function ReportSheet({
     if (state.kind === "done") done.current?.focus();
   }, [state.kind]);
 
-  const submit = async () => {
-    if (sending.current || !reason || chars > reportMaxChars) return;
+  const guided = guidedEnabled("rest");
+  const submit = async (picked = reason, details = text) => {
+    if (
+      sending.current ||
+      !picked ||
+      Array.from(details).length > reportMaxChars
+    )
+      return;
     sending.current = true;
     setState({ kind: "sending" });
     try {
-      const result = await sendReport(target, reason, text.trim());
+      const result = await sendReport(target, picked, details.trim());
       setState({ kind: "done", merged: result.merged });
     } catch (error) {
       setState({ kind: "failed", failure: reportFailure(error) });
+      throw error;
     } finally {
       sending.current = false;
     }
@@ -134,12 +154,23 @@ export function ReportSheet({
               Done
             </button>
           </div>
+        ) : guided ? (
+          <div className="report-form" aria-busy={busy}>
+            <Suspense fallback={null}>
+              <GuidedReport onSend={(r, d) => submit(r, d)} />
+            </Suspense>
+            {failure && (
+              <p className="sharing-error" role="alert">
+                {reportMessages[failure]}
+              </p>
+            )}
+          </div>
         ) : (
           <form
             className="report-form"
             onSubmit={(e) => {
               e.preventDefault();
-              void submit();
+              submit().catch(() => undefined);
             }}
           >
             <fieldset disabled={busy}>
@@ -176,7 +207,7 @@ export function ReportSheet({
                   <button
                     type="button"
                     className="duo-button secondary"
-                    onClick={() => void submit()}
+                    onClick={() => submit().catch(() => undefined)}
                   >
                     Retry
                   </button>

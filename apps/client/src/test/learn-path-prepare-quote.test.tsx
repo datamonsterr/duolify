@@ -1,3 +1,4 @@
+import { beforeEach as keepOldForms } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -173,3 +174,6 @@ describe("LearnPath prepare lesson quote consent (#202)", () => {
     },
   );
 });
+
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+keepOldForms(() => localStorage.setItem("duolify.guided.rest", "off"));

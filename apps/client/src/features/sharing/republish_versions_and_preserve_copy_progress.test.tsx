@@ -1,3 +1,4 @@
+import { beforeEach as keepOldForms } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { session } from "../accounts/session";
@@ -392,3 +393,6 @@ describe("archived lessons history", () => {
     expect(await screen.findByText("Eclipses")).toBeInTheDocument();
   });
 });
+
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+keepOldForms(() => localStorage.setItem("duolify.guided.rest", "off"));

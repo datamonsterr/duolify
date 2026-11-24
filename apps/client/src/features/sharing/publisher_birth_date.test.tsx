@@ -1,3 +1,4 @@
+import { beforeEach as keepOldForms } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { BirthDatePrompt, publisherAgeError } from "./BirthDatePrompt";
@@ -166,3 +167,6 @@ it("shows an under-18 refusal without treating it as a connection failure", asyn
     screen.queryByRole("button", { name: "Save and continue" }),
   ).toBeNull();
 });
+
+// The old forms stay reachable behind `duolify.guided.rest` until 8.3 removes them.
+keepOldForms(() => localStorage.setItem("duolify.guided.rest", "off"));
