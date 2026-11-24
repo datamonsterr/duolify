@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useUiPreferences } from "../design/localization/Preferences";
+import { Icon } from "../design/Icon";
 import type { ScreenId } from "../shell/navigation";
 import { useEscapeLayer } from "./escape";
 import { shortcutMessage } from "./messages";
@@ -63,13 +64,15 @@ export default function ShortcutHelp({
     >
       <div className="shortcut-help-content">
         <header className="shortcut-help-header">
+          <h2 id={heading}>{t("show_help")}</h2>
           <ShortcutButton
             id="dismiss"
-            label={t("dismiss")}
+            label={<Icon name="close" />}
+            ariaLabel={t("dismiss")}
+            className="shortcut-help-close"
             surface={surface}
             onClick={close}
           />
-          <h2 id={heading}>{t("show_help")}</h2>
         </header>
         <div className="shortcut-help-groups">
           {getHelpSections(scope, desktop).map(({ group, rows }) => (

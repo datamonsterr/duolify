@@ -17,11 +17,15 @@ export function ShortcutButton({
   label,
   surface,
   onClick,
+  ariaLabel,
+  className,
 }: {
   id: ShortcutId;
   label: ReactNode;
   surface: ScreenId;
   onClick: () => void;
+  ariaLabel?: string;
+  className?: string;
 }) {
   const { preferences } = useUiPreferences();
   const [show, setShow] = useState(false);
@@ -52,8 +56,9 @@ export function ShortcutButton({
   return (
     <span className="shortcut-button" ref={owner}>
       <button
-        className="duo-button quiet"
+        className={`duo-button quiet ${className ?? ""}`}
         type="button"
+        aria-label={ariaLabel}
         aria-keyshortcuts={shortcutAria(id)}
         aria-describedby={show ? hint : undefined}
         onMouseEnter={() => openAfter(400)}

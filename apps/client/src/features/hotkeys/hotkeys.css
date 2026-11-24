@@ -24,14 +24,24 @@
 }
 
 .shortcut-help {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   box-sizing: border-box;
-  width: min(calc(100% - var(--space-8)), 36rem);
+  width: min(calc(100% - var(--space-8)), 35rem);
   max-height: min(44rem, 90dvh);
+  overflow: hidden;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
+}
+
+.shortcut-help-content {
+  display: flex;
+  flex-direction: column;
+  max-height: min(44rem, 90dvh);
 }
 
 .shortcut-help::backdrop {
@@ -42,8 +52,22 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  justify-content: space-between;
   padding: var(--space-3) var(--space-5);
   border-block-end: 1px solid var(--line);
+}
+
+.shortcut-help-close {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.shortcut-help-header .shortcut-tooltip {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
 }
 
 .shortcut-help-header h2 {
@@ -53,13 +77,14 @@
 
 .shortcut-help-groups {
   display: grid;
+  overflow-y: auto;
   gap: var(--space-5);
   padding: var(--space-4) var(--space-5) var(--space-5);
 }
 
 .shortcut-help-groups h3 {
   margin: 0 0 var(--space-2);
-  color: var(--muted);
+  color: var(--text);
   font-size: var(--font-size-caption);
 }
 
@@ -96,7 +121,7 @@
   white-space: nowrap;
 }
 
-@media (width < 48rem) {
+@media (width <= 600px) {
   .shortcut-help {
     inset: auto 0 0;
     max-width: none;
@@ -109,6 +134,7 @@
   }
 
   .shortcut-help-content {
+    max-height: 86dvh;
     padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
   }
 }

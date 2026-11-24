@@ -33,6 +33,7 @@ async function openLearn(page: Page) {
 test("shows shortcuts, contains focus, and dismisses one layer per Escape", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await openLearn(page);
   const appearance = page.locator(".appearance-menu");
   await appearance.locator("summary").click();
@@ -45,11 +46,22 @@ test("shows shortcuts, contains focus, and dismisses one layer per Escape", asyn
     help.getByRole("heading", { name: "App", exact: true }),
   ).toBeVisible();
   const close = help.getByRole("button", { name: "Close", exact: true });
+  await expect(close.locator('svg[data-icon="close"]')).toBeVisible();
+  const box = await help.boundingBox();
+  expect(box).not.toBeNull();
+  expect(Math.abs(box!.x + box!.width / 2 - 640)).toBeLessThan(2);
+  expect(Math.abs(box!.y + box!.height / 2 - 400)).toBeLessThan(2);
+  expect(box!.width).toBeLessThanOrEqual(560);
+  const closeBox = await close.boundingBox();
+  expect(closeBox!.width).toBeGreaterThanOrEqual(44);
+  expect(closeBox!.height).toBeGreaterThanOrEqual(44);
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
   await close.hover();
   await expect(help.getByRole("tooltip")).toContainText("Esc");
+  const tipBox = await help.getByRole("tooltip").boundingBox();
+  expect(tipBox!.x + tipBox!.width).toBeLessThanOrEqual(1280);
   await page.keyboard.press("Escape");
   await expect(help.getByRole("tooltip")).toBeHidden();
   await expect(help).toBeVisible();
@@ -104,4 +116,8 @@ test("shows help as a bottom sheet at phone width", async ({ page }) => {
   const bounds = await help.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds!.y + bounds!.height).toBe(844);
+  expect(bounds!.x).toBe(0);
+  expect(bounds!.width).toBe(390);
+  await help.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(help).toBeHidden();
 });
