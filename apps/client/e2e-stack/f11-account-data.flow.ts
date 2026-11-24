@@ -22,17 +22,13 @@ test(
     await flow.step("account section");
 
     await account.getByRole("button", { name: "Export data" }).click();
-    const exportDialog = page.getByRole("dialog", {
-      name: "Prepare your export",
-    });
-    await exportDialog
-      .getByLabel("Export passphrase")
-      .fill("e2e stack passphrase 42");
+    const exportDialog = page.getByRole("dialog", { name: "Export data" });
+    const passphrase = exportDialog.getByLabel("Export passphrase");
+    await passphrase.fill("e2e stack passphrase 42");
+    await passphrase.press("Enter");
     await flow.step("export passphrase");
     const download = page.waitForEvent("download");
-    await exportDialog
-      .getByRole("button", { name: "Download encrypted export" })
-      .click();
+    await exportDialog.getByRole("button", { name: "Download" }).click();
     const file = await download;
     expect(file.suggestedFilename()).toMatch(
       /^duolify-data-\d{4}-\d{2}-\d{2}\.json$/,
@@ -44,17 +40,17 @@ test(
     expect(body).not.toContain(email);
     await expect(page.getByText(/Encrypted export downloaded\./)).toBeVisible();
     await flow.step("encrypted export downloaded");
+    // The chat dialog stays open after the export; close it before the next action.
+    await exportDialog.getByRole("status").getByRole("button").click();
+    await expect(exportDialog).toHaveCount(0);
 
     await account.getByRole("button", { name: "Delete account" }).click();
-    const deleteDialog = page.getByRole("dialog", {
-      name: "Delete your account?",
-    });
+    const deleteDialog = page.getByRole("dialog", { name: "Delete account" });
     const confirm = deleteDialog.getByRole("button", {
-      name: "Delete permanently",
+      name: "Delete forever",
     });
-    await expect(confirm).toBeDisabled();
-    await deleteDialog.getByLabel("Type DELETE to confirm").fill("DELETE");
-    await expect(confirm).toBeEnabled();
+    await expect(confirm).toBeVisible();
+    await expect(deleteDialog.getByRole("textbox")).toHaveCount(0);
     await flow.step("delete confirmation");
     await confirm.click();
     await expect(page).toHaveURL(/\/sign-in/);
