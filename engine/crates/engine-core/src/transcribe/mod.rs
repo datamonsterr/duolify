@@ -219,6 +219,11 @@ fn audio_is_quiet(audio: &[u8], confidence: Option<f64>) -> bool {
     if confidence.is_some_and(|c| c.is_finite() && c < QUIET_CONFIDENCE) {
         return true;
     }
+    is_digital_silence(audio)
+}
+
+/// Whether the encoded bytes are the repeating packets of digital silence (no provider signal).
+fn is_digital_silence(audio: &[u8]) -> bool {
     if audio.len() < MIN_QUIET_PROBE_BYTES {
         return false;
     }
@@ -305,7 +310,10 @@ pub async fn transcribe(
                     return Err(TranscribeError::CostCeiling);
                 }
                 t.text = t.text.trim().to_string();
-                if fallback && is_silence_hallucination(&t.text, rec.audio, t.confidence) {
+                // Digital silence holds no speech, so whatever either route heard is invented.
+                if is_digital_silence(rec.audio)
+                    || (fallback && is_silence_hallucination(&t.text, rec.audio, t.confidence))
+                {
                     t.text.clear();
                 }
                 if t.model.is_empty() {

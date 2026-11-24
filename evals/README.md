@@ -87,6 +87,9 @@ after every other engine change:
 # ElevenLabs key and voice for the lesson_narration cases.
 OPENROUTER_API_KEY=... ELEVENLABS_API_KEY=... ELEVENLABS_VOICE_ID=... EVAL_BUDGET_USD=0.5 \
   mise run engine:eval-golden                             # all 41 cases, about $0.005 and ~70 ElevenLabs characters
+# Export the ElevenLabs variables in the shell. The root mise.toml deliberately has no env template for them
+# (mise 2026.10 renders it empty for the real values, which silently ran narration on the mock). A missing key shows
+# as `configured:false` in lesson_narration results; CI sets them through the workflow env.
 mise run engine:promote ../evals/reports/latest.json      # refuses any non-promotable or foreign-build report
 mise run engine:evidence -- --require-launch              # must list every launch task
 ```
