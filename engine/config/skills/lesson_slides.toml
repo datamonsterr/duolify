@@ -4,7 +4,7 @@
 # request fields; model-routed ones (diagram, code, math, table, timeline) wait for the router
 # (group 4) and are not loaded until then. `default` skills load for every routed lesson.
 task = "lesson_slides"
-prompt_mode = "monolithic"
+prompt_mode = "routed"
 
 [routing]
 max_skills = 6
