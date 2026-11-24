@@ -1,4 +1,6 @@
+pub mod decisions;
 pub mod elevenlabs;
+pub mod state;
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use engine_core::{Completion, CompletionStream, LlmProvider, Route, StreamEvent};
@@ -85,12 +87,22 @@ impl HttpProvider {
                 body["provider"]["zdr"] = json!(true);
             }
         }
-        if let Some(data) = engine_core::steering::provider_data(input) {
+        // A routed prompt keeps its stable prefix first, so the provider can cache it; a
+        // steering policy, when present, follows it and the data stays the user message.
+        let steering = engine_core::steering::provider_data(input);
+        if route.system.is_some() || steering.is_some() {
+            let user = steering.as_deref().unwrap_or(input);
+            let system = match (&route.system, steering.is_some()) {
+                (Some(s), true) => format!("{s}\n\n{}", engine_core::steering::POLICY),
+                (Some(s), false) => s.clone(),
+                (None, _) => engine_core::steering::POLICY.to_string(),
+            };
             if self.anthropic {
-                body["system"] = json!(engine_core::steering::POLICY);
-                body["messages"] = json!([{"role":"user","content":data}]);
+                body["system"] = json!(system);
+                body["messages"] = json!([{"role":"user","content":user}]);
             } else {
-                body["messages"] = json!([{"role":"system","content":engine_core::steering::POLICY},{"role":"user","content":data}]);
+                body["messages"] =
+                    json!([{"role":"system","content":system},{"role":"user","content":user}]);
             }
         }
         // The one bounded repair replays the rejected answer and a corrective user turn.
@@ -622,6 +634,12 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
         bail!("OPENROUTER_API_KEY must not be empty");
     }
     let url = "https://openrouter.ai/api/v1/chat/completions";
+    state::install_from_env();
+    engine_core::router::install(Arc::new(decisions::DecisionsRouter::new(
+        openrouter.clone(),
+        decisions::ENDPOINT.into(),
+        decisions::ROUTER_MODEL.into(),
+    )));
     engine_core::ProviderRouter::new(
         Arc::new(HttpProvider::openrouter(openrouter.clone(), url.into())),
         Arc::new(HttpProvider::openrouter(openrouter, url.into())),

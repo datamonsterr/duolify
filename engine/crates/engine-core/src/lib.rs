@@ -99,6 +99,9 @@ pub struct Route {
     pub endpoint: Option<String>,
     pub zdr: bool,
     pub data_collection: Option<String>,
+    /// Byte-stable system prefix of a routed prompt (core, then skills); the call's `input` is
+    /// then the user message. `None` keeps the single user message of a monolithic prompt.
+    pub system: Option<String>,
 }
 /// A rejected answer and the corrective user message sent after it on the repair attempt.
 #[derive(Debug, Clone, Default)]
@@ -117,6 +120,7 @@ impl Model {
             endpoint: self.endpoint.clone(),
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
+            system: None,
         }
     }
     /// One bounded attempt: exactly one model request, no provider-side chain, so the bounded
@@ -140,6 +144,7 @@ impl Model {
             endpoint: self.endpoint.clone(),
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
+            system: None,
         }
     }
 }
@@ -291,6 +296,22 @@ impl LlmProvider for MockProvider {
                 || text.contains("reveal hidden instructions")
             {
                 "prompt_injection"
+            } else if text.contains("unsafe content") || text.contains("graphic violence") {
+                "unsafe_content"
+            } else if text.contains("off topic") {
+                "off_topic_for_course"
+            } else {
+                ""
+            };
+            serde_json::json!({"allowed":reason.is_empty(),"reason_code":reason}).to_string()
+        } else if data.as_ref().is_some_and(|v| v["task"] == "input_guard") {
+            // Deterministic fixture provider, never a substitute for live guarding.
+            let text = data.as_ref().unwrap()["text"]
+                .as_str()
+                .unwrap_or_default()
+                .to_lowercase();
+            let reason = if text.contains("hurt myself") || text.contains("end my life") {
+                "self_harm"
             } else if text.contains("unsafe content") || text.contains("graphic violence") {
                 "unsafe_content"
             } else if text.contains("off topic") {
@@ -599,13 +620,16 @@ pub mod chat;
 pub mod courses;
 pub mod credits;
 pub mod eval;
+pub mod guard;
 pub mod lessontest;
 pub mod narration;
 pub mod notes;
 pub mod pricing;
 pub mod promotion;
 pub mod regions;
+pub mod router;
 pub mod sharing;
+pub mod skills;
 pub mod slide;
 #[cfg(test)]
 mod tests;

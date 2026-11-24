@@ -25,7 +25,18 @@ type RigAsset struct {
 // ErrPublishedCast refuses overrides until the existing confirmed steering fork.
 var ErrPublishedCast = errors.New("published_cast_locked")
 
-func contentIdentity(spec CharacterSpec, schema int, rig, voice string) string {
+func contentIdentity(spec CharacterSpec, doc *SpecV2, schema int, rig, voice string) string {
+	if doc != nil {
+		// v1-only snapshots keep their identity; a document extends it.
+		raw, _ := json.Marshal(struct {
+			Spec       CharacterSpec
+			Document   *SpecV2
+			Schema     int
+			Rig, Voice string
+		}{spec, doc, schema, rig, voice})
+		h := sha256.Sum256(raw)
+		return "snapshot-" + hex.EncodeToString(h[:])
+	}
 	raw, _ := json.Marshal(struct {
 		Spec       CharacterSpec
 		Schema     int
@@ -58,7 +69,18 @@ func ExportCast(in LessonCastSnapshot) (LessonCastSnapshot, error) {
 		if err := json.Unmarshal(raw, &spec); err != nil {
 			return out, err
 		}
-		out.Speakers[key] = PinnedSpeaker{SpeakerKey: key, Role: speaker.Role, CharacterID: contentIdentity(spec, in.SchemaVersion, in.RigVersion, in.VoiceConfigVersion), CharacterVersion: 1, Spec: spec, IsProvisional: speaker.IsProvisional}
+		var doc *SpecV2
+		if speaker.Document != nil {
+			if err := ValidateSpecV2(speaker.Document); err != nil {
+				return out, err
+			}
+			raw, _ := json.Marshal(speaker.Document)
+			doc = new(SpecV2)
+			if err := json.Unmarshal(raw, doc); err != nil {
+				return out, err
+			}
+		}
+		out.Speakers[key] = PinnedSpeaker{SpeakerKey: key, Role: speaker.Role, CharacterID: contentIdentity(spec, doc, in.SchemaVersion, in.RigVersion, in.VoiceConfigVersion), CharacterVersion: 1, Spec: spec, Document: doc, IsProvisional: speaker.IsProvisional}
 	}
 	docs, err := CompiledAssets(out)
 	if err != nil {
@@ -145,7 +167,7 @@ func (s *Service) SafeCast(ctx context.Context, in LessonCastSnapshot) LessonCas
 	denied := map[string]bool{}
 	for _, speaker := range in.Speakers {
 		id := speaker.CharacterID
-		contentID := contentIdentity(speaker.Spec, in.SchemaVersion, in.RigVersion, in.VoiceConfigVersion)
+		contentID := contentIdentity(speaker.Spec, speaker.Document, in.SchemaVersion, in.RigVersion, in.VoiceConfigVersion)
 		var found bool
 		err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM character_suppressions WHERE snapshot_id=$1 OR snapshot_id=$2)`, id, contentID).Scan(&found)
 		// Unavailable safety state fails safe, without a provider call.

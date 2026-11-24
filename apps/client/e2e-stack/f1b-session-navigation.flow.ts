@@ -38,7 +38,7 @@ test(
       name: "Create a course",
       level: 1,
     });
-    await page.getByRole("button", { name: "Create a course" }).click();
+    await page.getByRole("link", { name: "Create a course" }).first().click();
     await expect(creation).toBeVisible();
     await flow.step("create course from the empty state");
 

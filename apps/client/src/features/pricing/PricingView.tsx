@@ -8,6 +8,7 @@ import type { ActionQuote } from "./quotes";
 import { QuotePanel } from "./QuotePanel";
 import { pricingQueryOptions } from "./query";
 import { Button } from "../design/Button";
+import { StatIcon } from "../design/StatIcon";
 import { WalletView } from "../credits/WalletView";
 import { PlanSummary } from "../credits/PlanSummary";
 import type { WalletResponse } from "../credits/types";
@@ -216,40 +217,44 @@ export function PricingView() {
             </Button>
           </div>
         )}
-        <Button
-          variant="quiet"
-          onClick={() => void query.refetch()}
-          disabled={query.isFetching}
-        >
-          Refresh prices
-        </Button>
-        <nav aria-label="Credit views" className="pricing-nav">
+        <div className="pricing-toolbar">
+          <nav aria-label="Credit views" className="pricing-nav">
+            <Button
+              variant="quiet"
+              aria-current={surface === "wallet" ? "page" : undefined}
+              onClick={() => navigate("wallet")}
+            >
+              {messages.wallet}
+            </Button>
+            <Button
+              variant="quiet"
+              aria-current={
+                surface === "pack_list" || surface === "plan_list"
+                  ? "page"
+                  : undefined
+              }
+              onClick={() => navigate("pack_list")}
+            >
+              {messages.browse}
+            </Button>
+            <Button
+              variant="quiet"
+              aria-current={surface === "quote" ? "page" : undefined}
+              onClick={() => navigate("quote")}
+            >
+              {messages.creation}
+            </Button>
+          </nav>
           <Button
             variant="quiet"
-            aria-current={surface === "wallet" ? "page" : undefined}
-            onClick={() => navigate("wallet")}
+            className="pricing-refresh"
+            aria-label="Refresh prices"
+            onClick={() => void query.refetch()}
+            disabled={query.isFetching}
           >
-            {messages.wallet}
+            <StatIcon name="refresh" />
           </Button>
-          <Button
-            variant="quiet"
-            aria-current={
-              surface === "pack_list" || surface === "plan_list"
-                ? "page"
-                : undefined
-            }
-            onClick={() => navigate("pack_list")}
-          >
-            {messages.browse}
-          </Button>
-          <Button
-            variant="quiet"
-            aria-current={surface === "quote" ? "page" : undefined}
-            onClick={() => navigate("quote")}
-          >
-            {messages.creation}
-          </Button>
-        </nav>
+        </div>
         {query.isPending && <p role="status">{messages.loading}</p>}
         {query.isError && (
           <div role="alert" className="pricing-warning">

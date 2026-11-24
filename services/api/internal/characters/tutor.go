@@ -59,6 +59,8 @@ type TutorChoice struct {
 	Name             string `json:"name"`
 	CharacterVersion int    `json:"character_version"`
 	Available        bool   `json:"available"`
+	// Document is the v2 document for the avatar, only for an available tutor; owner-only like the name.
+	Document *SpecV2 `json:"document,omitempty"`
 }
 
 // TutorRoster lists the effective Cast for the picker.
@@ -263,6 +265,11 @@ func (s *Service) TutorRoster(ctx context.Context, owner, course, lessonID strin
 	if err != nil {
 		return TutorRoster{}, err
 	}
+	return BuildTutorRoster(cast, source), nil
+}
+
+// BuildTutorRoster lists the tutors of one resolved Cast.
+func BuildTutorRoster(cast LessonCastSnapshot, source string) TutorRoster {
 	roster := TutorRoster{CastSource: source, CastVersion: cast.CastVersion, DefaultSpeaker: "guide", Tutors: []TutorChoice{}}
 	for _, key := range tutorSpeakerKeys {
 		speaker, present := cast.Speakers[key]
@@ -274,9 +281,16 @@ func (s *Service) TutorRoster(ctx context.Context, owner, course, lessonID strin
 		if role == "" {
 			role = map[bool]string{true: "guide", false: "supporter"}[key == "guide"]
 		}
-		roster.Tutors = append(roster.Tutors, TutorChoice{SpeakerKey: key, Role: role, Name: p.Name, CharacterVersion: p.CharacterVersion, Available: p.Fallback == ""})
+		roster.Tutors = append(roster.Tutors, TutorChoice{SpeakerKey: key, Role: role, Name: p.Name, CharacterVersion: p.CharacterVersion, Available: p.Fallback == "", Document: availableDocument(speaker, p)})
 	}
-	return roster, nil
+	return roster
+}
+
+func availableDocument(speaker PinnedSpeaker, p TutorPersona) *SpecV2 {
+	if p.Fallback != "" {
+		return nil
+	}
+	return speaker.Document
 }
 
 // TutorLabel names the Character a past turn was pinned to. It reads the immutable version row, so a later

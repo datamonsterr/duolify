@@ -2,12 +2,21 @@ appId: app.duolify.client
 androidWebViewHierarchy: devtools
 ---
 - takeScreenshot: onboarding-dismissed
-- tapOn: Courses
-- takeScreenshot: courses
-- scrollUntilVisible:
-    element: Start Product Management Foundations
-- tapOn: Start Product Management Foundations
-- takeScreenshot: example-course
+# The Courses page re-lays out while data and example cards load, so a tap aimed at
+# "Start Product Management Foundations" can land on the header "Create a course" button
+# (CI run 45375734211: the flow ended in the create chat). Redo the whole step from the
+# tab bar until the example course page opens.
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn: Courses
+      - scrollUntilVisible:
+          element: Start Product Management Foundations
+      - tapOn: Start Product Management Foundations
+      - takeScreenshot: example-course
+      - extendedWaitUntil:
+          visible: Example course.*
+          timeout: 15000
 - scrollUntilVisible:
     element: Start lesson.*
 - tapOn: Start lesson.*

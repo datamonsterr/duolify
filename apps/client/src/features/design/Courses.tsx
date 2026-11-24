@@ -9,6 +9,9 @@ import { Button } from "./Button";
 import { CourseCard } from "./CourseCard";
 import { AppLink, navigateTo } from "../../lib/navigation";
 import { ExampleCourses } from "./ExampleCourses";
+import { StatIcon } from "./StatIcon";
+import { useStreak, useWallet } from "../shell/SidebarStats";
+import { useUiPreferences } from "./localization/Preferences";
 
 function subscribeOnline(notify: () => void) {
   window.addEventListener("online", notify);
@@ -29,6 +32,9 @@ export function Courses({
     () => window.navigator.onLine,
     () => true,
   );
+  const { t, number } = useUiPreferences();
+  const streak = useStreak("courses");
+  const wallet = useWallet("courses");
   const [search, setSearch] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const shell = useShellSession();
@@ -53,34 +59,29 @@ export function Courses({
     setSearch("");
     searchInput.current?.focus();
   };
+  const create = (
+    <AppLink
+      className="duo-button primary"
+      data-action-level="primary"
+      href="/courses/create"
+    >
+      {t("courses.create")}
+    </AppLink>
+  );
   return (
     <section aria-labelledby="courses-heading" className="courses-page">
-      <header className="courses-header">
-        <div>
-          <h1 id="courses-heading">Courses</h1>
-        </div>
-        <label className="search-label courses-search">
-          Search courses
-          <input
-            ref={searchInput}
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-        <AppLink
-          className="duo-button primary courses-create"
-          data-action-level="primary"
-          href="/courses/create"
-        >
-          Create a course
-        </AppLink>
-      </header>
-      <div className="course-toolbar">
+      <h1 id="courses-heading" className="courses-title">
+        {t("nav.courses")}
+      </h1>
+      <div
+        className="courses-toolbar"
+        role="toolbar"
+        aria-label={t("nav.courses")}
+      >
         <div
           className="course-tabs"
           role="tablist"
-          aria-label="Course collections"
+          aria-label={t("courses.collections")}
         >
           <button
             className="course-tab selected"
@@ -88,7 +89,7 @@ export function Courses({
             role="tab"
             aria-selected="true"
           >
-            My courses
+            {t("courses.mine_tab")}
           </button>
           <button
             className="course-tab"
@@ -97,26 +98,53 @@ export function Courses({
             aria-selected="false"
             disabled
           >
-            Discover
+            {t("courses.discover_tab")}
           </button>
         </div>
+        <div className="courses-tools">
+          <button
+            type="button"
+            className="courses-icon-button"
+            aria-label={isError ? t("courses.retry") : t("courses.refresh")}
+            aria-busy={(isFetching && !!data) || undefined}
+            disabled={!online || isFetching}
+            onClick={() => {
+              trackControl(isError ? "retry_courses" : "refresh_courses");
+              void refetch();
+            }}
+          >
+            <StatIcon name="refresh" />
+          </button>
+          <Badge role="streak">
+            <AppLink
+              href="/streak"
+              aria-label={`${t("nav.streak")} ${streak.data ? number(streak.data.current_days) : "-"}`}
+            >
+              <StatIcon name="flame" />
+              {streak.data ? number(streak.data.current_days) : "-"}
+            </AppLink>
+          </Badge>
+          <Badge role="credit">
+            <AppLink
+              href="/credits"
+              aria-label={`${t("nav.credits")} ${wallet.data ? number(wallet.data.available) : "-"}`}
+            >
+              <StatIcon name="gem" />
+              {wallet.data ? number(wallet.data.available) : "-"}
+            </AppLink>
+          </Badge>
+          <span className="courses-create-bar">{create}</span>
+        </div>
       </div>
-      <div className="course-context">
-        <Badge role="streak">
-          <span aria-hidden="true" className="streak-icon">
-            ♨
-          </span>{" "}
-          Streaks grow with daily learning
-        </Badge>
-        <Badge role="credit">
-          <AppLink href="/credits">
-            <span aria-hidden="true" className="credit-icon">
-              ◇
-            </span>{" "}
-            View credits
-          </AppLink>
-        </Badge>
-      </div>
+      <input
+        ref={searchInput}
+        className="courses-search"
+        type="search"
+        aria-label={t("courses.search")}
+        placeholder={t("courses.search")}
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
       {!online && (
         <p role="status" className="feedback badge-warning">
           Offline
@@ -138,24 +166,11 @@ export function Courses({
           </p>
         </div>
       )}
-      <div className="course-actions">
-        <Button
-          variant={isError ? "secondary" : "quiet"}
-          pending={isFetching && !!data}
-          disabled={!online || (isFetching && !data)}
-          onClick={() => {
-            trackControl(isError ? "retry_courses" : "refresh_courses");
-            void refetch();
-          }}
-        >
-          {isError ? "Retry" : "Refresh courses"}
+      {search && filtered?.length !== 0 && (
+        <Button variant="secondary" onClick={clearSearch}>
+          Clear search
         </Button>
-        {search && filtered?.length !== 0 && (
-          <Button variant="secondary" onClick={clearSearch}>
-            Clear search
-          </Button>
-        )}
-      </div>
+      )}
       {isPending && online && !isError && (
         <div aria-busy="true" className="course-loading">
           <p role="status">Loading your courses…</p>
@@ -171,20 +186,11 @@ export function Courses({
         </div>
       )}
       {data?.length === 0 && (
-        <div className="course-empty card">
-          <div className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-          </div>
+        <div className="course-empty">
           <h2>What would you like to keep learning?</h2>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              navigateTo("/courses/create");
-            }}
-          >
-            Create a course
-          </Button>
+          <AppLink className="duo-button secondary" href="/courses/create">
+            {t("courses.create")}
+          </AppLink>
         </div>
       )}
       {data && (
@@ -197,7 +203,7 @@ export function Courses({
       )}
       {data && data.length > 0 && (
         <>
-          <p role="status" className="muted">
+          <p role="status" className="courses-title">
             {filtered?.length} courses found
           </p>
           {filtered?.length === 0 && (
@@ -233,6 +239,7 @@ export function Courses({
           </div>
         </>
       )}
+      <div className="courses-create-dock">{create}</div>
     </section>
   );
 }

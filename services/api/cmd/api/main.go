@@ -178,6 +178,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { _ = backend.Close() }()
+		enableInputGuard(backend, events, logger)
 		// Error-level signal for quoted actions the engine would refuse (route mismatch).
 		go pricing.CheckActiveRoutes(ctx, db.Pool, logger, backend.Providers)
 		outlineService := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: backend, Financial: creditService, Events: events})
@@ -202,7 +203,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		queues = append(queues, outlineQueue)
-		notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+		notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.GuardedRPC())
 		creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
 			_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
 		})
@@ -288,6 +289,7 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, events.Close()) }()
+	enableInputGuard(backend, events, logger)
 	secret, mailer, err := accounts.AuthFromEnv(os.Getenv, logger)
 	if err != nil {
 		return err
@@ -356,7 +358,7 @@ func run(ctx context.Context, args []string) (result error) {
 	characterService := characters.NewService(db.Pool, nil, events)
 	characterService.ConfigureScreening(backend)
 	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing)
-	notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+	notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.GuardedRPC())
 	creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
 		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
 	})

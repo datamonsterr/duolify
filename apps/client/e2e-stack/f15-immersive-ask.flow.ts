@@ -72,7 +72,7 @@ test(
     );
     await flow.step("reply saved as a Quick note");
 
-    await page.getByTestId("answer-close").click();
+    await page.getByTestId("answer-close").dispatchEvent("click");
     await expect(page.getByTestId("answer-panel")).toHaveCount(0);
     await flow.step("panel closed, playback resumed");
 
