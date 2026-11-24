@@ -39,7 +39,6 @@ const Svg = ({ d }: { d: string }) => (
   </svg>
 );
 export const SEND_PATH = "M5 12h14M13 6l6 6-6 6";
-export const CHECK_PATH = "M5 13l4 4L19 7";
 
 /** One round icon button. `quiet` keeps it out of sight until a keyboard user focuses it. */
 export function IconSubmit({
@@ -430,6 +429,13 @@ export function StepWidget(props: WidgetProps) {
     step.checks && step.checks.some((id) => !ticked.includes(id)),
   );
   const destructive = step.widget === "confirm" && step.destructive;
+  const labelled = step.widget === "confirm" && !destructive;
+  const max = step.validate?.type === "string" ? step.validate.max : undefined;
+  const count = [...text0.trim()].length;
+  const showCount =
+    max !== undefined &&
+    (step.widget === "longtext" || step.widget === "text") &&
+    count >= max * 0.8;
   const chipWidget = [
     "single",
     "chips+text",
@@ -460,6 +466,7 @@ export function StepWidget(props: WidgetProps) {
   ];
   const actionsUsed =
     destructive ||
+    (labelled && showSend) ||
     (!inline.includes(step.widget) && showSend) ||
     (!chipWidget && Boolean(props.onSkip && step.skippable && !editing)) ||
     (editing && Boolean(props.onCancel));
@@ -482,6 +489,16 @@ export function StepWidget(props: WidgetProps) {
           />
         )}
       </div>
+      {showCount && (
+        <p
+          className={
+            count > max! ? "field-error gc-count" : "field-hint gc-count"
+          }
+          aria-live="polite"
+        >
+          {count}/{max}
+        </p>
+      )}
       {error && (
         <p id={errorId} role="alert" className="field-error">
           {error}
@@ -502,17 +519,15 @@ export function StepWidget(props: WidgetProps) {
             {t(step.actionKey ? t0(step.actionKey) : "guided.confirm")}
           </Button>
         )}
-        {!inline.includes(step.widget) && showSend && (
+        {labelled && showSend && (
+          <Button type="submit" disabled={disabled || blocked}>
+            {t(step.actionKey ? t0(step.actionKey) : "guided.confirm")}
+          </Button>
+        )}
+        {!inline.includes(step.widget) && !labelled && showSend && (
           <IconSubmit
             quiet={quiet}
-            path={step.widget === "confirm" ? CHECK_PATH : SEND_PATH}
-            label={t(
-              step.actionKey
-                ? t0(step.actionKey)
-                : step.widget === "confirm"
-                  ? "guided.confirm"
-                  : "guided.send",
-            )}
+            label={t(step.actionKey ? t0(step.actionKey) : "guided.send")}
             disabled={disabled || blocked}
           />
         )}

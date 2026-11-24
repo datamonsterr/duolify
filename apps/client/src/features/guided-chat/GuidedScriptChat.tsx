@@ -243,8 +243,16 @@ export function GuidedScriptChat({
     const editing = state.editing === step.id;
     const out = answerStep(script, state, step.id, value);
     if (out.error) {
+      const max =
+        step.validate?.type === "string" ? step.validate.max : undefined;
       setError(
-        label(out.error === "required" ? "guided.required" : "guided.invalid"),
+        out.error === "invalid" &&
+          max !== undefined &&
+          typeof value === "string"
+          ? t("guided.too_long", { max })
+          : label(
+              out.error === "required" ? "guided.required" : "guided.invalid",
+            ),
       );
       return;
     }

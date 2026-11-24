@@ -9,7 +9,6 @@ import {
   type RefObject,
 } from "react";
 import { trackGuidedUi, type GuidedSheetId } from "../../../lib/analytics";
-import { Button } from "../Button";
 import "../chat/guided-chat.css";
 
 export type SheetProps = {
@@ -126,13 +125,14 @@ export function Sheet({
       <header className="guided-panel-header">
         <h2 id={titleId}>{title}</h2>
         {modal && (
-          <Button
-            variant="quiet"
+          <button
+            type="button"
+            className="guided-sheet-close"
             onClick={close}
             aria-label={t("common.close_named", { name: title })}
           >
-            {t("common.close")}
-          </Button>
+            <span aria-hidden="true">×</span>
+          </button>
         )}
       </header>
       {children}

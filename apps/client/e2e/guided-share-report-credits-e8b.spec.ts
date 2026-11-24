@@ -366,7 +366,13 @@ for (const [width, height, scheme] of [
       await expect(details).toBeVisible();
       await details.fill("x".repeat(501));
       await send(sheet);
-      await expect(sheet.getByRole("alert")).toBeVisible();
+      await expect(sheet.getByRole("alert")).toHaveText(
+        "Keep it under 500 characters.",
+      );
+      await expect(sheet.locator(".gc-count")).toHaveText("501/500");
+      await expect(sheet.getByRole("button", { name: /^Close/ })).toHaveText(
+        "×",
+      );
       await shot(page, "report", "mid", tag);
       await details.fill("Lesson 4 copies a textbook chapter.");
       await send(sheet);
