@@ -857,7 +857,17 @@ test("control overlay groups targets over a translucent scrim and mirrors in RTL
   await enter(page);
   const bottom = page.locator(".imm-bottom");
   await expect(bottom).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(bottom).toHaveCSS("background-image", /linear-gradient/);
+  await expect(bottom).toHaveCSS("background-image", /rgba\(0, 0, 0, 0\.55\)/);
+  await expect(page.locator(".imm-top")).toHaveCSS(
+    "background-image",
+    /rgba\(0, 0, 0, 0\.55\)/,
+  );
+  for (const button of await page.locator(".imm-row button:visible").all()) {
+    await expect(button).toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
+  }
+  await expect(
+    page.getByTestId("immersive-autoplay").locator("span").first(),
+  ).toHaveCSS("filter", /drop-shadow/);
   const left = page.locator(".imm-playback");
   const right = page.locator(".imm-tools");
   const ltrLeft = (await left.boundingBox())!;
