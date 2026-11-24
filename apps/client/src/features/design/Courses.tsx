@@ -186,7 +186,17 @@ export function Courses({
         </div>
       )}
       {data?.length === 0 && (
-        <h2 className="course-empty">What would you like to keep learning?</h2>
+        <div className="course-empty">
+          <h2>What would you like to keep learning?</h2>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              navigateTo("/courses/create");
+            }}
+          >
+            {t("courses.create")}
+          </Button>
+        </div>
       )}
       {data && (
         <ExampleCourses
