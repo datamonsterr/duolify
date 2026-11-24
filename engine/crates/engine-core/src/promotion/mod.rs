@@ -132,6 +132,37 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../../config/regions.toml"),
     ),
     ("engine-core/src/regions.rs", include_str!("../regions.rs")),
+    // Input guard (ADR 0025): pre-filter, verdict contract and per-surface failure rules.
+    (
+        "engine-core/src/guard/mod.rs",
+        include_str!("../guard/mod.rs"),
+    ),
+    (
+        "engine-core/src/guard/classifier.rs",
+        include_str!("../guard/classifier.rs"),
+    ),
+    // Skill router (ADR 0025): decides which skills a routed prompt loads.
+    (
+        "engine-core/src/router/mod.rs",
+        include_str!("../router/mod.rs"),
+    ),
+    (
+        "engine-providers/src/decisions.rs",
+        include_str!("../../../engine-providers/src/decisions.rs"),
+    ),
+    // Prompt skills (ADR 0025): the loader and every skill file shape what the model is asked.
+    (
+        "engine-core/src/skills/mod.rs",
+        include_str!("../skills/mod.rs"),
+    ),
+    (
+        "engine/config/skills/lesson_slides.toml",
+        include_str!("../../../../config/skills/lesson_slides.toml"),
+    ),
+    (
+        "engine/config/skills/tutor_chat.toml",
+        include_str!("../../../../config/skills/tutor_chat.toml"),
+    ),
     (
         "engine-core/src/accounts/mod.rs",
         include_str!("../accounts/mod.rs"),
@@ -215,12 +246,15 @@ pub const EXCLUDED_SOURCES: &[&str] = &[
     "engine-core/src/backup/mod.rs",
     "engine-core/src/pricing/mod.rs",
     "engine-core/src/promotion/mod.rs",
+    // Redis cache and breaker for router decisions: they bound spend, never the prompt text.
+    "engine-providers/src/state.rs",
     // engine-eval: command line, report writing and analytics rows decide nothing about whether a
     // case passed.
     "engine-eval/src/lib.rs",
     "engine-eval/src/main.rs",
     "engine-eval/src/report.rs",
     "engine-eval/src/analytics.rs",
+    "engine-eval/src/compare.rs",
 ];
 
 /// SHA-256 over the evaluated inputs, each framed by its path and length.

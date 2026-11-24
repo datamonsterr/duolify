@@ -847,3 +847,119 @@ test.describe("desktop never enters on rotation", () => {
     await expect(page.locator(".player.immersive")).toHaveCount(0);
   });
 });
+
+test("control overlay groups targets over a translucent scrim and mirrors in RTL", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openLesson(page);
+  await pauseFramed(page);
+  await enter(page);
+  const bottom = page.locator(".imm-bottom");
+  await expect(bottom).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(bottom).toHaveCSS("background-image", /rgba\(0, 0, 0, 0\.55\)/);
+  await expect(page.locator(".imm-top")).toHaveCSS(
+    "background-image",
+    /rgba\(0, 0, 0, 0\.55\)/,
+  );
+  for (const button of await page.locator(".imm-row button:visible").all()) {
+    await expect(button).toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
+  }
+  await expect(
+    page.getByTestId("immersive-autoplay").locator("span").first(),
+  ).toHaveCSS("filter", /drop-shadow/);
+  const left = page.locator(".imm-playback");
+  const right = page.locator(".imm-tools");
+  const ltrLeft = (await left.boundingBox())!;
+  const ltrRight = (await right.boundingBox())!;
+  expect(ltrLeft.x + ltrLeft.width).toBeLessThan(ltrRight.x);
+  for (const button of await page.locator(".imm-row button:visible").all()) {
+    const box = (await button.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  for (const cluster of [left, right]) {
+    const boxes = await Promise.all(
+      (await cluster.locator("button:visible").all()).map((button) =>
+        button.boundingBox(),
+      ),
+    );
+    for (let i = 1; i < boxes.length; i++) {
+      expect(
+        boxes[i]!.x - (boxes[i - 1]!.x + boxes[i - 1]!.width),
+      ).toBeGreaterThanOrEqual(8);
+    }
+  }
+  await expect(bottom).toHaveCSS("color", "rgb(255, 255, 255)");
+  await page.evaluate(() => {
+    document.documentElement.dir = "rtl";
+  });
+  expect((await left.boundingBox())!.x).toBeGreaterThan(
+    (await right.boundingBox())!.x,
+  );
+});
+
+test("narrow controls remain reachable in overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 390 });
+  await openLesson(page);
+  await pauseFramed(page);
+  await enter(page);
+  const more = page.getByRole("button", { name: "More controls" });
+  await expect(more).toBeVisible();
+  await more.click();
+  await expect(page.getByTestId("immersive-lock")).toBeVisible();
+  const target = (await page.getByTestId("immersive-lock").boundingBox())!;
+  expect(target.width).toBeGreaterThanOrEqual(44);
+  expect(target.height).toBeGreaterThanOrEqual(44);
+});
+
+for (const vp of VIEWPORTS) {
+  test.describe(`overlay owner screenshots ${vp.name}`, () => {
+    test.use({
+      viewport: { width: vp.width, height: vp.height },
+      hasTouch: vp.touch,
+      isMobile: vp.touch,
+    });
+    test("capture", async ({ page }) => {
+      test.skip(
+        !process.env.OVERLAY_SCREENSHOTS,
+        "Owner screenshot capture only",
+      );
+      await openLesson(page);
+      await pauseFramed(page);
+      await enter(page);
+      const out = process.env.OVERLAY_SCREENSHOTS!;
+      mkdirSync(out, { recursive: true });
+      for (const theme of ["light", "dark"]) {
+        await page.evaluate((value) => {
+          document.documentElement.dataset.theme = value;
+        }, theme);
+        for (const slide of ["bright", "dark"]) {
+          const colour = slide === "bright" ? "#ffffff" : "#0b0b10";
+          for (const slideFrame of page
+            .frames()
+            .filter((f) => f !== page.mainFrame())) {
+            await slideFrame
+              .evaluate((bg) => {
+                document.documentElement.style.setProperty(
+                  "background",
+                  bg,
+                  "important",
+                );
+                document.body?.style.setProperty("background", bg, "important");
+                document.body?.style.setProperty(
+                  "color",
+                  bg === "#ffffff" ? "#111" : "#fff",
+                  "important",
+                );
+              }, colour)
+              .catch(() => {});
+          }
+          await page.screenshot({
+            path: join(out, `${vp.name}-${theme}-${slide}.png`),
+          });
+        }
+      }
+    });
+  });
+}

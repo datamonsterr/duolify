@@ -560,6 +560,51 @@ impl EngineService for Service {
             attempts: outcome.attempts.iter().map(attempt_usage).collect(),
         }))
     }
+    async fn guard_input(
+        &self,
+        request: Request<pb::GuardInputRequest>,
+    ) -> Result<Response<pb::GuardInputResponse>, Status> {
+        use engine_core::guard::{self, Source, Surface};
+        let req = request.into_inner();
+        let surface = Surface::from_code(&req.surface)
+            .ok_or_else(|| Status::invalid_argument("unknown_surface"))?;
+        let respond = |d: &guard::Decision, attempts: Vec<pb::Usage>| {
+            Response::new(pb::GuardInputResponse {
+                allowed: d.allowed,
+                reason_code: d.reason.map(|r| r.code().to_owned()).unwrap_or_default(),
+                source: d.source.code().to_owned(),
+                guard_version: guard::VERSION.into(),
+                attempts,
+            })
+        };
+        // The deterministic pre-filter decides without a model or promotion evidence.
+        if let Some(r) = guard::pre_filter(surface, &req.text) {
+            return Ok(respond(
+                &guard::Decision::block(r, Source::PreFilter),
+                vec![],
+            ));
+        }
+        // A live route classifies only with passing live `input_guard` evidence; without it the
+        // surface's failure rule decides, as for an outage.
+        let mut attempts = vec![];
+        let verdict = if self.live_model("GuardInput", "input_guard").is_ok() {
+            match guard::classifier::run(&self.router, surface, &req.text, &req.course_topic).await
+            {
+                Ok(o) => {
+                    attempts = o.attempts.iter().map(attempt_usage).collect();
+                    o.completion
+                        .and_then(|c| guard::parse_verdict(&c.text).ok())
+                }
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+        Ok(respond(
+            &guard::Decision::from_verdict(surface, verdict),
+            attempts,
+        ))
+    }
     async fn screen_character(
         &self,
         request: Request<pb::ScreenCharacterRequest>,
@@ -1378,20 +1423,55 @@ impl EngineService for Service {
         // Validate bounds early; the boundary itself is rebuilt per prompt by hardened_prompt.
         engine_core::steering::prompt_section(&instructions)
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
-        let base = engine_core::lessontest::lesson_prompt(&format!("{context:?}"));
-        let prompts = if cast.is_empty() {
-            vec![base]
+        let context_text = engine_core::lessontest::render_context(&context);
+        let routed = engine_core::skills::bundled().mode("lesson_slides")
+            == engine_core::skills::PromptMode::Routed;
+        let personas = if cast.is_empty() {
+            String::new()
         } else {
-            let personas = engine_core::characters::lesson_personas(&cast)
-                .map_err(|_| Status::invalid_argument("invalid character personas"))?;
-            let segments = " Optional per-slide segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate.";
-            // Attempt 2 regenerates with neutral default personas, still pinned keys.
-            vec![
-                format!("{base}{segments}\n{personas}"),
-                format!(
-                    "{base}{segments}\nUse a neutral default narrator style for every speaker_key in character_personas; ignore persona flavour."
-                ),
-            ]
+            engine_core::characters::lesson_personas(&cast)
+                .map_err(|_| Status::invalid_argument("invalid character personas"))?
+        };
+        let neutral = "Use a neutral default narrator style for every speaker_key in character_personas; ignore persona flavour.";
+        let mut prompt_info = ("monolithic", "", 0u32);
+        let (system, prompts) = if routed {
+            let learner = req.learner.as_ref();
+            let lesson = req.lesson.as_ref();
+            let selection = engine_core::lessontest::select_lesson_skills(
+                learner.map_or("", |l| l.locale.as_str()),
+                !cast.is_empty(),
+                learner.map_or("", |l| l.level.as_str()),
+                lesson.map_or("", |l| l.title.as_str()),
+                lesson.map_or("", |l| l.goal.as_str()),
+                learner.map_or("", |l| l.topic.as_str()),
+            )
+            .await;
+            let ids = selection.ids;
+            prompt_info = ("routed", selection.source.code(), ids.len() as u32);
+            let p = engine_core::lessontest::routed_lesson_prompt(&context_text, &ids)
+                .map_err(|e| Status::internal(e.to_string()))?;
+            let prompts = if cast.is_empty() {
+                vec![p.user]
+            } else {
+                // Attempt 2 regenerates with neutral default personas, still pinned keys.
+                vec![
+                    format!("{}\n{personas}", p.user),
+                    format!("{}\n{neutral}", p.user),
+                ]
+            };
+            (Some(p.system), prompts)
+        } else {
+            let base = engine_core::lessontest::lesson_prompt(&context_text);
+            let prompts = if cast.is_empty() {
+                vec![base]
+            } else {
+                let segments = " Optional per-slide segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate.";
+                vec![
+                    format!("{base}{segments}\n{personas}"),
+                    format!("{base}{segments}\n{neutral}"),
+                ]
+            };
+            (None, prompts)
         };
         let prompts: Vec<String> = prompts
             .iter()
@@ -1403,6 +1483,7 @@ impl EngineService for Service {
         let shape = engine_core::eval::Shape {
             format: cast.is_empty().then(engine_core::structured::lesson_format),
             prepare: Some(engine_core::lessontest::prepare_lesson),
+            system,
         };
         let outcome = engine_core::eval::run_bounded_formatted(
             &self.router,
@@ -1416,6 +1497,11 @@ impl EngineService for Service {
         .await
         .map_err(internal)?;
         let mut attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
+        for a in &mut attempts {
+            a.prompt_mode = prompt_info.0.into();
+            a.router_source = prompt_info.1.into();
+            a.skill_count = prompt_info.2;
+        }
         let Some(c) = outcome.completion else {
             return Ok(lesson_events(None, attempts));
         };

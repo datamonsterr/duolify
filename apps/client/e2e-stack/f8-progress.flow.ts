@@ -47,10 +47,14 @@ test(
     const streak = page.getByRole("region", { name: "Your streak" });
     await expect(streak.getByText("day streak")).toBeVisible();
     await expect(streak.getByText("Today is done")).toBeVisible();
-    // The shell's right rail shows the same streak, not an example.
-    const rail = page.getByRole("complementary", { name: "Your progress" });
-    await expect(rail.getByText("1 day streak")).toBeVisible();
-    await expect(rail.getByText(/Example/)).toHaveCount(0);
+    // The sidebar block shows the same streak, not an example.
+    const stats = page
+      .locator(".sidebar")
+      .getByRole("group", { name: "Your progress" });
+    await expect(
+      stats.getByRole("link", { name: "1 day streak" }),
+    ).toBeVisible();
+    await expect(stats.getByText(/Example/)).toHaveCount(0);
     await flow.step("XP, daily goal and streak after the lesson");
   },
 );

@@ -112,3 +112,15 @@ Reducing copy MUST NOT remove or shorten text required by other capabilities: pr
 #### Scenario: Privacy notice
 - **WHEN** onboarding copy is reduced
 - **THEN** the privacy notice remains reachable from the topic screen through a labelled "Privacy" control in at most 2 taps
+
+### Requirement: Courses and Credits layout
+The Courses view SHALL group its actions in one toolbar row and show the first Course card without scrolling at 390 by 844 and 1280 by 800. The Credits view SHALL size buttons to their content and wrap whole buttons, never labels.
+
+#### Scenario: Courses toolbar
+- **WHEN** the learner opens Courses with at least one Course
+- **THEN** the tabs, refresh button, streak chip and credits chip share one row, no visible "Search courses" label appears, and the first Course card is inside the viewport
+
+#### Scenario: Credits buttons
+- **WHEN** the learner opens Credits on desktop
+- **THEN** no button spans more than 60 percent of the content width and the credit views and refresh share one row
+

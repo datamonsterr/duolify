@@ -339,13 +339,165 @@ const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &a
 /// The trusted lesson prompt. `context` is the request data (outline, lesson, learner, history),
 /// rendered by the caller; it stays data, below the rules.
 pub fn lesson_prompt(context: &str) -> String {
+    format!("{} Context (data): {context}", lesson_rules())
+}
+
+/// The always-on lesson rules, no data: the whole monolithic prompt before its context and the
+/// core of a routed one (`skills`).
+fn lesson_rules() -> String {
     format!(
-        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE}{regions} Context (data): {context}",
+        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE}{regions}",
         regions = crate::regions::shape()
     )
 }
 
-/// Deterministic fix-up before acceptance: a variant whose choices repeat its source question in
+/// Skills decided by rule, never by the model: narration pacing always, then locale, cast and
+/// learner level. (`steering_focus` is not a skill: steering already rides in the policy.)
+pub const RULE_SKILLS: &[&str] = &[
+    "narration_pacing",
+    "language_practice",
+    "character_cast",
+    "age_band_tone",
+];
+
+/// Rule-decided skill ids for a routed lesson, in priority order.
+pub fn lesson_skill_ids(locale: &str, has_cast: bool, level: &str) -> Vec<String> {
+    let mut ids = vec!["narration_pacing".to_string()];
+    if !locale.is_empty() && !locale.to_ascii_lowercase().starts_with("en") {
+        ids.push("language_practice".to_string());
+    }
+    if has_cast {
+        ids.push("character_cast".to_string());
+    }
+    if !level.trim().is_empty() {
+        ids.push("age_band_tone".to_string());
+    }
+    ids
+}
+
+/// Rules, cache, decision model, then default set for a lesson. Never fails, never blocks
+/// longer than the router timeout.
+pub async fn select_lesson_skills(
+    locale: &str,
+    has_cast: bool,
+    level: &str,
+    title: &str,
+    goal: &str,
+    topic: &str,
+) -> crate::router::Selection {
+    let input = crate::router::RouterInput {
+        task: "lesson_slides".into(),
+        title: title.into(),
+        goal: goal.into(),
+        topic: topic.into(),
+        level: level.into(),
+        locale: locale.into(),
+        flags: if has_cast {
+            vec!["cast".into()]
+        } else {
+            vec![]
+        },
+    };
+    crate::router::select(
+        crate::skills::bundled(),
+        "lesson_slides",
+        lesson_skill_ids(locale, has_cast, level),
+        RULE_SKILLS,
+        &Default::default(),
+        &input,
+        crate::router::installed(),
+        crate::router::shared_cache(),
+        crate::router::shared_breaker(),
+        crate::router::TIMEOUT,
+    )
+    .await
+}
+
+/// The routed lesson prompt: `system` is the byte-stable core plus the picked skills, `user` the
+/// context data (untrusted, so never in `system`). Same rules as `lesson_prompt`, in two parts.
+pub fn routed_lesson_prompt(
+    context: &str,
+    ids: &[String],
+) -> Result<crate::skills::Prompt, crate::skills::SkillError> {
+    routed_lesson_prompt_in(crate::skills::bundled(), context, ids)
+}
+
+/// The bundled skills with `lesson_slides` forced to `routed`, for the evals' routed arm (the
+/// shipped switch stays `monolithic` until the rollout PR).
+pub fn routed_eval_library() -> crate::skills::Library {
+    let sources: Vec<(&str, String)> = crate::skills::BUNDLED
+        .iter()
+        .map(|(f, t)| {
+            (
+                *f,
+                t.replace("prompt_mode = \"monolithic\"", "prompt_mode = \"routed\""),
+            )
+        })
+        .collect();
+    let refs: Vec<(&str, &str)> = sources.iter().map(|(f, t)| (*f, t.as_str())).collect();
+    crate::skills::Library::from_sources(&refs).expect("bundled skills are valid")
+}
+
+/// `routed_lesson_prompt` against an explicit library (tests, evals).
+pub fn routed_lesson_prompt_in(
+    lib: &crate::skills::Library,
+    context: &str,
+    ids: &[String],
+) -> Result<crate::skills::Prompt, crate::skills::SkillError> {
+    lib.assemble(
+        "lesson_slides",
+        &lesson_rules(),
+        ids,
+        &format!("Context (data): {context}"),
+    )
+}
+
+/// A request as compact JSON for a routed prompt: empty, zero and false values are dropped (they
+/// carry no information and the prost `Debug` rendering spells every one out), and `limits` (the
+/// quote's volatile token and price bounds) is not for the model. Keys keep their order.
+pub fn compact_context(request: &serde_json::Value) -> String {
+    fn strip(v: &mut serde_json::Value) -> bool {
+        match v {
+            serde_json::Value::Null => true,
+            serde_json::Value::Bool(b) => !*b,
+            serde_json::Value::Number(n) => n.as_f64() == Some(0.0),
+            serde_json::Value::String(s) => s.is_empty(),
+            serde_json::Value::Array(a) => {
+                a.iter_mut().for_each(|x| {
+                    strip(x);
+                });
+                a.is_empty()
+            }
+            serde_json::Value::Object(o) => {
+                o.retain(|_, x| !strip(x));
+                o.is_empty()
+            }
+        }
+    }
+    let mut v = request.clone();
+    if let Some(o) = v.as_object_mut() {
+        o.remove("limits");
+    }
+    strip(&mut v);
+    v.to_string()
+}
+
+/// The lesson request as prompt data: today's `Debug` rendering while `lesson_slides` is
+/// monolithic (byte-identical prompts), compact JSON once the task is routed.
+pub fn render_context<T: std::fmt::Debug + serde::Serialize>(context: &T) -> String {
+    if crate::skills::bundled().mode("lesson_slides") == crate::skills::PromptMode::Routed
+        && let Ok(v) = serde_json::to_value(context)
+    {
+        return compact_context(&v);
+    }
+    format!("{context:?}")
+}
+
+/// Narration pace the lesson prompt asks for (`LESSON_SHAPE`), enforced by `prepare_lesson`.
+const MIN_MS_PER_WORD: u64 = 400;
+
+/// Deterministic fix-up before acceptance: each slide's `duration_ms` is raised to 400 ms per
+/// narration word (at most the 60 s slide maximum); a variant whose choices repeat its source question in
 /// the same order is rotated with `reorder_choices` (the same rule the retry pool uses when it is
 /// exhausted), so the correct text and answer stay identical; a variant whose choices are a
 /// reordering of the source choices gets `answer_index` pointing at the source's correct text.
@@ -367,6 +519,20 @@ pub fn prepare_lesson(text: &str) -> Option<String> {
             })
             .collect();
     let mut changed = false;
+    // Speaking time is arithmetic, not judgement: raise each slide to the rate the prompt asks for.
+    let slides = v
+        .get_mut("slides")
+        .and_then(serde_json::Value::as_array_mut);
+    for slide in slides.into_iter().flatten() {
+        let words = slide["narration"]
+            .as_str()
+            .map_or(0, |n| n.split_whitespace().count() as u64);
+        let wanted = (words * MIN_MS_PER_WORD).min(u64::from(MAX_DURATION_MS));
+        if slide["duration_ms"].as_u64().is_some_and(|d| d < wanted) {
+            slide["duration_ms"] = serde_json::json!(wanted);
+            changed = true;
+        }
+    }
     // Provider JSON is unvalidated here: only non-panicking accessors (`get_mut`), so a
     // malformed pool is left for `validate_lesson` to reject.
     let pools = v

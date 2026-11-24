@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -398,6 +400,9 @@ function Shell({
   );
 }
 
+// The v2 rig is a lazy chunk: it loads only for a custom tutor's header avatar.
+const CastHeaderAvatar = lazy(() => import("../characters/HeaderAvatar"));
+
 export function TutorChat({
   courseId,
   service = tutorService,
@@ -451,6 +456,13 @@ export function TutorChat({
   const guideIsDefault =
     tutor.roster.state !== "ready" ||
     tutor.roster.roster.cast_source === "default";
+  const rosterNow = tutor.roster.state === "ready" ? tutor.roster.roster : null;
+  const headerDocument = (
+    rosterNow?.tutors.find(
+      (x) => x.speaker_key === tutor.speaker && x.available,
+    ) ??
+    rosterNow?.tutors.find((x) => x.speaker_key === rosterNow.default_speaker)
+  )?.document;
   const [typing, pingTyping] = useActivity();
   const { state: mascotState } = useMascotState({
     offline: !tutor.online,
@@ -599,7 +611,12 @@ export function TutorChat({
           }}
         >
           <header className="tutor-top">
-            {guideIsDefault && (
+            {headerDocument && (
+              <Suspense fallback={null}>
+                <CastHeaderAvatar document={headerDocument} />
+              </Suspense>
+            )}
+            {!headerDocument && guideIsDefault && (
               <MascotAvatar
                 size={32}
                 state={mascotState}

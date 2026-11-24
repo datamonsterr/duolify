@@ -1,0 +1,8 @@
+# Prompt skills for tutor_chat (ADR 0025). No skill content yet: groups 3a and later add `[[skill]]`
+# tables. `prompt_mode` stays "monolithic" (today's single prompt) until the task's rollout PR.
+task = "tutor_chat"
+prompt_mode = "monolithic"
+
+[routing]
+max_skills = 4
+budget_tokens = 400

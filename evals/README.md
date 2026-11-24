@@ -243,3 +243,9 @@ HF_TOKEN=... OPENROUTER_API_KEY=... ELEVENLABS_API_KEY=... ELEVENLABS_VOICE_ID=.
 ```
 
 To enable live evals on ready PRs, add the `HF_TOKEN` (read access to the private dataset), `OPENROUTER_API_KEY`, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` repository secrets and set `HF_GOLDEN_REVISION`/`HF_GOLDEN_DATASET` in the workflow environment.
+
+## Prompt arms and pending rows (ADR 0025)
+
+`PROMPT_ARM=routed` makes the live `lesson_slides` case use the skills prompt (rules, then the decision model, then the default set); any other value is today's monolithic prompt. The result records `arm`, `skills` and `router_source`, and skill-fit probes (`has_svg`, `has_table`, `has_ordered_list`, `has_code_block`, `has_math_symbols`). Run the same cases on both arms and compare pass rate, cost and latency; the routed arm is promoted only when it is at least as good and not more than 3 percent costlier (spec "Economics gate").
+
+`evals/datasets/duolify-golden/pending-prompt-skills.jsonl` holds five lesson rows (one per model-routed lesson skill) waiting for the next dataset revision; they are not part of the pinned `golden.jsonl` and are not run by `engine:eval-golden` until merged into it.

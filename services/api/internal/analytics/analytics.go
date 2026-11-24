@@ -117,7 +117,8 @@ func allowlisted(event string) bool {
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled",
 		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created",
 		"voice_transcription_succeeded", "voice_transcription_failed",
-		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used":
+		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used",
+		"input_guard_decision":
 		return true
 	default:
 		return false
@@ -659,6 +660,18 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		boolean("fallback_used", "empty")
 		ids("served_model", "model")
+	case "input_guard_decision":
+		// ADR 0025: closed enums and a flag only. The guarded text, even redacted, never leaves the API.
+		closed := func(key string, allowed ...string) {
+			if v, ok := input[key].(string); ok && slices.Contains(allowed, v) {
+				out[key] = v
+			}
+		}
+		closed("surface", "course_topic", "steer", "outline_chat", "character", "course_publish", "review", "quick_note", "tutor_chat")
+		closed("reason_code", "", "prompt_injection", "unsafe_content", "self_harm", "pii", "off_topic_for_course", "too_long")
+		closed("guard_source", "pre_filter", "model", "failure", "disabled")
+		boolean("allowed")
+		numeric("latency_ms")
 	case "lesson_anchored_note_created":
 		// Identifiers, a closed enum and a flag; never the note text or the region contents.
 		ids("course_id", "lesson_id")
@@ -673,6 +686,14 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
 		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
 		ids("provider", "model", "task", "pricing_version", "error_code", "envelope", "cache_class")
+		// ADR 0025: closed values and a count, never a skill body or any text.
+		if v, ok := input["prompt_mode"].(string); ok && (v == "monolithic" || v == "routed") {
+			out["prompt_mode"] = v
+		}
+		if v, ok := input["router_source"].(string); ok && slices.Contains([]string{"rules", "cache", "model", "default", "breaker"}, v) {
+			out["router_source"] = v
+		}
+		numeric("skill_count")
 		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
 			if out[canonical] == nil && out[legacy] != nil {
 				out[canonical] = out[legacy]

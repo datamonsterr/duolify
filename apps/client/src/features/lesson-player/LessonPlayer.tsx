@@ -1,3 +1,4 @@
+import "./lesson-player.css";
 import { PlayerCompanion } from "../../components/mascot";
 import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { NarrationControl } from "../narration/NarrationControl";
@@ -84,7 +85,10 @@ import type { RegionRect } from "./immersive/gestures";
 import { TutorChat } from "../chat/TutorChat";
 import { bookmarkQueue } from "../notes/bookmark-queue";
 import { createDefaultTracerManifest } from "../characters/fixtures";
-import { generateMotionSlideHtml } from "../characters/motion-slide";
+import {
+  generateMotionSlideHtml,
+  type CompileV2,
+} from "../characters/motion-slide";
 import { generatedCharacterDocument } from "../characters/playback";
 import { SandboxFrame } from "./SandboxFrame";
 
@@ -225,14 +229,31 @@ function TracerLessonPlayer({
     return createDefaultTracerManifest();
   }, []);
 
+  // v2 rig compiler: lazy chunk, fetched only when a cast member has a v2 document.
+  const [compileV2, setCompileV2] = useState<CompileV2 | undefined>();
+  const needsV2 = Object.values(tracerManifest.cast.speakers).some(
+    (sp) => sp.document,
+  );
+  useEffect(() => {
+    if (!needsV2) return;
+    let live = true;
+    void import("../characters/rig-v2").then((m) => {
+      if (live) setCompileV2(() => m.compileV2);
+    });
+    return () => {
+      live = false;
+    };
+  }, [needsV2]);
+
   const slides = useMemo(() => {
     return tracerManifest.slides.map((s) =>
       generateMotionSlideHtml(s, tracerManifest.cast, {
+        compileV2,
         reducedMotion,
         offline: typeof navigator !== "undefined" ? !navigator.onLine : false,
       }),
     );
-  }, [tracerManifest, reducedMotion]);
+  }, [tracerManifest, reducedMotion, compileV2]);
 
   useEffect(() => {
     sendCommand(frame.current?.contentWindow ?? null, {

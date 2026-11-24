@@ -1,4 +1,5 @@
 pub mod analytics;
+pub mod compare;
 pub mod judge;
 pub mod live;
 pub mod report;

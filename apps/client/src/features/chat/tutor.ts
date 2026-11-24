@@ -1,3 +1,4 @@
+import type { CharacterSpecV2 } from "../characters/types-v2";
 import { AuthError, session } from "../accounts/session";
 import { secureStore } from "../accounts/secure-store";
 import type { WalletResponse } from "../credits/types";
@@ -46,6 +47,8 @@ export type PersonaTutor = {
   name: string;
   character_version: number;
   available: boolean;
+  /** v2 document for the header avatar; present only for an available custom tutor. */
+  document?: CharacterSpecV2;
 };
 export type PersonaRoster = {
   cast_source: TutorPersona["cast_source"];

@@ -53,6 +53,9 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    if args.len() >= 2 && args[1] == "compare" {
+        return engine_eval::compare::run(&args);
+    }
     if args.len() >= 2 && args[1] == "evidence" {
         return evidence_status(&args);
     }

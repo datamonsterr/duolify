@@ -7,6 +7,7 @@ import App from "./App";
 import { session } from "./features/accounts/session";
 import { loadArabic } from "./features/design/localization/messages";
 import "./styles.css";
+import "./features/design/sheet/phone-sheet.css";
 const queryClient = createQueryClient();
 registerCourseQueryClient(queryClient);
 async function start() {

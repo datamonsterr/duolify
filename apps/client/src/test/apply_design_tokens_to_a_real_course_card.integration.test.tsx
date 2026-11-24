@@ -283,7 +283,9 @@ it("matches the Courses canvas structure and secondary button treatment", async 
   expect(card).toHaveTextContent(/Unit 1/);
   expect(card).toHaveTextContent(/Lesson 2 of 4/);
   expect(card.querySelector(".course-icon")).toBeInTheDocument();
-  expect(screen.getByRole("searchbox").closest("header")).toBeInTheDocument();
+  expect(
+    screen.getByRole("searchbox").closest(".courses-page"),
+  ).toBeInTheDocument();
 
   fireEvent.change(screen.getByRole("searchbox"), {
     target: { value: "private topic" },

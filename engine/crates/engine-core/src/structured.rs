@@ -76,6 +76,13 @@ pub fn response_format(task: &str) -> Option<Value> {
                 "reason_code":{"type":"string","enum":with_empty(&STEER_REASONS)}},
                 "required":["allowed","reason_code"],"additionalProperties":false}),
         ),
+        "input_guard" => schema(
+            "input_guard_verdict",
+            json!({"type":"object","properties":{
+                "allowed":{"type":"boolean"},
+                "reason_code":{"type":"string","enum":with_empty(&crate::guard::classifier::reason_codes())}},
+                "required":["allowed","reason_code"],"additionalProperties":false}),
+        ),
         "character_screen" => schema(
             "character_screen_verdict",
             json!({"type":"object","properties":{

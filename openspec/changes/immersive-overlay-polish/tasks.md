@@ -9,3 +9,5 @@
 - [x] 2.5 Catalogues EN and AR; copy baseline lowered
 ## 3. Verification
 - [x] 3.1 Screenshots at 844x390 and 390x844
+
+- [x] 3.2 Group player controls over a translucent scrim with narrow-screen overflow and RTL coverage.

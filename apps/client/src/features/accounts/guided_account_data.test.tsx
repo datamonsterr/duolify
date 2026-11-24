@@ -35,6 +35,7 @@ const profile = {
   learner_id: "11111111-1111-4111-8111-111111111111",
 };
 beforeEach(() => {
+  window.location.hash = "#privacy";
   localStorage.clear();
   vi.clearAllMocks();
   vi.mocked(profileApi.readSettings).mockResolvedValue(profile);
