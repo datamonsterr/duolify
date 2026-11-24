@@ -81,8 +81,15 @@
 .courses-search {
   margin-block-end: var(--space-3);
 }
-h2.course-empty {
+.course-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
   margin-block: var(--space-4);
+}
+.course-empty h2 {
+  margin: 0;
   font-size: var(--font-size-title);
 }
 .courses-create-dock {
