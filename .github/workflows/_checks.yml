@@ -349,7 +349,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.client == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -358,6 +358,28 @@ jobs:
         with:
           tauri: 'true'
           cache-key: native
+      - name: Identify Tauri apt cache
+        id: tauri-apt-key
+        run: mise run ci:tauri-apt-key
+      - name: Restore Tauri apt archives and indexes
+        id: tauri-apt
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/tauri-apt-archives
+            ~/.cache/tauri-apt-lists
+          key: ${{ steps.tauri-apt-key.outputs.key }}-${{ hashFiles('scripts/ci/tauri-deps.sh') }}
+      - name: mise run ci:tauri-deps
+        run: mise run ci:tauri-deps
+        timeout-minutes: 10
+      - name: Save Tauri apt archives and indexes
+        if: steps.tauri-apt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cache/tauri-apt-archives
+            ~/.cache/tauri-apt-lists
+          key: ${{ steps.tauri-apt.outputs.cache-primary-key }}
       - name: mise run client:lint-native
         run: mise run client:lint-native
         timeout-minutes: 8
@@ -637,7 +659,7 @@ jobs:
     needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
         with:
@@ -646,6 +668,28 @@ jobs:
         with:
           tauri: 'true'
           cache-key: build
+      - name: Identify Tauri apt cache
+        id: tauri-apt-key
+        run: mise run ci:tauri-apt-key
+      - name: Restore Tauri apt archives and indexes
+        id: tauri-apt
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/tauri-apt-archives
+            ~/.cache/tauri-apt-lists
+          key: ${{ steps.tauri-apt-key.outputs.key }}-${{ hashFiles('scripts/ci/tauri-deps.sh') }}
+      - name: mise run ci:tauri-deps
+        run: mise run ci:tauri-deps
+        timeout-minutes: 10
+      - name: Save Tauri apt archives and indexes
+        if: steps.tauri-apt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cache/tauri-apt-archives
+            ~/.cache/tauri-apt-lists
+          key: ${{ steps.tauri-apt.outputs.cache-primary-key }}
       - name: mise run client:tauri-build
         run: mise run client:tauri-build
         timeout-minutes: 18
