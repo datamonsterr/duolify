@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { CharacterSelector, type Tab } from "./CharacterSelector";
@@ -17,7 +17,9 @@ let latest: CharacterSpecV2;
 function Host({ kind = "human" as BodyKind, initialTab = "kind" as Tab }) {
   const [spec, setSpec] = useState(() => defaultDraft(kind));
   const [tab, setTab] = useState<Tab>(initialTab);
-  latest = spec;
+  useEffect(() => {
+    latest = spec;
+  });
   return (
     <>
       <CharacterStage spec={spec} />

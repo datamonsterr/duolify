@@ -1,5 +1,25 @@
 import type { Page } from "./native-store-fixture";
 
+export const v1 = (name: string) => ({
+  schema_version: 1,
+  rig_version: "original-v1",
+  info: { name, bio: "", backstory: "" },
+  personality: {
+    traits: ["kind"],
+    speaking_style: "Clear",
+    persona_prompt: "Help",
+  },
+  appearance: {
+    body_shape: "round",
+    palette: { body: "#FFD23F", accent: "#EE4266", outline: "#1A1A24" },
+    eyes: "round",
+    mouth: "smile",
+    accessories: [],
+  },
+  expressions: ["idle"],
+  voice_key: "voice-provisional-guide",
+});
+
 export async function mockCharacters(page: Page) {
   const created: unknown[] = [];
   const spends: string[] = [];
@@ -11,25 +31,6 @@ export async function mockCharacters(page: Page) {
       spends.push(r.method() + " " + r.url());
   });
   const patched: unknown[] = [];
-  const v1 = (name: string) => ({
-    schema_version: 1,
-    rig_version: "original-v1",
-    info: { name, bio: "", backstory: "" },
-    personality: {
-      traits: ["kind"],
-      speaking_style: "Clear",
-      persona_prompt: "Help",
-    },
-    appearance: {
-      body_shape: "round",
-      palette: { body: "#FFD23F", accent: "#EE4266", outline: "#1A1A24" },
-      eyes: "round",
-      mouth: "smile",
-      accessories: [],
-    },
-    expressions: ["idle"],
-    voice_key: "voice-provisional-guide",
-  });
   const records: Record<string, unknown>[] = [];
   await page.addInitScript(() =>
     sessionStorage.setItem(

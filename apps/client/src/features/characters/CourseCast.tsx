@@ -10,6 +10,7 @@ import { getDefaultCastFixtures } from "./fixtures";
 import { CastAvatar } from "./CastAvatar";
 import type { CharacterSpecV2 } from "./types-v2";
 import { AppLink } from "../../lib/navigation";
+import { useCharacterT } from "./useCharacterT";
 import { guidedEnabled } from "../guided-chat/flags";
 
 const GuidedCourseCast = lazy(() =>
@@ -27,6 +28,7 @@ export function CourseCast({ courseId }: { courseId: string }) {
   const [pending, setPending] = useState(false);
   const [reload, setReload] = useState(0);
   const [chat, setChat] = useState(false);
+  const t = useCharacterT();
   useEffect(() => {
     let active = true;
     void Promise.all([characterLibrary.list(), characterLibrary.cast(courseId)])
@@ -87,7 +89,9 @@ export function CourseCast({ courseId }: { courseId: string }) {
       <h1>Course Cast</h1>
       <p>No character credits are spent.</p>
       {guidedEnabled("character_cast") && !selection.published && (
-        <Button onClick={() => setChat(true)}>Choose in chat</Button>
+        <Button onClick={() => setChat(true)}>
+          {t("characters.v2.cast_chat")}
+        </Button>
       )}
       {error && (
         <div role="alert">

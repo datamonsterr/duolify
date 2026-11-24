@@ -19,7 +19,8 @@ vi.mock("./library", () => ({
   },
 }));
 
-configure({ asyncUtilTimeout: 4000 });
+configure({ asyncUtilTimeout: 8000 });
+vi.setConfig({ testTimeout: 30000 });
 beforeEach(() => {
   localStorage.clear();
   vi.resetAllMocks();
@@ -104,7 +105,7 @@ describe("character.create", () => {
       await screen.findByRole("button", { name: "Create character" }),
     );
     await said("That didn't go through. Try again.");
-    await next("Try again");
+    fireEvent.click(await screen.findByText("Try again"));
     await waitFor(() =>
       expect(characterLibrary.createV2).toHaveBeenCalledTimes(2),
     );

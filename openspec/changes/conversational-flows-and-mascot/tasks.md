@@ -49,8 +49,8 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 7. Migrate character flows (M)
 
-- [ ] 7.1 Coordinate with the `custom-characters` rewrite; consume its selectors; e2e for `character.create` and `character.cast`
-- [ ] 7.2 Scripts `character.create`, `character.cast` (chat front end only; pricing and screening unchanged)
+- [x] 7.1 _Done: e2e/characters-guided-chat.spec.ts (create, cast, keyboard)._ Coordinate with the `custom-characters` rewrite; consume its selectors; e2e for `character.create` and `character.cast`
+- [x] 7.2 _Done: character.scripts.ts + `character` widget; entry points are additive buttons (Create in chat, Choose in chat) until rollout; old forms stay._ Scripts `character.create`, `character.cast` (chat front end only; pricing and screening unchanged)
 
 ## 8. Migrate remaining flows (L, two PRs)
 
