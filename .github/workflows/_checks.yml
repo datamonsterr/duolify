@@ -586,6 +586,9 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Identify Playwright apt cache
+        id: playwright-apt-key
+        run: mise run ci:playwright-apt-key
       - name: Restore Playwright apt archives
         id: playwright-apt
         uses: actions/cache/restore@v6
@@ -593,7 +596,7 @@ jobs:
           path: |
             ~/.cache/playwright-apt-archives
             ~/.cache/playwright-apt-lists
-          key: apt-playwright-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageVersion }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ steps.playwright-apt-key.outputs.key }}
       - name: mise run ci:playwright-deps
         run: mise run ci:playwright-deps
         timeout-minutes: 8
@@ -881,6 +884,9 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Identify Playwright apt cache
+        id: playwright-apt-key
+        run: mise run ci:playwright-apt-key
       - name: Restore Playwright apt archives
         id: playwright-apt
         uses: actions/cache/restore@v6
@@ -888,7 +894,7 @@ jobs:
           path: |
             ~/.cache/playwright-apt-archives
             ~/.cache/playwright-apt-lists
-          key: apt-playwright-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageVersion }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ steps.playwright-apt-key.outputs.key }}
       - name: mise run ci:playwright-deps
         run: mise run ci:playwright-deps
         timeout-minutes: 8
