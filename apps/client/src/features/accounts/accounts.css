@@ -223,6 +223,13 @@
 .sessions-panel h1 {
   font-size: var(--font-size-heading);
 }
+.sessions-panel .duo-button.primary:not(:disabled) {
+  background-color: var(--primary);
+  color: var(--on-primary);
+}
+.sessions-panel .duo-button.primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
 .sessions-list {
   list-style: none;
   padding: 0;
