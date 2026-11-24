@@ -588,7 +588,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: mise run ci:playwright-deps
         run: mise run ci:playwright-deps
-        timeout-minutes: 3
+        timeout-minutes: 8
       - name: mise run client:e2e-setup
         if: steps.browsers.outputs.cache-hit != 'true'
         run: mise run client:e2e-setup
@@ -867,7 +867,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: mise run ci:playwright-deps
         run: mise run ci:playwright-deps
-        timeout-minutes: 3
+        timeout-minutes: 8
       - name: mise run client:e2e-setup
         if: steps.browsers.outputs.cache-hit != 'true'
         run: mise run client:e2e-setup
