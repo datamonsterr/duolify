@@ -16,6 +16,16 @@ afterEach(() => {
 });
 
 describe("toast", () => {
+  it("drops a skipIfBusy coach mark while another toast shows, shows it when idle", () => {
+    render(<ToastHost />);
+    act(() => void showToast({ message: "Saved" }));
+    act(() => void showToast({ message: "Tip", skipIfBusy: true }));
+    act(() => void vi.advanceTimersByTime(4100));
+    expect(screen.queryByText("Tip")).toBeNull();
+    act(() => void showToast({ message: "Tip", skipIfBusy: true }));
+    expect(screen.getByText("Tip")).toBeTruthy();
+  });
+
   it("shows one at a time and queues the rest, auto-dismissing after about 4 s", () => {
     render(<ToastHost />);
     act(() => {

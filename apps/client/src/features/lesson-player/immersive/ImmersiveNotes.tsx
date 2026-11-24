@@ -60,7 +60,6 @@ export default function ImmersiveNotes({
     atMs: number;
     slideIndex: number;
   } | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const uiWidth = layout.rotated ? layout.vh : layout.vw;
   const docked = canDock(uiWidth);
   const panel = panelWidth(uiWidth);
@@ -120,7 +119,7 @@ export default function ImmersiveNotes({
 
   // Keep the selected region clear of the panel by moving the stage left.
   const shiftRect = answer?.rect;
-  const shifting = answer !== null && docked && !collapsed;
+  const shifting = answer !== null && docked;
   useEffect(() => {
     const root = document.documentElement;
     let shift = 0;
@@ -161,7 +160,6 @@ export default function ImmersiveNotes({
         method: selection.method,
         area: rect.w * rect.h,
       });
-    setCollapsed(false);
     setAnswer({
       rect,
       atMs: Math.round(latest.current.view.timeMs),
@@ -240,6 +238,11 @@ export default function ImmersiveNotes({
 
   const extensions: ImmersiveExtensions = {
     sideRail: rail,
+    onStageTap: () => {
+      if (!answer) return false;
+      closeAnswer({ outcome: "completed", savedNote: false, followUps: 0 });
+      return true;
+    },
     busy: composer !== null || answer !== null || selection.phase !== "none",
     ...sel.gestureExtensions,
   };
@@ -332,8 +335,7 @@ export default function ImmersiveNotes({
             slideTitle={slideTitle}
             region={answer.rect}
             atMs={answer.atMs}
-            collapsed={collapsed}
-            onCollapse={setCollapsed}
+            rotated={layout.rotated}
             onRestore={(rect) => setAnswer((a) => (a ? { ...a, rect } : a))}
             onClose={closeAnswer}
           />

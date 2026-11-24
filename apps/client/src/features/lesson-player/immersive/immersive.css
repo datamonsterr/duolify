@@ -576,10 +576,28 @@ html[data-imm-rotated] body {
     resize: none;
   }
 }
-.imm-answer-handle {
+/* Thin grab pill on the panel's leading edge: the swipe-to-close affordance. */
+.imm-answer-grab {
   position: absolute;
-  inset-inline-end: var(--pr);
-  inset-block-end: calc(var(--pb) + var(--space-3));
+  inset-inline-start: 4px;
+  inset-block-start: 50%;
+  inline-size: 4px;
+  block-size: 40px;
+  translate: 0 -50%;
+  border-radius: 2px;
+  background: var(--line);
+  touch-action: none;
+}
+.imm-answer-head {
+  touch-action: pan-y;
+  min-block-size: 16px;
+}
+.imm-sr-close:focus-visible {
+  position: static;
+  clip: auto;
+  inline-size: auto;
+  block-size: auto;
+  padding: var(--space-2);
 }
 /* The stage moves left to keep the selected region clear of the panel. */
 .player.immersive .stage-frame iframe,

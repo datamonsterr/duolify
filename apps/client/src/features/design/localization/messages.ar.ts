@@ -469,4 +469,5 @@ export const ar: Record<MessageId, Message> = {
   "imm.block": "أطول من أن تُجاب سريعًا.",
   "imm.answering": "جارٍ الرد",
   "imm.ready": "الإجابة جاهزة",
+  "imm.swipe_close": "اسحب للإغلاق",
 };

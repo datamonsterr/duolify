@@ -9,6 +9,8 @@ export type ToastOptions = {
   /** At most one action: Undo, Retry or Settings. */
   action?: { label: string; onAction: () => void };
   ttlMs?: number;
+  /** A coach mark: dropped (not queued) when another toast is showing or waiting. */
+  skipIfBusy?: boolean;
 };
 export type Toast = ToastOptions & { id: string; tone: "info" | "error" };
 
@@ -20,6 +22,7 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 export function showToast(options: ToastOptions): string {
+  if (options.skipIfBusy && (current || queue.length)) return "";
   const toast: Toast = {
     ...options,
     id: options.id ?? `toast-${++seq}`,

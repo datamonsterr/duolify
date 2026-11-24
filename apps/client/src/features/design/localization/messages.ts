@@ -513,6 +513,7 @@ export const en = {
   "imm.block": "Too long for a quick answer.",
   "imm.answering": "Answering",
   "imm.ready": "Answer ready",
+  "imm.swipe_close": "Swipe to close",
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 // The Arabic catalogue is its own chunk: English readers never download it.

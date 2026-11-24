@@ -124,7 +124,10 @@ export default function ImmersiveLayer({
     () =>
       createGestureRecognizer(
         {
-          onTap: () => dispatchControls({ type: "toggle" }),
+          onTap: () => {
+            if (latest.current.ext.onStageTap?.()) return;
+            dispatchControls({ type: "toggle" });
+          },
           onDoubleTap: (side) =>
             step(side === "left" ? "previous" : "next", "double_tap"),
           onSwipe: (dir) => step(dir, "swipe"),
