@@ -30,6 +30,8 @@ const profile = {
   learner_id: "11111111-1111-4111-8111-111111111111",
 };
 beforeEach(() => {
+  // The old dialogs stay one release behind the flag; these tests cover them.
+  localStorage.setItem("duolify.guided.rest", "off");
   vi.clearAllMocks();
   vi.mocked(profileApi.readSettings).mockResolvedValue(profile);
   vi.mocked(profileApi.saveSettings).mockResolvedValue(profile);

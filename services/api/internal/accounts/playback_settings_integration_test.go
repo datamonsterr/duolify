@@ -78,7 +78,7 @@ func TestPlaybackSettingsDefaultsPersistExportAndErasure(t *testing.T) {
 		}
 		return v
 	}
-	names := []string{"fullscreen_on_rotate", "autoplay", "auto_send_after_dictation"}
+	names := []string{"fullscreen_on_rotate", "autoplay", "auto_send_after_dictation", "single_key_shortcuts"}
 	// An existing Learner (row created before any save) gets true defaults.
 	got := read()
 	for _, n := range names {
@@ -96,11 +96,36 @@ func TestPlaybackSettingsDefaultsPersistExportAndErasure(t *testing.T) {
 	if w := call("POST", "/v1/me/settings", map[string]any{"confirmed": true, "fields": map[string]any{"autoplay": "no"}}, tokens.AccessToken); w.Code != 400 {
 		t.Fatalf("invalid: %d", w.Code)
 	}
-	if w := call("POST", "/v1/me/settings", map[string]any{"confirmed": true, "fields": map[string]any{"fullscreen_on_rotate": false, "autoplay": false}}, tokens.AccessToken); w.Code != 200 {
-		t.Fatalf("save: %d %s", w.Code, w.Body)
+	for _, invalid := range []any{nil, "false", 0} {
+		if w := call("POST", "/v1/me/settings", map[string]any{"confirmed": true, "fields": map[string]any{"single_key_shortcuts": invalid}}, tokens.AccessToken); w.Code != 400 {
+			t.Fatalf("invalid single_key_shortcuts %v: %d", invalid, w.Code)
+		}
+	}
+	saved := call("POST", "/v1/me/settings", map[string]any{"confirmed": true, "fields": map[string]any{"fullscreen_on_rotate": false, "autoplay": false, "single_key_shortcuts": false}}, tokens.AccessToken)
+	var savedValues map[string]any
+	if saved.Code != 200 || json.Unmarshal(saved.Body.Bytes(), &savedValues) != nil || savedValues["single_key_shortcuts"] != false {
+		t.Fatalf("save: %d %s", saved.Code, saved.Body)
+	}
+	if w := call("POST", "/v1/me/settings", map[string]any{"confirmed": true, "fields": map[string]any{"ui_sounds": false}}, tokens.AccessToken); w.Code != 200 {
+		t.Fatalf("unrelated save: %d %s", w.Code, w.Body)
 	}
 	got = read()
-	if got["fullscreen_on_rotate"] != false || got["autoplay"] != false || got["auto_send_after_dictation"] != true {
+	// A second Learner retains their independent default.
+	otherEmail := "shortcuts-other@example.test"
+	if w := call("POST", "/v1/auth/code", map[string]any{"email": otherEmail, "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatalf("other code: %d %s", w.Code, w.Body)
+	}
+	other := call("POST", "/v1/auth/verify", map[string]any{"email": otherEmail, "code": mail.Code(otherEmail), "age_confirmed": true}, "")
+	var otherTokens accounts.Tokens
+	if other.Code != 200 || json.Unmarshal(other.Body.Bytes(), &otherTokens) != nil {
+		t.Fatalf("other verify: %d %s", other.Code, other.Body)
+	}
+	otherSettings := call("GET", "/v1/me/settings", nil, otherTokens.AccessToken)
+	var otherValues map[string]any
+	if otherSettings.Code != 200 || json.Unmarshal(otherSettings.Body.Bytes(), &otherValues) != nil || otherValues["single_key_shortcuts"] != true {
+		t.Fatalf("other settings: %d %s", otherSettings.Code, otherSettings.Body)
+	}
+	if got["fullscreen_on_rotate"] != false || got["autoplay"] != false || got["auto_send_after_dictation"] != true || got["single_key_shortcuts"] != false {
 		t.Fatalf("partial update: %v", got)
 	}
 	if _, err = db.Pool.Exec(ctx, "UPDATE auth_sessions SET reauthenticated_at=now()"); err != nil {
@@ -117,7 +142,7 @@ func TestPlaybackSettingsDefaultsPersistExportAndErasure(t *testing.T) {
 		t.Fatalf("export shape: %v %s", err, export.Body)
 	}
 	row := payload.Tables["learner_profiles"][0]
-	if row["fullscreen_on_rotate"] != false || row["autoplay"] != false || row["auto_send_after_dictation"] != true {
+	if row["fullscreen_on_rotate"] != false || row["autoplay"] != false || row["auto_send_after_dictation"] != true || row["single_key_shortcuts"] != false {
 		t.Fatalf("export lacks settings: %v", row)
 	}
 	var learnerID string

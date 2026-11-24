@@ -1,3 +1,4 @@
+import { closeOnEscape } from "./features/hotkeys/escape";
 import { CourseUpdate } from "./features/sharing/CourseUpdate";
 import { MissingLessons } from "./features/sharing/MissingLessons";
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -264,7 +265,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
             aria-modal="true"
             aria-label="Prepare lesson"
             onKeyDown={(e) => {
-              if (e.key === "Escape") setQuotingId(null);
+              closeOnEscape(e, () => setQuotingId(null), "learn");
             }}
           >
             <QuotePanel

@@ -1,5 +1,6 @@
+import { useEscapeLayer } from "../hotkeys/escape";
 import { useUiPreferences } from "./localization/Preferences";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import {
   summarizeCourse,
   type Course,
@@ -23,14 +24,11 @@ export function CourseCard({
   const [showConfirm, setShowConfirm] = useState(false);
   const [removing, setRemoving] = useState(false);
 
-  useEffect(() => {
-    if (!showConfirm) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowConfirm(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showConfirm]);
+  useEscapeLayer(
+    "sheet",
+    showConfirm ? () => setShowConfirm(false) : undefined,
+    "courses",
+  );
 
   const { progress } = summarizeCourse(course);
   const lessonCount = progress.lessons_total;

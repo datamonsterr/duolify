@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   linkFailure,
@@ -200,7 +201,7 @@ export function ShareCoursePanel({
         onClose();
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape") onClose();
+        closeOnEscape(event, () => onClose());
         if (event.key !== "Tab") return;
         const items = [
           ...event.currentTarget.querySelectorAll<HTMLElement>(
