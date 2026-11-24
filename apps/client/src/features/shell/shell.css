@@ -350,6 +350,6 @@ select:focus-visible {
   color: var(--warning);
 }
 /* With the right rail gone the main panel is wide; keep running text readable. */
-.app-main p {
+.app-frame:not(.focused-frame) .app-main p {
   max-inline-size: var(--size-reading);
 }
