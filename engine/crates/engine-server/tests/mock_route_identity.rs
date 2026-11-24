@@ -101,9 +101,15 @@ async fn health_reports_the_configured_route_per_task() {
         providers.contains(&format!("route:preview=openrouter/{HY4},openrouter/{GLM}")),
         "{providers:?}"
     );
+    assert!(
+        providers.contains(&format!(
+            "route:course_plan=openrouter/{HY4},openrouter/{GLM}"
+        )),
+        "{providers:?}"
+    );
     // Review F1: the quote identity looks live, so Health also states the transport.
     assert_eq!(providers[2], "mode:fixture");
-    assert_eq!(providers.len(), 3 + 17);
+    assert_eq!(providers.len(), 3 + 18);
 }
 
 #[tokio::test]

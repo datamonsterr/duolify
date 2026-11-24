@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/datamonsterr/duolify/services/api/internal/sse"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/sse"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -294,27 +294,45 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 // ValidateCreatedOutline rejects unknown protobuf payloads as well as changed text/order.
 func ValidateCreatedOutline(request *enginev1.GenerateCourseOutlineRequest, response *enginev1.GenerateCourseOutlineResponse) error {
 	invalid := errors.New("invalid confirmed outline output")
-	if request == nil || response == nil || response.Unavailable || request.OutlineRevision < 1 || response.OutlineRevision != request.OutlineRevision || request.EditedOutline == nil || !proto.Equal(request.EditedOutline, response.Outline) || len(response.Attempts) == 0 {
+	if request == nil || response == nil || response.Unavailable || request.OutlineRevision < 1 || response.OutlineRevision != request.OutlineRevision || request.EditedOutline == nil || response.Outline == nil || len(response.Attempts) == 0 {
 		return invalid
 	}
 	if len(response.ProtoReflect().GetUnknown()) > 0 || len(response.Outline.ProtoReflect().GetUnknown()) > 0 {
 		return invalid
 	}
 	o := Outline{}
-	for _, u := range response.Outline.Units {
+	confirmed := proto.CloneOf(response.Outline)
+	earlier := map[string]bool{}
+	for i, u := range response.Outline.Units {
 		if u == nil || len(u.ProtoReflect().GetUnknown()) > 0 {
 			return invalid
 		}
 		unit := OutlineUnit{ID: u.UnitId, Title: u.Title, Lessons: []OutlineLesson{}}
-		for _, l := range u.Lessons {
+		for j, l := range u.Lessons {
 			if l == nil || len(l.ProtoReflect().GetUnknown()) > 0 {
 				return invalid
 			}
+			plan := l.GetPlan()
+			if plan == nil || len(plan.ProtoReflect().GetUnknown()) > 0 ||
+				strings.TrimSpace(plan.Objective) == "" || strings.TrimSpace(plan.ExampleHint) == "" ||
+				len(plan.KeyPoints) < 2 || len(plan.KeyPoints) > 4 ||
+				len(plan.Misconceptions) < 1 || len(plan.Misconceptions) > 3 {
+				return invalid
+			}
+			for _, ids := range [][]string{plan.PrerequisiteLessonIds, plan.ReviewLessonIds} {
+				for _, id := range ids {
+					if !earlier[id] {
+						return invalid
+					}
+				}
+			}
+			earlier[l.LessonId] = true
+			confirmed.Units[i].Lessons[j].Plan = nil
 			unit.Lessons = append(unit.Lessons, OutlineLesson{ID: l.LessonId, Title: l.Title, Goal: l.Goal})
 		}
 		o = append(o, unit)
 	}
-	if o.Validate(true) != nil {
+	if !proto.Equal(request.EditedOutline, confirmed) || o.Validate(true) != nil {
 		return invalid
 	}
 	for _, u := range response.Attempts {
@@ -449,11 +467,15 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 				return err
 			}
 			for j, l := range u.Lessons {
+				plan, marshalErr := (protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}).Marshal(l.Plan)
+				if marshalErr != nil {
+					return marshalErr
+				}
 				status := "locked"
 				if i == 0 && j == 0 {
 					status = "ready_to_generate"
 				}
-				if _, err = tx.Exec(ctx, `INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status) VALUES($1::uuid,$2::uuid,$3,$4,$5,$6,$7)`, owner, unitID, l.LessonId, j, l.Title, l.Goal, status); err != nil {
+				if _, err = tx.Exec(ctx, `INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status,plan) VALUES($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8)`, owner, unitID, l.LessonId, j, l.Title, l.Goal, status, plan); err != nil {
 					return err
 				}
 			}

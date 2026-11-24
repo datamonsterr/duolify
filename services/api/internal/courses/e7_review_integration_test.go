@@ -191,7 +191,7 @@ func TestE7ReviewCreationFinancialBoundary(t *testing.T) {
 						reaperDone <- context.DeadlineExceeded
 					}()
 				}
-				return &enginev1.GenerateCourseOutlineResponse{Outline: r.EditedOutline, OutlineRevision: r.OutlineRevision, Attempts: []*enginev1.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, Component: "content", Attempt: 1, Delivered: true, InputTokens: 100, OutputTokens: 20, UsageUnavailable: mode == "unknown usage"}}}, nil
+				return &enginev1.GenerateCourseOutlineResponse{Outline: plannedOutline(r.EditedOutline), OutlineRevision: r.OutlineRevision, Attempts: []*enginev1.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, Component: "content", Attempt: 1, Delivered: true, InputTokens: 100, OutputTokens: 20, UsageUnavailable: mode == "unknown usage"}}}, nil
 			}}
 			service = courses.New(courses.Options{Pool: pool, Financial: financial, OutlineEngine: engine})
 			timeout := time.Duration(q.Bounds["timeout_ms"])*time.Millisecond + 5*time.Second

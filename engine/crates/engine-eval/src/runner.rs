@@ -634,7 +634,11 @@ async fn evaluate_course_outline(input: &serde_json::Value) -> Result<String> {
         .get("profile")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
-    let prompt = match outline::creation_prompt(&base, brief, profile) {
+    let clarifications = input
+        .get("clarifications")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let prompt = match outline::creation_prompt(&base, brief, profile, clarifications) {
         Ok(p) => p,
         Err(_) => {
             return Ok(serde_json::json!({
@@ -665,25 +669,28 @@ async fn evaluate_course_outline(input: &serde_json::Value) -> Result<String> {
                 "cache_read_nanos": 10
             })
         }))?;
-    let outcome =
-        engine_core::credits::run_validated(&router, "outline", &prompt, &limits, |text| {
-            outline::validate_created(&base, text)
-        })
-        .await;
+    let outcome = engine_core::credits::run_validated(
+        &router,
+        outline::PLAN_ROUTE,
+        &prompt,
+        &limits,
+        |text| outline::validate_created(&base, text),
+    )
+    .await;
     match outcome {
         Ok(o) => {
-            let units: Option<Vec<outline::Unit>> = o
+            let plan = o
                 .completion
                 .as_ref()
                 .and_then(|c| serde_json::from_str::<serde_json::Value>(&c.text).ok())
-                .and_then(|v| serde_json::from_value(v["units"].clone()).ok());
-            let adhered = units.as_ref().is_some_and(|u| u == &base);
+                .unwrap_or_default();
             Ok(serde_json::json!({
                 "delivered": o.completion.is_some(),
                 "attempt_count": o.attempts.len(),
                 "fallback_used": o.attempts.iter().any(|a| a.fallback_used),
-                "adhered": adhered,
-                "units": units,
+                "adhered": o.completion.is_some(),
+                "units": plan["units"],
+                "plans": plan["plans"],
             })
             .to_string())
         }

@@ -12,7 +12,7 @@ pub const CANONICAL_TASKS: [&str; 6] = [
 pub fn canonical_task_name(task: &str) -> String {
     match task {
         "preview" | "course_preview" => "course_preview".to_string(),
-        "outline" | "course_outline" => "course_outline".to_string(),
+        "outline" | "course_outline" | "course_plan" => "course_outline".to_string(),
         "lesson" | "slides" | "lesson_slides" => "lesson_slides".to_string(),
         "test" | "lesson_test" => "lesson_test".to_string(),
         "chat" | "tutor_chat" => "tutor_chat".to_string(),
@@ -27,7 +27,7 @@ pub fn model_route_for_task(task: &str) -> String {
     let canonical = canonical_task_name(task);
     match canonical.as_str() {
         "course_preview" => "preview".to_string(),
-        "course_outline" => "outline".to_string(),
+        "course_outline" => engine_core::courses::outline::PLAN_ROUTE.to_string(),
         "lesson_slides" => "lesson".to_string(),
         "lesson_test" => "lesson".to_string(),
         "tutor_chat" => "chat".to_string(),

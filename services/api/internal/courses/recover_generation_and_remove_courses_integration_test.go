@@ -62,7 +62,7 @@ func (m *recoveryMockEngine) GenerateCourseOutline(ctx context.Context, req *eng
 		model = req.Limits.Model
 	}
 	return &enginev1.GenerateCourseOutlineResponse{
-		Outline:         req.EditedOutline,
+		Outline:         plannedOutline(req.EditedOutline),
 		OutlineRevision: req.OutlineRevision,
 		Attempts: []*enginev1.Usage{{
 			Attempt:      1,

@@ -59,6 +59,12 @@ model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]
 reasoning_effort = "low"
 
+# The API still quotes the outline action for Course planning.
+[tasks.course_plan]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
+
 [tasks.outline_replan]
 model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]

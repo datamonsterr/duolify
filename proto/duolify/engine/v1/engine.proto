@@ -257,10 +257,22 @@ message LearnerProfile {
   string time_zone = 11;
 }
 
+// LessonPlan is produced once at Course creation and stored with its Lesson stub.
+// References are authored IDs of earlier Lessons in the confirmed Course outline.
+message LessonPlan {
+  string objective = 1;
+  repeated string key_points = 2;
+  repeated string prerequisite_lesson_ids = 3;
+  repeated string misconceptions = 4;
+  string example_hint = 5;
+  repeated string review_lesson_ids = 6;
+}
+
 message LessonRef {
   string lesson_id = 1;
   string title = 2;
   string goal = 3;
+  LessonPlan plan = 4;
 }
 
 message Unit {
@@ -376,6 +388,13 @@ message PreviewCourseResponse {
   bool unavailable = 5;
 }
 
+// Clarification is untrusted learner data for planning an already confirmed outline.
+message Clarification {
+  string question_id = 1;
+  string question = 2;
+  string answer = 3;
+}
+
 message GenerateCourseOutlineRequest {
   string topic = 1;
   LearnerProfile learner = 2;
@@ -384,6 +403,7 @@ message GenerateCourseOutlineRequest {
   string draft_id = 5;
   UsageLimits limits = 6;
   CourseBrief brief = 7;
+  repeated Clarification clarifications = 8;
 }
 
 message GenerateCourseOutlineResponse {

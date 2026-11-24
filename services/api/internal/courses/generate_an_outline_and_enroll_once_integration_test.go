@@ -6,12 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,7 +23,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/riverqueue/river"
-	"sync/atomic"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -174,6 +174,9 @@ func TestGenerateOutlineEnrollOnceIntegration(t *testing.T) {
 		t.Fatal(completed)
 	}
 	courseID := completed["course_id"].(string)
+	if _, err := db.Pool.Exec(ctx, `UPDATE course_lesson_stubs SET plan=NULL WHERE learner_id=$1`, owner); err == nil {
+		t.Fatal("stored lesson plan could be changed")
+	}
 	if c, path := call("GET", "/v1/courses/"+courseID, nil, token); c != 200 || path["title"] != "Sky" {
 		t.Fatal(c, path)
 	}
@@ -194,21 +197,31 @@ func TestGenerateOutlineEnrollOnceIntegration(t *testing.T) {
 }
 
 type creationEngine struct {
-	calls   atomic.Int32
-	failErr error
-	resp    *enginev1.GenerateCourseOutlineResponse
+	calls       atomic.Int32
+	missingPlan bool
+}
+
+func plannedOutline(base *enginev1.CourseOutline) *enginev1.CourseOutline {
+	out := proto.CloneOf(base)
+	for _, unit := range out.GetUnits() {
+		for _, lesson := range unit.GetLessons() {
+			lesson.Plan = &enginev1.LessonPlan{
+				Objective: "Explain the lesson topic", KeyPoints: []string{"Core idea", "Practical use"},
+				Misconceptions: []string{"All cases behave alike"}, ExampleHint: "Work through one common case",
+			}
+		}
+	}
+	return out
 }
 
 func (e *creationEngine) GenerateCourseOutline(_ context.Context, r *enginev1.GenerateCourseOutlineRequest) (*enginev1.GenerateCourseOutlineResponse, error) {
 	e.calls.Add(1)
-	if e.failErr != nil {
-		return nil, e.failErr
-	}
-	if e.resp != nil {
-		return e.resp, nil
+	outline := r.EditedOutline
+	if !e.missingPlan {
+		outline = plannedOutline(outline)
 	}
 	return &enginev1.GenerateCourseOutlineResponse{
-		Outline:         r.EditedOutline,
+		Outline:         outline,
 		OutlineRevision: r.OutlineRevision,
 		Attempts: []*enginev1.Usage{{
 			Provider:     r.Limits.Provider,
@@ -222,7 +235,7 @@ func (e *creationEngine) GenerateCourseOutline(_ context.Context, r *enginev1.Ge
 	}, nil
 }
 
-func TestTerminalEngineFailureReleasesReservationWithNoPartialEnrollment(t *testing.T) {
+func TestMissingPlanReleasesReservationWithNoPartialEnrollment(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	container, err := postgres.Run(ctx, "postgres:18", postgres.WithDatabase("outline_fail"), postgres.WithUsername("fixture"), postgres.WithPassword("test-only"), postgres.BasicWaitStrategies())
@@ -256,9 +269,7 @@ func TestTerminalEngineFailureReleasesReservationWithNoPartialEnrollment(t *test
 		t.Fatal(err)
 	}
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, nil)
-	failingFixture := &creationEngine{
-		failErr: errors.New("terminal engine provider failure"),
-	}
+	failingFixture := &creationEngine{missingPlan: true}
 	service := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: failingFixture, Financial: financial})
 	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), CourseBrief: service}, logger))
 	defer server.Close()
@@ -326,7 +337,7 @@ func TestTerminalEngineFailureReleasesReservationWithNoPartialEnrollment(t *test
 		t.Fatal(c, creation)
 	}
 
-	// Run creation worker job, which hits the terminal engine error.
+	// Run creation worker job, which rejects an otherwise successful echo.
 	creationID := creation["id"].(string)
 	if err = service.RunCreation(ctx, creationID); err != nil {
 		t.Fatal(err)

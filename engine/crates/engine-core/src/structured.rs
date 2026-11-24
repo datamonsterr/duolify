@@ -57,9 +57,9 @@ fn with_empty(codes: &[&str]) -> Vec<String> {
         .collect()
 }
 
-/// OpenRouter `response_format` per task (see `engine/config/models.toml`). Tasks with a small,
-/// closed answer get strict `json_schema`; large generation tasks get `json_object` and keep their
-/// own validators; prose tasks (`chat`, `setup_chat`) get none. Both production models list
+/// OpenRouter `response_format` per task (see `engine/config/models.toml`). Tasks with a closed
+/// schema get strict `json_schema`, other structured tasks use `json_object` with their own
+/// validators, and prose tasks (`chat`, `setup_chat`) get none. Both production models list
 /// `response_format` and `structured_outputs` in their OpenRouter `supported_parameters`.
 pub fn response_format(task: &str) -> Option<Value> {
     let verdict = || {
@@ -105,6 +105,34 @@ pub fn response_format(task: &str) -> Option<Value> {
                 "links":{"type":"array","items":{"type":"string"}}},
                 "required":["summary","tags","links"],"additionalProperties":false}),
         ),
+        crate::courses::outline::PLAN_ROUTE => {
+            let strings = json!({"type":"array","items":{"type":"string"}});
+            schema(
+                "course_plan",
+                json!({"type":"object","additionalProperties":false,"required":["units","plans"],"properties":{
+                    "units":{"type":"array","items":{"type":"object","additionalProperties":false,
+                        "required":["id","title","lessons"],"properties":{
+                            "id":{"type":"string"},"title":{"type":"string"},
+                            "lessons":{"type":"array","items":{"type":"object","additionalProperties":false,
+                                "required":["id","title","goal"],"properties":{
+                                    "id":{"type":"string"},"title":{"type":"string"},"goal":{"type":"string"}
+                                }}}
+                        }}},
+                    "plans":{"type":"array","items":{"type":"object","additionalProperties":false,
+                        "required":["lesson_id","plan"],"properties":{
+                            "lesson_id":{"type":"string"},
+                            "plan":{"type":"object","additionalProperties":false,
+                                "required":["objective","key_points","prerequisite_lesson_ids","misconceptions","example_hint","review_lesson_ids"],
+                                "properties":{
+                                    "objective":{"type":"string"},"example_hint":{"type":"string"},
+                                    "key_points":{"type":"array","items":{"type":"string"},"minItems":2,"maxItems":4},
+                                    "misconceptions":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":3},
+                                    "prerequisite_lesson_ids":strings,"review_lesson_ids":strings
+                                }}
+                        }}}
+                }}),
+            )
+        }
         "preview" => schema(
             "course_preview",
             json!({"type":"object","properties":{
@@ -303,6 +331,12 @@ mod tests {
     fn generation_tasks_get_json_mode_and_prose_tasks_none() {
         assert_eq!(response_format("lesson").unwrap()["type"], "json_object");
         assert_eq!(response_format("outline").unwrap()["type"], "json_object");
+        let planner = response_format(crate::courses::outline::PLAN_ROUTE).unwrap();
+        assert_eq!(planner["json_schema"]["strict"], true);
+        let plan =
+            &planner["json_schema"]["schema"]["properties"]["plans"]["items"]["properties"]["plan"];
+        assert_eq!(plan["additionalProperties"], false);
+        assert_eq!(plan["required"].as_array().unwrap().len(), 6);
         assert_eq!(response_format("preview").unwrap()["type"], "json_schema");
         assert!(response_format("chat").is_none());
         assert!(response_format("setup_chat").is_none());

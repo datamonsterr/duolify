@@ -11,13 +11,13 @@ Each group is one ticket and one PR. TDD order inside each: e2e, integration, un
 
 ## 2. Course plan (proto, api, engine; ticket LQ-2)
 
-- [ ] 2.1 E2E: create a Course from a confirmed outline (mock engine) and its Lesson stubs carry plans; the first generated Lesson request carries its plan.
-- [ ] 2.2 Integration: a plan that changes the structure, points forward or is missing is rejected with bounded fallback; Credits released on terminal failure; plans immutable.
-- [ ] 2.3 Proto: `LessonPlan` on `LessonRef`; `clarifications` on `GenerateCourseOutlineRequest`; `buf lint`, `buf breaking`.
-- [ ] 2.4 Engine: planner prompt (`outline::creation_prompt` successor) and validator; strict JSON schema in `structured.rs`; fixture provider output.
-- [ ] 2.5 Engine: `course_plan` route in `models.toml` (stays `tencent/hy4-flash` low until 6.3), prices for candidates in `prices.toml`, alias so quotes keep matching.
-- [ ] 2.6 API: goose migration `lesson_plans` jsonb on Lesson stubs (rename after the newest migration on main before merge); store on create; send on `GenerateLesson`.
-- [ ] 2.7 Data inventory, backup and export entries.
+- [x] 2.1 E2E: create a Course from a confirmed outline (mock engine) and its Lesson stubs carry plans; the first generated Lesson request carries its plan.
+- [x] 2.2 Integration: a plan that changes the structure, points forward or is missing is rejected with bounded fallback; Credits released on terminal failure; plans immutable.
+- [x] 2.3 Proto: `LessonPlan` on `LessonRef`; `clarifications` on `GenerateCourseOutlineRequest`; `buf lint`, `buf breaking`.
+- [x] 2.4 Engine: planner prompt (`outline::creation_prompt` successor) and validator; strict JSON schema in `structured.rs`; fixture provider output.
+- [x] 2.5 Engine: `course_plan` route in `models.toml` (stays `tencent/hy4-flash` low until 6.3), prices for candidates in `prices.toml`, alias so quotes keep matching.
+- [x] 2.6 API: goose migration `lesson_plans` jsonb on Lesson stubs (rename after the newest migration on main before merge); store on create; send on `GenerateLesson`.
+- [x] 2.7 Data inventory, backup and export entries.
 
 ## 3. Lesson length and Credit estimate (proto, api, engine, client; ticket LQ-3)
 

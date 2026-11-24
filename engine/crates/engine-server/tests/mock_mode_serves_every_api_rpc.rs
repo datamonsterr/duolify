@@ -43,6 +43,7 @@ async fn generate_lesson_delivers_a_lesson_that_passes_production_validation() {
                 lesson_id: "l-1".into(),
                 title: "Stars".into(),
                 goal: "explain why stars shine".into(),
+                plan: None,
             }),
             limits: Some(limits(14000)),
             ..Default::default()

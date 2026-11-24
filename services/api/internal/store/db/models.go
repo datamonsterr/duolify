@@ -359,6 +359,7 @@ type CourseLessonStub struct {
 	LessonKey           pgtype.Text        `json:"lesson_key"`
 	ArchivedAt          pgtype.Timestamptz `json:"archived_at"`
 	ArchivedFromVersion pgtype.Int4        `json:"archived_from_version"`
+	Plan                []byte             `json:"plan"`
 }
 
 type CourseObjectPurge struct {

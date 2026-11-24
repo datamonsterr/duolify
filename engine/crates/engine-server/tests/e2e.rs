@@ -175,7 +175,8 @@ async fn all_rpcs() {
                     lessons: vec![pb::LessonRef {
                         lesson_id: "l".into(),
                         title: "Added".into(),
-                        goal: "Learn".into()
+                        goal: "Learn".into(),
+                        plan: None,
                     }]
                 }],
                 ..Default::default()
@@ -205,6 +206,9 @@ async fn all_rpcs() {
         .unwrap()
         .into_inner()
         .outline
+        .and_then(|outline| outline.units.into_iter().next())
+        .and_then(|unit| unit.lessons.into_iter().next())
+        .and_then(|lesson| lesson.plan)
         .is_some()
     );
     let mut lesson = c
@@ -308,6 +312,7 @@ async fn all_rpcs() {
                         lesson_id: "manual-lesson".into(),
                         title: "Keep".into(),
                         goal: "Keep goal".into(),
+                        plan: None,
                     }],
                 }],
                 ..Default::default()

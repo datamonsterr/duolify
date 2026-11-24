@@ -78,6 +78,7 @@ var piiRules = []piiRule{
 	{"course_creations", "request", emptyObj},
 	{"course_creations", "response", `NULL`},
 	{"course_lesson_stubs", "goal", redacted},
+	{"course_lesson_stubs", "plan", `NULL`},
 	{"course_lesson_stubs", "title", redacted},
 	{"course_units", "title", redacted},
 	{"courses", "description", redacted},
