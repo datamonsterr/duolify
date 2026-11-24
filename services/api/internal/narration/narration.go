@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
-	"golang.org/x/text/unicode/norm"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
 )
 
 // Statuses written to slide_narrations and projected into the manifest.
@@ -66,7 +66,7 @@ func RetentionExpired(since, now time.Time, retention time.Duration) bool {
 // NormalizeText composes Unicode (NFC) and collapses whitespace, so equivalent texts share one
 // hash, one provider call and one charge. The provider receives the normalized text.
 func NormalizeText(text string) string {
-	return strings.Join(strings.Fields(norm.NFC.String(text)), " ")
+	return player.NormalizeNarrationText(text)
 }
 
 // TextHash links the retained settings versions of one normalized narration text.
@@ -90,8 +90,18 @@ func AggregateCredits(characters []int, credits, block int) int {
 
 // ContentHash names shared objects: identical text, voice, model and settings are never paid twice.
 func ContentHash(text, voiceID, modelID, fingerprint string) string {
+	return contentHash(text, voiceID, modelID, fingerprint)
+}
+
+// ProviderContentHash includes the actual route. The settings fingerprint carries
+// the timing and chunking algorithm versions for estimated alignments.
+func ProviderContentHash(text, provider, model, voice, fingerprint string) string {
+	return contentHash("v2", text, provider, model, voice, fingerprint)
+}
+
+func contentHash(parts ...string) string {
 	h := sha256.New()
-	for _, part := range []string{text, voiceID, modelID, fingerprint} {
+	for _, part := range parts {
 		_, _ = fmt.Fprintf(h, "%d:%s|", len(part), part)
 	}
 	return hex.EncodeToString(h.Sum(nil))
@@ -100,6 +110,14 @@ func ContentHash(text, voiceID, modelID, fingerprint string) string {
 // Keys returns the versioned audio and alignment object keys for a content hash.
 func Keys(hash string) (audio, alignment string) {
 	base := "lessons/narration/v1/" + hash
+	return base + "/audio.wav", base + "/alignment.json"
+}
+
+func providerKeys(hash, format string) (audio, alignment string) {
+	base := "lessons/narration/v2/" + hash
+	if format == "audio/mpeg" {
+		return base + "/audio.mp3", base + "/alignment.json"
+	}
 	return base + "/audio.wav", base + "/alignment.json"
 }
 
@@ -152,14 +170,18 @@ func ValidateOutput(text string, r *enginev1.SynthesizeNarrationResponse) error 
 	if a == nil || len(a.Characters) != len(runes) || len(a.StartMs) != len(runes) || len(a.EndMs) != len(runes) {
 		return ErrAlignment
 	}
-	var previous uint32
+	var previous, previousEnd uint32
 	for i, want := range runes {
-		if a.Characters[i] != string(want) || a.EndMs[i] < a.StartMs[i] || a.StartMs[i] < previous {
+		if a.Characters[i] != string(want) || a.EndMs[i] < a.StartMs[i] || a.StartMs[i] < previous ||
+			r.TimingSource == "estimated" && a.EndMs[i] < previousEnd {
 			return ErrAlignment
 		}
-		previous = a.StartMs[i]
+		previous, previousEnd = a.StartMs[i], a.EndMs[i]
 	}
 	last := a.EndMs[len(runes)-1]
+	if r.TimingSource == "estimated" && (last != r.DurationMs || r.DurationMs > 60_000) {
+		return ErrAlignment
+	}
 	if diff := int64(last) - int64(r.DurationMs); diff > toleranceMS || diff < -toleranceMS {
 		return ErrAlignment
 	}
@@ -168,15 +190,16 @@ func ValidateOutput(text string, r *enginev1.SynthesizeNarrationResponse) error 
 
 // Alignment is the stored and served alignment document.
 type Alignment struct {
-	Version    int      `json:"version"`
-	DurationMS int      `json:"duration_ms"`
-	Characters []string `json:"characters"`
-	StartMS    []uint32 `json:"start_ms"`
-	EndMS      []uint32 `json:"end_ms"`
+	Version      int      `json:"version"`
+	DurationMS   int      `json:"duration_ms"`
+	Characters   []string `json:"characters"`
+	StartMS      []uint32 `json:"start_ms"`
+	EndMS        []uint32 `json:"end_ms"`
+	TimingSource string   `json:"timing_source,omitempty"`
 }
 
 func alignmentJSON(r *enginev1.SynthesizeNarrationResponse) ([]byte, error) {
-	return json.Marshal(Alignment{Version: 1, DurationMS: int(r.DurationMs), Characters: r.Alignment.Characters, StartMS: r.Alignment.StartMs, EndMS: r.Alignment.EndMs})
+	return json.Marshal(Alignment{Version: 1, DurationMS: int(r.DurationMs), Characters: r.Alignment.Characters, StartMS: r.Alignment.StartMs, EndMS: r.Alignment.EndMs, TimingSource: r.TimingSource})
 }
 
 // ValidText bounds narration text before it is stored or sent to the engine.

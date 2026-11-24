@@ -221,7 +221,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Pinned speakers narrate this slide: the segments carry the audio and the slide shows their summary.
 			state = narrationState{Status: status, Reason: reason}
 		}
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: statusOf(state), NarrationReason: state.Reason, Narration: state.Asset, NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: slide.HTMLSHA256, AssetSHA256: assetDigests(slide), Segments: slideSegments})
+		captions := slide.NarrationText
+		if state.Asset != nil {
+			captions = NormalizeNarrationText(captions)
+		}
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: statusOf(state), NarrationReason: state.Reason, Narration: state.Asset, NarrationText: captions, Explanation: explanation, HTMLSHA256: slide.HTMLSHA256, AssetSHA256: assetDigests(slide), Segments: slideSegments})
 	}
 	respond(w, 200, out)
 }
@@ -411,6 +415,9 @@ func (s *Service) narrationObject(ctx context.Context, w http.ResponseWriter, ow
 	if err != nil || !validKey(key) {
 		failure(w, 503)
 		return
+	}
+	if part == "audio" {
+		contentType = ContentTypeForKey(key)
 	}
 	raw, err := s.opts.Objects.Get(ctx, key)
 	if err != nil || len(raw) > maxObjectBytes {

@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Speech synthesis
-The API SHALL request audio from the Engine through the existing `SpeechProvider` interface with ElevenLabs, Workers AI and a deterministic mock. `NARRATION_PROVIDER` MUST accept `workers_ai` or `elevenlabs` and default to `elevenlabs` pending owner approval. Opt-in Workers AI MUST use an approved `WORKERS_AI_TTS_MODEL` (`@cf/deepgram/aura-2-en`, `@cf/deepgram/aura-2-es`, or `@cf/deepgram/aura-1`) and a trusted model-specific voice. The Engine MUST skip Workers AI for a Course language its configured model does not support. Entitled curated voices and pinned Character dialogue SHALL use the approved ElevenLabs mappings and existing consent rules. The provider/model/voice settings and live gates MUST be resolved before any call. Vendor credentials MUST be secrets and excluded from logs and events. ElevenLabs MUST request character-level timing. When audio has no vendor timing, the provider adapter MUST derive a complete, monotonic character alignment from decoded audio duration and Unicode text.
+The API SHALL request audio from the Engine through the existing `SpeechProvider` interface with OpenRouter, ElevenLabs and a deterministic mock. `NARRATION_PROVIDER` MUST accept `openrouter` or `elevenlabs` and default to `openrouter`. OpenRouter MUST admit only language-eligible `hexgrad/kokoro-82m` and `microsoft/mai-voice-2.1-flash` models and trusted voices. Requests MUST deny data collection and require ZDR. A configured Gateway MUST disable logging and caching for narration. Entitled curated voices and pinned Character dialogue SHALL use approved ElevenLabs mappings and existing consent rules. The Engine SHALL bound request text and deterministically chunk over-limit input without losing characters. When binary audio lacks timestamps, the adapter MUST decode and measure it, then derive monotonic Unicode character alignment. Vendor credentials and Learner text MUST stay outside logs and analytics.
 
 #### Scenario: Audio with alignment
 - **WHEN** the Engine synthesizes a Slide
@@ -12,12 +12,12 @@ The API SHALL request audio from the Engine through the existing `SpeechProvider
 - **THEN** the mock `SpeechProvider` returns fixed audio and alignment without network calls
 
 #### Scenario: Unsupported language
-- **WHEN** the selected Workers AI model supports English and the Course uses a different language
-- **THEN** the Engine resolves the budgeted ElevenLabs candidate without attempting Workers AI
+- **WHEN** the Course language is unsupported by both OpenRouter models
+- **THEN** the Engine resolves the budgeted ElevenLabs candidate without attempting OpenRouter
 
-#### Scenario: Deprecated model configuration
-- **WHEN** `WORKERS_AI_TTS_MODEL` names retired MeloTTS
-- **THEN** configuration reports that the model is unavailable and no live call is made to it
+#### Scenario: Secondary model language
+- **WHEN** the Course is Vietnamese
+- **THEN** MAI resolves with an approved Vietnamese voice and can synthesize within its budget and promotion gate
 
 ### Requirement: Narration storage and deduplication
 The API SHALL store audio and alignment JSON in versioned object storage with a key derived from text, provider, model, voice and settings. The API MUST look up each resolved candidate's hash before synthesis, reuse existing audio at zero Credits and deduplicate concurrent synthesis per hash. The successful asset MUST be associated with its actual provider and model. Existing references MUST remain usable.
@@ -31,18 +31,18 @@ The API SHALL store audio and alignment JSON in versioned object storage with a 
 - **THEN** new synthesis uses a distinct hash and prior objects stay valid for replay and recovery
 
 ### Requirement: Narration failure fallback
-With Workers AI selected, the system SHALL fall back to ElevenLabs within its own budget after an unavailable, ineligible or failed Workers AI attempt. When no eligible attempt can deliver audio the API MUST release the undelivered reservation, set `narration_status` to `failed` for terminal synthesis failure, and leave captions, the Slide and Lesson test available. The background job MUST use existing backoff for recoverable failures, and operators MAY request re-synthesis through the existing budget guard. Exhausted budgets MUST suppress additional calls for the blocked route.
+With OpenRouter selected, the system SHALL fall back from Kokoro to eligible MAI and then to ElevenLabs within its own character budget. An ineligible, unavailable or failed candidate MUST yield to the next candidate. When no eligible attempt can deliver audio the API MUST release the undelivered reservation, set `narration_status` to `failed` for terminal synthesis failure, and leave captions, the Slide and Lesson test available. The background job MUST use existing backoff for recoverable failures, and operators MAY request re-synthesis through the existing budget guard. Exhausted budgets MUST suppress additional calls for the blocked route.
 
 #### Scenario: ElevenLabs down
 - **WHEN** ElevenLabs is unreachable and no provider delivers audio within the allowed attempts
 - **THEN** the Slide plays with captions, `narration_failed` is emitted and recoverable failure remains eligible for background retry
 
-#### Scenario: Workers AI exhausted
-- **WHEN** the Workers AI neuron budget cannot admit synthesis and ElevenLabs can
+#### Scenario: OpenRouter budget exhausted
+- **WHEN** the shared OpenRouter cost cap cannot admit either model and ElevenLabs has remaining budget
 - **THEN** only the ElevenLabs route may synthesize after its own cache check and budget admission
 
 ### Requirement: Narration model testing and reliability
-Narration text MUST have Golden set cases for `lesson_narration` with deterministic checks for non-empty, bounded, plain text in the correct language and an LLM judge meeting `evals/thresholds.toml`. Audio checks MUST cover decoded duration within Slide bounds, every character aligned, non-decreasing timestamps and alignment end within the existing audio-duration tolerance. Golden set cases MUST cover the supported Workers AI models, language gating, decode and timing failures, model-aware deduplication, budget exhaustion and the full fallback chain, with recorded fakes in draft CI and pinned live promotion evidence before serving Learner traffic. The existing timed, spend-bounded synthesis envelope SHALL cover every provider attempt.
+Narration text MUST have Golden set cases for `lesson_narration` with deterministic checks for non-empty, bounded, plain text in the correct language and an LLM judge meeting `evals/thresholds.toml`. Audio checks MUST cover decoded duration within Slide bounds, every character aligned, non-decreasing timestamps and alignment end within the existing audio-duration tolerance. Golden set cases MUST cover the supported OpenRouter models, language gating, decode and timing failures, model-aware deduplication, budget exhaustion and the full fallback chain, with recorded fakes in draft CI and pinned live promotion evidence before serving Learner traffic. The existing timed, spend-bounded synthesis envelope SHALL cover every provider attempt.
 
 #### Scenario: Alignment gap
 - **WHEN** a synthesis result has alignment that does not cover the full text
@@ -64,14 +64,14 @@ The API SHALL compute a versioned content hash from NFC and whitespace-normalize
 - **THEN** a new asset key is created and the old version is retained for recovery
 
 ### Requirement: Bounded vendor synthesis
-The Engine SHALL make live calls only with `NARRATION_LIVE_ENABLED=true`, the selected provider's credentials, an approved voice/model and applicable promotion evidence. Mock and disabled modes MUST stay offline. The combined vendor path MUST fit the existing configured deadline (at most 60 seconds) and two live attempts. Output MUST cover every character with non-decreasing timestamps ending within tolerance of decoded audio duration. Permanent rejection MUST stop retries on the rejecting route. Terminal failure MUST release undelivered audio Credits and leave captions available.
+The Engine SHALL make live calls only with `NARRATION_LIVE_ENABLED=true`, the selected provider's credentials, an approved voice/model and applicable promotion evidence. Mock and disabled modes MUST stay offline. The combined vendor path MUST fit the existing configured deadline of at most 60 seconds. Each OpenRouter model can run once under the admitted character cost. The subsequent ElevenLabs fallback has one attempt, and an ElevenLabs-only route retains its bounded retry. Output MUST cover every character with non-decreasing timestamps ending within tolerance of decoded audio duration. Permanent rejection MUST stop retries on the rejecting route. Terminal failure MUST release undelivered audio Credits and leave captions available.
 
 #### Scenario: Vendor outage
 - **WHEN** the primary and the permitted retry or fallback are unavailable
 - **THEN** the Slide is `failed` with captions and applicable recovery available, nothing is charged and telemetry carries only the bounded reason
 
 #### Scenario: Permanent rejection
-- **WHEN** the vendor answers 401, a permanent 422 or retired-model 410
+- **WHEN** the vendor answers 401, a permanent 422 or 402
 - **THEN** no retry is made against that route
 
 ### Requirement: Monthly provider character budget
@@ -107,12 +107,12 @@ For ElevenLabs the API SHALL reserve worst-case characters for authorized attemp
 
 ## ADDED Requirements
 
-### Requirement: Workers AI daily neuron budget
-Live Workers AI synthesis MUST reserve the estimated worst-case neurons for each model attempt atomically in durable shared accounting bounded by the free daily account allocation. Use configured model-specific rates and conservative rounding. Admission MUST cover the UTC-day scope across processes and models, leaving configured headroom for other account usage. Uncalled reservations MUST release, unknown submitted outcomes MUST remain counted, and cache hits MUST consume no budget. Retain account aggregates, asset provenance and timing source in the existing Postgres backup and restore policy. Protect audio and alignment with versioned object backups and preserve prior references without paid recovery.
+### Requirement: OpenRouter monthly narration cost cap
+Live OpenRouter synthesis MUST reserve the worst-case per-character USD cost atomically in the durable shared budget. `NARRATION_OPENROUTER_MONTHLY_USD_CAP` SHALL default to $5 and use a UTC calendar month across models and processes. A trusted reported cost can reconcile a reservation within its admitted bound. Binary responses without cost use the configured per-character estimate. Uncalled holds MUST release, unknown submissions MUST stay counted, and cache hits MUST consume no budget. Back up the account aggregates and retain asset provenance, timing source and valid legacy references.
 
-#### Scenario: Concurrent neuron exhaustion
-- **WHEN** two call reservations individually fit the remaining free allocation but together exceed it
-- **THEN** only an admitted request can reach Workers AI and the other takes the eligible fallback
+#### Scenario: Concurrent cost exhaustion
+- **WHEN** two reservations fit individually but exceed the remaining monthly cap together
+- **THEN** only the admitted request may reach OpenRouter and the other takes its eligible fallback
 
 #### Scenario: Restore assets across providers
 - **WHEN** a restore contains two assets for the same text from different providers and older pre-change assets

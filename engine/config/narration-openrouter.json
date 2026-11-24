@@ -1,0 +1,24 @@
+{
+  "hexgrad/kokoro-82m": {
+    "chunk_bytes": 4096,
+    "providers": ["deepinfra/us", "together"],
+    "voices": {
+      "en": "af_heart", "en-gb": "bf_emma", "es": "ef_dora", "fr": "ff_siwis",
+      "hi": "hf_alpha", "it": "if_sara", "ja": "jf_alpha", "pt": "pf_dora", "zh": "zf_xiaobei"
+    }
+  },
+  "microsoft/mai-voice-2.1-flash": {
+    "chunk_bytes": 4096,
+    "providers": ["azure"],
+    "voices": {
+      "cs": "cs-CZ-Harper", "da": "da-DK-Harper", "de": "de-DE-Harper",
+      "en": "en-US-Harper", "es": "es-MX-Harper", "fi": "fi-FI-Harper",
+      "fr": "fr-FR-Harper", "hi": "hi-IN-Harper", "hu": "hu-HU-Harper",
+      "id": "id-ID-Harper", "it": "it-IT-Harper", "ko": "ko-KR-Harper",
+      "nb": "nb-NO-Harper", "nl": "nl-NL-Harper", "pl": "pl-PL-Harper",
+      "pt": "pt-BR-Harper", "pt-pt": "pt-PT-Harper", "ro": "ro-RO-Harper",
+      "ru": "ru-RU-Harper", "sv": "sv-SE-Harper", "th": "th-TH-Harper",
+      "tr": "tr-TR-Harper", "vi": "vi-VN-Harper", "zh": "zh-CN-Harper"
+    }
+  }
+}

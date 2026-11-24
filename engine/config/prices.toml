@@ -52,3 +52,9 @@ input_nanos = 2000
 output_nanos = 10000
 cache_write_nanos = 2500
 cache_read_nanos = 100
+
+# Worst published endpoint rates for owner-run speech promotion evals.
+# The approved Postgres quote policy owns production narration cost admission.
+[audio_nanos_per_character]
+"hexgrad/kokoro-82m" = 4000
+"microsoft/mai-voice-2.1-flash" = 15000

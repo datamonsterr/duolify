@@ -239,7 +239,7 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
 		if os.Getenv("NARRATION_ENABLED") == "true" {
-			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events), Budget: narrationBudget(os.Getenv)})
+			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events), Budget: narrationBudget(os.Getenv), OpenRouterBudget: narrationOpenRouterBudget(os.Getenv)})
 			narrationQueue, err := narrationService.Queue()
 			if err != nil {
 				return err
@@ -384,7 +384,7 @@ func run(ctx context.Context, args []string) (result error) {
 	var narrationVoices http.Handler
 	if os.Getenv("NARRATION_ENABLED") == "true" {
 		// Insert-only queue client: the worker process runs the jobs.
-		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events), Budget: narrationBudget(os.Getenv)})
+		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events), Budget: narrationBudget(os.Getenv), OpenRouterBudget: narrationOpenRouterBudget(os.Getenv)})
 		if _, err = recovery.Queue(); err != nil {
 			return err
 		}
@@ -749,6 +749,13 @@ func narrationBudget(getenv func(string) string) narration.Budget {
 		StopPercent: read("NARRATION_BUDGET_STOP_PERCENT", narration.DefaultBudgetStopPercent, 1, 100),
 		CycleDay:    read("NARRATION_CYCLE_START_DAY", 1, 1, 28),
 	}
+}
+
+func narrationOpenRouterBudget(getenv func(string) string) narration.OpenRouterBudget {
+	if getenv("NARRATION_LIVE_ENABLED") != "true" {
+		return narration.OpenRouterBudget{}
+	}
+	return narration.OpenRouterMonthlyBudget(getenv("NARRATION_OPENROUTER_MONTHLY_USD_CAP"))
 }
 
 // narrationRetention reads how many days an unreferenced narration asset is kept (default 30).

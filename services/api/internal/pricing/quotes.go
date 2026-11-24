@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"slices"
@@ -30,18 +31,73 @@ type ModelRate struct {
 	CacheRead  int64  `json:"cache_read"`
 }
 
+// AudioModelRate pins the preferred and worst paid endpoint rates for one routed model.
+type AudioModelRate struct {
+	USDNanosPerCharacter    int64 `json:"usd_nanos_per_character"`
+	MaxUSDNanosPerCharacter int64 `json:"max_usd_nanos_per_character"`
+}
+
+func (r AudioModelRate) valid() bool {
+	return r.USDNanosPerCharacter > 0 && r.MaxUSDNanosPerCharacter >= r.USDNanosPerCharacter && r.MaxUSDNanosPerCharacter <= 1_000_000_000
+}
+
 // QuotePolicy is immutable Pricing config data owned by its version.
 type QuotePolicy struct {
-	FreeConcurrency           int64                `json:"free_concurrency"`
-	MaxAttempts               int64                `json:"max_attempts"`
-	FallbackModels            map[string]string    `json:"fallback_models"`
-	TTLSeconds                int64                `json:"ttl_seconds"`
-	USDNanosPerCredit         int64                `json:"usd_nanos_per_credit"`
-	AudioUSDNanosPerCharacter int64                `json:"audio_usd_nanos_per_character"`
-	AudioModel                string               `json:"audio_model"`
-	Voices                    []string             `json:"voices"`
-	ActionModels              map[string]string    `json:"action_models"`
-	Models                    map[string]ModelRate `json:"models"`
+	FreeConcurrency           int64                     `json:"free_concurrency"`
+	MaxAttempts               int64                     `json:"max_attempts"`
+	FallbackModels            map[string]string         `json:"fallback_models"`
+	TTLSeconds                int64                     `json:"ttl_seconds"`
+	USDNanosPerCredit         int64                     `json:"usd_nanos_per_credit"`
+	AudioUSDNanosPerCharacter int64                     `json:"audio_usd_nanos_per_character"`
+	AudioModel                string                    `json:"audio_model"`
+	OpenRouterAudioRates      map[string]AudioModelRate `json:"openrouter_audio_rates,omitempty"`
+	Voices                    []string                  `json:"voices"`
+	ActionModels              map[string]string         `json:"action_models"`
+	Models                    map[string]ModelRate      `json:"models"`
+}
+
+// AudioRate returns the authorized model's worst endpoint rate, or zero for an unquoted route.
+func (p QuotePolicy) AudioRate(provider, model string) int64 {
+	if provider == "elevenlabs" && model == p.AudioModel {
+		return p.AudioUSDNanosPerCharacter
+	}
+	if provider == "openrouter" {
+		if rate := p.OpenRouterAudioRates[model]; rate.valid() {
+			return rate.MaxUSDNanosPerCharacter
+		}
+	}
+	return 0
+}
+
+// AudioAttemptLimit preserves historical quote limits. The new route authorizes two
+// distinct OpenRouter models plus one ElevenLabs attempt within the same deadline.
+func (q Quote) AudioAttemptLimit() int64 {
+	if q.Action == "narration" && len(q.Policy.OpenRouterAudioRates) > 0 {
+		return 3
+	}
+	return q.Bounds["max_attempts"]
+}
+
+// AudioCostEnvelopePerCharacter covers the more expensive of an ElevenLabs-only run
+// with its retry or the whole OpenRouter fallback chain ending with one ElevenLabs call.
+func (q Quote) AudioCostEnvelopePerCharacter() int64 {
+	elevenLabs, attempts := q.Policy.AudioUSDNanosPerCharacter, q.Bounds["max_attempts"]
+	if elevenLabs < 0 || attempts < 0 || attempts > 0 && elevenLabs > math.MaxInt64/attempts {
+		return -1
+	}
+	base := elevenLabs * attempts
+	if q.Action != "narration" || len(q.Policy.OpenRouterAudioRates) == 0 {
+		return base
+	}
+	fallback := elevenLabs
+	for _, model := range []string{"hexgrad/kokoro-82m", "microsoft/mai-voice-2.1-flash"} {
+		rate := q.Policy.AudioRate("openrouter", model)
+		if rate > math.MaxInt64-fallback {
+			return -1
+		}
+		fallback += rate
+	}
+	return max(base, fallback)
 }
 
 // Fallbacks returns the rates of the ordered fallback chain behind the model key, nearest first.
@@ -458,6 +514,17 @@ func (s *Quotes) Bounds(ctx context.Context, in QuoteInput) (map[string]int64, e
 	}
 	q, err := CalculateQuote(c, policy, in, row.QuotedAt.Time)
 	return q.Bounds, err
+}
+
+// ActivePolicy reads the approved cost policy before provider budget admission.
+func (s *Quotes) ActivePolicy(ctx context.Context) (QuotePolicy, error) {
+	var p QuotePolicy
+	row, err := db.New(s.pool).ActiveQuoteConfig(ctx)
+	if err != nil {
+		return p, err
+	}
+	err = json.Unmarshal(row.Policy, &p)
+	return p, err
 }
 
 // LessonCredits is the per-lesson price at the active config: the content and narration ceilings a

@@ -119,6 +119,11 @@ message SynthesizeNarrationResponse {
   string voice_fallback_reason = 13;
   string segment_id = 14;
   string speaker_key = 15;
+  // Resolved route and timing provenance, also returned without audio for resolve_only.
+  string provider = 16;
+  string timing_source = 17;
+  // Other eligible models of the resolved provider, in fallback order.
+  repeated string fallback_models = 18;
 }
 
 message MapCharacterRequest {
@@ -210,6 +215,9 @@ message Usage {
   // Tokens were estimated from delivered bytes (bounded by the quote) because the provider
   // sent no final usage frame; the API settles them as partial usage.
   bool estimated = 17;
+  // Narration provenance and known provider cost, if the audio transport supplies it.
+  string timing_source = 18;
+  optional uint64 provider_cost_nanos = 19;
 }
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.

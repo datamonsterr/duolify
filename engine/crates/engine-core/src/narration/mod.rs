@@ -1,7 +1,7 @@
-//! Per-slide speech synthesis. Only a deterministic mock exists in E14-01; the
-//! ElevenLabs HTTP client arrives in E14-04 behind the same `SpeechProvider` trait.
+//! Per-Slide speech synthesis and character alignment.
 use async_trait::async_trait;
 use std::time::Duration;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Mock voices bill as the vendor so quotes and settlement validate identically.
 pub const BILLING_PROVIDER: &str = "elevenlabs";
@@ -12,6 +12,8 @@ const DURATION_TOLERANCE_MS: u32 = 250;
 /// Launch limits (E14-04): one TTS call may take 60 s; one repair/retry follows the primary.
 pub const MAX_TTS_TIMEOUT_MS: u32 = 60_000;
 pub const MAX_TTS_ATTEMPTS: u32 = 2;
+/// Keep the binary response within the player's bounded object reads.
+pub const MAX_AUDIO_BYTES: usize = 1 << 20;
 /// Pause before the single retry so a rate-limited vendor is not hit again at once.
 const RETRY_BACKOFF: Duration = Duration::from_millis(250);
 
@@ -43,10 +45,16 @@ pub struct SpeechOutput {
 pub enum SpeechError {
     MissingText,
     InvalidAlignment(String),
-    Provider(String),
+    Provider(ProviderFailure),
     /// The vendor kept answering 429 through the allowed retry.
     RateLimited,
     Timeout,
+}
+
+#[derive(Debug)]
+pub enum ProviderFailure {
+    Rejected,
+    Unavailable(String),
 }
 
 /// Classified vendor failure. Messages never carry keys, bodies or narration text.
@@ -74,7 +82,12 @@ impl std::fmt::Display for SpeechError {
         match self {
             Self::MissingText => f.write_str("narration text missing"),
             Self::InvalidAlignment(m) => write!(f, "invalid alignment: {m}"),
-            Self::Provider(m) => write!(f, "speech provider failed: {m}"),
+            Self::Provider(ProviderFailure::Unavailable(m)) => {
+                write!(f, "speech provider failed: {m}")
+            }
+            Self::Provider(ProviderFailure::Rejected) => {
+                f.write_str("speech provider permanently rejected the request")
+            }
             Self::RateLimited => f.write_str("speech provider rate limited"),
             Self::Timeout => f.write_str("speech call timed out"),
         }
@@ -90,6 +103,227 @@ pub trait SpeechProvider: Send + Sync {
     fn voice(&self, key: &str) -> Option<VoiceConfig> {
         VoiceConfig::resolve(key)
     }
+    fn routed_voice(&self, key: &str, _language: &str) -> Option<VoiceConfig> {
+        self.voice(key)
+    }
+    fn alternate(&self, _language: &str, _model: &str) -> Option<&dyn SpeechProvider> {
+        None
+    }
+    fn alternate_models(&self, _language: &str) -> Vec<&'static str> {
+        Vec::new()
+    }
+    fn audio_format(&self) -> &'static str {
+        "audio/wav"
+    }
+    fn timing_source(&self) -> &'static str {
+        "vendor"
+    }
+}
+
+/// Recover character intervals from audio without splitting visible graphemes. Whitespace
+/// consumes no duration and every Unicode scalar still has one entry in the wire contract.
+pub fn estimated_alignment(text: &str, duration_ms: u32) -> Result<Alignment, SpeechError> {
+    let weight = |g: &str| u64::from(!g.chars().all(char::is_whitespace));
+    let total: u64 = text.graphemes(true).map(weight).sum();
+    if total == 0 {
+        return Err(SpeechError::MissingText);
+    }
+    if !(1..=MAX_TTS_TIMEOUT_MS).contains(&duration_ms) {
+        return Err(SpeechError::InvalidAlignment(
+            "audio duration outside bounds".into(),
+        ));
+    }
+    let mut alignment = Alignment::default();
+    let (mut cumulative, mut start) = (0, 0);
+    for grapheme in text.graphemes(true) {
+        cumulative += weight(grapheme);
+        let end = (u64::from(duration_ms) * cumulative / total) as u32;
+        for scalar in grapheme.chars() {
+            alignment.characters.push(scalar.to_string());
+            alignment.start_ms.push(start);
+            alignment.end_ms.push(end);
+        }
+        start = end;
+    }
+    Ok(alignment)
+}
+
+/// Count decoded samples, including variable-bitrate MP3 and encoder padding handled by
+/// the demuxer. A malformed packet or a format change invalidates the whole asset.
+pub fn decoded_mp3_duration_ms(audio: &[u8]) -> Option<u32> {
+    let decoded = decode_mp3(audio, false)?;
+    Some(decoded.duration_ms())
+}
+
+struct DecodedMp3 {
+    frames: u64,
+    rate: u32,
+    channels: u16,
+    samples: Vec<i16>,
+}
+
+impl DecodedMp3 {
+    fn duration_ms(&self) -> u32 {
+        (self.frames * 1000 / u64::from(self.rate)) as u32
+    }
+}
+
+fn decode_mp3(audio: &[u8], collect_pcm: bool) -> Option<DecodedMp3> {
+    use symphonia::core::{
+        formats::{TrackType, probe::Hint},
+        io::MediaSourceStream,
+    };
+
+    if audio.is_empty() || audio.len() > MAX_AUDIO_BYTES {
+        return None;
+    }
+    let input = MediaSourceStream::new(
+        Box::new(std::io::Cursor::new(audio.to_vec())),
+        Default::default(),
+    );
+    let mut hint = Hint::new();
+    hint.with_extension("mp3");
+    let mut format = symphonia::default::get_probe()
+        .probe(&hint, input, Default::default(), Default::default())
+        .ok()?;
+    let track = format.default_track(TrackType::Audio)?;
+    let track_id = track.id;
+    let params = track.codec_params.as_ref()?.audio()?;
+    let mut decoder = symphonia::default::get_codecs()
+        .make_audio_decoder(params, &Default::default())
+        .ok()?;
+    let mut frames = 0_u64;
+    let mut format_spec = None;
+    let mut samples = Vec::new();
+    while let Some(packet) = format.next_packet().ok()? {
+        if packet.track_id != track_id {
+            return None;
+        }
+        let decoded = decoder.decode(&packet).ok()?;
+        let spec = (decoded.spec().rate(), decoded.spec().channels().count());
+        if spec.0 == 0 || spec.1 == 0 || *format_spec.get_or_insert(spec) != spec {
+            return None;
+        }
+        frames += decoded.frames() as u64;
+        if frames * 1000 > u64::from(spec.0) * u64::from(MAX_TTS_TIMEOUT_MS) {
+            return None;
+        }
+        if collect_pcm {
+            if (samples.len() + decoded.samples_interleaved()) * 2 + 44 > MAX_AUDIO_BYTES {
+                return None;
+            }
+            decoded.copy_to_vec_interleaved(&mut samples);
+        }
+    }
+    let (rate, channels) = format_spec?;
+    let result = DecodedMp3 {
+        frames,
+        rate,
+        channels: u16::try_from(channels).ok()?,
+        samples,
+    };
+    (result.duration_ms() > 0).then_some(result)
+}
+
+/// Split an utterance without losing whitespace or splitting a Unicode grapheme.
+/// The UTF-8 byte limit is a conservative guard for textual provider input limits.
+pub fn speech_chunks(mut text: &str, limit: usize) -> Option<Vec<&str>> {
+    if text.trim().is_empty() {
+        return None;
+    }
+    let mut chunks = Vec::new();
+    while text.len() > limit {
+        let mut last = 0;
+        let mut boundary = 0;
+        for (start, grapheme) in text.grapheme_indices(true) {
+            let end = start + grapheme.len();
+            if end > limit {
+                break;
+            }
+            last = end;
+            if grapheme.chars().all(char::is_whitespace) && !text[..start].trim().is_empty() {
+                boundary = end;
+            }
+        }
+        let split = if boundary > 0 { boundary } else { last };
+        if split == 0 || text[..split].trim().is_empty() {
+            return None;
+        }
+        chunks.push(&text[..split]);
+        text = &text[split..];
+    }
+    if text.trim().is_empty() {
+        return None;
+    }
+    chunks.push(text);
+    Some(chunks)
+}
+
+/// Decode each fragment independently and write one playable PCM WAV for a split
+/// utterance. Joining MP3 files directly would retain multiple file-level headers.
+pub fn finish_speech_mp3s(mut parts: Vec<(&str, Vec<u8>)>) -> Result<SpeechOutput, SpeechError> {
+    let invalid = || SpeechError::InvalidAlignment("invalid decoded audio".into());
+    if parts.len() == 1 {
+        let (text, audio) = parts.pop().ok_or_else(invalid)?;
+        let duration_ms = decoded_mp3_duration_ms(&audio).ok_or_else(invalid)?;
+        return Ok(SpeechOutput {
+            audio,
+            format: "audio/mpeg".into(),
+            duration_ms,
+            alignment: estimated_alignment(text, duration_ms)?,
+        });
+    }
+    let mut alignment = Alignment::default();
+    let mut pcm = Vec::new();
+    let mut spec = None;
+    let (mut frames, mut duration_ms) = (0, 0);
+    for (text, audio) in parts {
+        let decoded = decode_mp3(&audio, true).ok_or_else(invalid)?;
+        let this = (decoded.rate, decoded.channels);
+        if *spec.get_or_insert(this) != this
+            || (pcm.len() + decoded.samples.len()) * 2 + 44 > MAX_AUDIO_BYTES
+        {
+            return Err(invalid());
+        }
+        pcm.extend(decoded.samples);
+        frames += decoded.frames;
+        let end = (frames * 1000 / u64::from(decoded.rate)) as u32;
+        if end > MAX_TTS_TIMEOUT_MS {
+            return Err(invalid());
+        }
+        let part = estimated_alignment(text, end - duration_ms)?;
+        alignment.characters.extend(part.characters);
+        alignment
+            .start_ms
+            .extend(part.start_ms.into_iter().map(|ms| ms + duration_ms));
+        alignment
+            .end_ms
+            .extend(part.end_ms.into_iter().map(|ms| ms + duration_ms));
+        duration_ms = end;
+    }
+    let (rate, channels) = spec.ok_or_else(invalid)?;
+    let block = channels * 2;
+    let size = (pcm.len() * 2) as u32;
+    let mut audio = Vec::with_capacity(44 + size as usize);
+    audio.extend_from_slice(b"RIFF");
+    audio.extend_from_slice(&(36 + size).to_le_bytes());
+    audio.extend_from_slice(b"WAVEfmt ");
+    audio.extend_from_slice(&16_u32.to_le_bytes());
+    audio.extend_from_slice(&1_u16.to_le_bytes()); // PCM
+    audio.extend_from_slice(&channels.to_le_bytes());
+    audio.extend_from_slice(&rate.to_le_bytes());
+    audio.extend_from_slice(&(rate * u32::from(block)).to_le_bytes());
+    audio.extend_from_slice(&block.to_le_bytes());
+    audio.extend_from_slice(&16_u16.to_le_bytes());
+    audio.extend_from_slice(b"data");
+    audio.extend_from_slice(&size.to_le_bytes());
+    audio.extend(pcm.into_iter().flat_map(i16::to_le_bytes));
+    Ok(SpeechOutput {
+        audio,
+        format: "audio/wav".into(),
+        duration_ms,
+        alignment,
+    })
 }
 
 /// Duration of a delivered audio file, so alignment is checked against the audio itself.
@@ -275,7 +509,7 @@ pub async fn synthesize_bounded(
     timeout: Duration,
     max_attempts: u32,
 ) -> Result<(SpeechOutput, u32), SpeechError> {
-    let mut last = SpeechError::Provider("no attempt".into());
+    let mut last = SpeechError::Provider(ProviderFailure::Unavailable("no attempt".into()));
     for attempt in 1..=max_attempts.max(1) {
         if attempt > 1 {
             tokio::time::sleep(RETRY_BACKOFF).await;
@@ -283,11 +517,11 @@ pub async fn synthesize_bounded(
         last = match tokio::time::timeout(timeout, provider.synthesize(req)).await {
             Err(_) => SpeechError::Timeout,
             Ok(Err(e)) => match e.downcast_ref::<VendorFailure>() {
-                Some(VendorFailure::Permanent(m)) => {
-                    return Err(SpeechError::Provider(m.clone()));
+                Some(VendorFailure::Permanent(_)) => {
+                    return Err(SpeechError::Provider(ProviderFailure::Rejected));
                 }
                 Some(VendorFailure::RateLimited) => SpeechError::RateLimited,
-                _ => SpeechError::Provider(e.to_string()),
+                _ => SpeechError::Provider(ProviderFailure::Unavailable(e.to_string())),
             },
             Ok(Ok(out)) => match validate(&req.text, &out) {
                 Ok(()) => return Ok((out, attempt)),

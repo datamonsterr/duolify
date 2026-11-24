@@ -3,14 +3,13 @@ package narration
 import (
 	"context"
 	"errors"
-	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
-
-	"github.com/datamonsterr/duolify/services/api/internal/player"
 )
 
 // Deleter is implemented by stores that can delete an object (a versioned bucket keeps its versions).
@@ -119,7 +118,7 @@ func (s *Service) Recover(ctx context.Context, owner, lessonID, slideID string) 
 	}
 	// Retained prior settings versions of the same normalized text, newest first.
 	rows, err := s.opts.Pool.Query(ctx, `SELECT content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms
-		FROM narration_assets WHERE text_hash=$2 AND content_hash<>$1 AND voice_id=$3 AND state='ready' ORDER BY created_at DESC`, hash, TextHash(NormalizeText(text)), voiceID)
+		FROM narration_assets WHERE text_hash=$2 AND content_hash<>$1 AND voice_id=$3 AND state='ready' AND provider=COALESCE((SELECT provider FROM narration_assets WHERE content_hash=$1),'elevenlabs') ORDER BY created_at DESC`, hash, TextHash(NormalizeText(text)), voiceID)
 	if err != nil {
 		return "", err
 	}
@@ -167,16 +166,16 @@ func (s *Service) Recover(ctx context.Context, owner, lessonID, slideID string) 
 // RegenerateMissing is the operator queue: it regenerates every requested asset at its original
 // hash and settings with platform-funded provider usage. No Learner reservation or charge exists.
 func (s *Service) RegenerateMissing(ctx context.Context) (int, error) {
-	rows, err := s.opts.Pool.Query(ctx, `SELECT r.id::text,a.content_hash,a.voice_id,a.model_id,a.settings_fingerprint,a.audio_key,a.alignment_key
+	rows, err := s.opts.Pool.Query(ctx, `SELECT r.id::text,a.content_hash,a.voice_id,a.model_id,a.settings_fingerprint,a.audio_key,a.alignment_key,a.provider
 		FROM narration_regenerations r JOIN narration_assets a USING(content_hash) WHERE r.status='requested' ORDER BY r.requested_at`)
 	if err != nil {
 		return 0, err
 	}
-	type job struct{ id, hash, voice, model, fingerprint, audioKey, alignmentKey string }
+	type job struct{ id, hash, voice, model, fingerprint, audioKey, alignmentKey, provider string }
 	var jobs []job
 	for rows.Next() {
 		var j job
-		if err = rows.Scan(&j.id, &j.hash, &j.voice, &j.model, &j.fingerprint, &j.audioKey, &j.alignmentKey); err != nil {
+		if err = rows.Scan(&j.id, &j.hash, &j.voice, &j.model, &j.fingerprint, &j.audioKey, &j.alignmentKey, &j.provider); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -185,8 +184,8 @@ func (s *Service) RegenerateMissing(ctx context.Context) (int, error) {
 	rows.Close()
 	done := 0
 	for _, j := range jobs {
-		if err = s.regenerate(ctx, j.id, j.hash, j.voice, j.model, j.fingerprint, j.audioKey, j.alignmentKey); errors.Is(err, errBudgetExhausted) {
-			break // the requests stay queued until the next cycle or a larger plan
+		if err = s.regenerate(ctx, j.id, j.hash, j.voice, j.model, j.fingerprint, j.audioKey, j.alignmentKey, j.provider); errors.Is(err, errBudgetExhausted) || errors.Is(err, errRegenerationBusy) {
+			continue // busy or budget-blocked requests stay queued
 		} else if err != nil {
 			s.opts.Logger.Warn("narration regeneration failed", "id", j.id, "code", failureCode(err))
 			// Best effort: the request stays 'requested' if this fails and is retried next cycle.
@@ -198,54 +197,95 @@ func (s *Service) RegenerateMissing(ctx context.Context) (int, error) {
 	return done, nil
 }
 
-func (s *Service) regenerate(ctx context.Context, id, hash, voice, model, fingerprint, audioKey, alignmentKey string) error {
-	var raw string
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT narration_text FROM slide_narrations WHERE content_hash=$1 LIMIT 1`, hash).Scan(&raw); err != nil {
-		return ErrMissingText
+var errRegenerationBusy = errors.New("narration regeneration already claimed")
+
+func (s *Service) regenerate(ctx context.Context, id, hash, voice, model, fingerprint, audioKey, alignmentKey, provider string) error {
+	select {
+	case s.lockSlots <- struct{}{}:
+		defer func() { <-s.lockSlots }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	conn, err := s.opts.Pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+	var locked bool
+	if err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(hashtextextended($1,0))`, "narration:"+hash).Scan(&locked); err != nil {
+		return err
+	}
+	if !locked {
+		return errRegenerationBusy
+	}
+	defer func() {
+		_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtextextended($1,0))`, "narration:"+hash)
+	}()
+	var raw, owner, lesson, slide, voiceKey, speaker string
+	err = s.opts.Pool.QueryRow(ctx, `SELECT n.narration_text,n.learner_id::text,n.lesson_id::text,n.slide_id,n.voice_key,n.speaker_key
+		FROM slide_narrations n JOIN narration_regenerations r USING(content_hash)
+		WHERE r.id=$1 AND r.status='requested' ORDER BY n.lesson_id,n.slide_id LIMIT 1`, id).
+		Scan(&raw, &owner, &lesson, &slide, &voiceKey, &speaker)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errRegenerationBusy
+	}
+	if err != nil {
+		return err
 	}
 	text := NormalizeText(raw)
 	if ValidText(text) != nil {
 		return ErrMissingText
 	}
-	resolved, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{SlideId: "regenerate", VoiceKey: VoiceKey, ResolveOnly: true})
+	language, err := s.courseLanguage(ctx, owner, lesson)
 	if err != nil {
 		return err
 	}
-	// Only the identical hash may be regenerated: changed settings would need a new, charged version.
-	if resolved.VoiceId != voice || resolved.ModelId != model || resolved.SettingsFingerprint != fingerprint || ContentHash(text, voice, model, fingerprint) != hash {
+	if speaker != "" {
+		voiceKey, _ = s.voices.ResolveCharacter(voiceKey, func() bool { return true })
+	}
+	limits := &enginev1.UsageLimits{Provider: provider, Model: model, TimeoutMs: 30000, MaxAttempts: 2}
+	resolved, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{
+		SlideId: slide, SegmentId: segmentOf(speaker, slide), SpeakerKey: speaker, VoiceKey: voiceKey, Language: language, ResolveOnly: true, Limits: limits,
+	})
+	if err != nil {
+		return err
+	}
+	if !validResolution(resolved) {
 		return ErrOutput
 	}
-	budgetID := ""
-	if s.opts.Budget.Enabled() {
-		amount := int64(len([]rune(text))) * 2
-		var used int64
-		var err error
-		budgetID, used, err = s.reserveBudget(ctx, amount, time.Now())
-		if err != nil {
-			return err
-		}
-		if budgetID == "" {
-			s.alertBudgetExhausted("00000000-0000-0000-0000-000000000000", used, amount, 1)
-			return errBudgetExhausted
-		}
+	route := resolvedAsset(text, resolved)
+	if legacy, ok := route.legacyHash(text); ok && legacy == hash {
+		route.hash, route.legacy = legacy, true
+	}
+	if route.hash != hash || route.voiceID != voice || route.modelID != model || route.fingerprint != fingerprint || route.provider != provider {
+		return ErrOutput
+	}
+	route.audioKey, route.alignmentKey = audioKey, alignmentKey
+	it := &item{hash: hash, text: text, language: language, callVoice: voiceKey, characters: len([]rune(text)), meta: route,
+		routes: []meta{route}, slides: []string{slide}, rows: map[string]rowInfo{slide: {voice: voiceKey, speaker: speaker}}}
+	policy, err := pricing.NewQuotes(s.opts.Pool).ActivePolicy(ctx)
+	if err != nil {
+		return err
+	}
+	code, err := s.admitNext(ctx, "00000000-0000-0000-0000-000000000000", it, policy, 0, false, nil)
+	if err != nil {
+		return err
+	}
+	if code != "" {
+		return errBudgetExhausted
 	}
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: "regenerate", Text: text, VoiceKey: VoiceKey,
-		Limits: &enginev1.UsageLimits{Provider: "elevenlabs", Model: model}})
-	if budgetID != "" && err == nil && response != nil && response.Usage != nil && response.Usage.Attempt >= 1 && response.Usage.Attempt <= 2 {
-		_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, int64(len([]rune(text)))*int64(response.Usage.Attempt))
-	}
-	if _, _, refused := engine.NotPromoted(err); refused && budgetID != "" {
-		_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, 0)
-	}
-	if err == nil {
-		err = ValidateOutput(text, response)
-	}
+	response, err := s.callRoute(callCtx, it, limits)
 	if err != nil {
 		return err
 	}
-	it := &item{hash: hash, meta: meta{audioKey: audioKey, alignmentKey: alignmentKey}}
+	if it.meta.audioKey != audioKey || it.meta.alignmentKey != alignmentKey {
+		return ErrOutput
+	}
+	if route.legacy {
+		response.TimingSource = ""
+	}
 	if err = s.store(ctx, it, response); err != nil {
 		return err
 	}

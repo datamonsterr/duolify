@@ -7,7 +7,7 @@ use tracing::Instrument;
 
 pub struct Service {
     pub router: Arc<ProviderRouter>,
-    /// Narration provider; only the deterministic mock exists until E14-04.
+    /// Narration providers and the default voice resolver.
     pub speech: Arc<dyn engine_core::narration::SpeechProvider>,
     /// E10-06 live promotion evidence. Fixture routers bypass it; a live route runs a task only
     /// when the gate reports a passing live case for it.
@@ -36,13 +36,21 @@ impl Service {
             .map_err(|denial| not_promoted(rpc, task, &denial))
     }
     /// Same rule for narration: a non-mock speech vendor needs `lesson_narration` evidence.
-    fn live_voice(&self, rpc: &'static str) -> Result<(), Status> {
-        if self.speech.name() == "mock" {
+    fn live_voice(
+        &self,
+        provider: &dyn engine_core::narration::SpeechProvider,
+        model: &str,
+    ) -> Result<(), Status> {
+        if provider.name() == "mock" {
             return Ok(());
         }
-        self.promotion
-            .check("lesson_narration")
-            .map_err(|denial| not_promoted(rpc, "lesson_narration", &denial))
+        let task = "lesson_narration";
+        let evidence = if provider.name() == engine_providers::openrouter_tts::PROVIDER {
+            self.promotion.check_narration_model(model)
+        } else {
+            self.promotion.check(task)
+        };
+        evidence.map_err(|denial| not_promoted("SynthesizeNarration", task, &denial))
     }
 }
 /// Domain of the `google.rpc.ErrorInfo` detail on a not-promoted refusal.
@@ -1023,6 +1031,28 @@ impl EngineService for Service {
         // E17-08: a pinned-speaker segment resolves its Character voice key only through the approved
         // config (retired or unknown keys use the default) and runs under the stricter budgets.
         let character = !req.speaker_key.is_empty();
+        let limits = req.limits.unwrap_or_default();
+        let openrouter = engine_providers::openrouter_tts::PROVIDER;
+        let automatic = req.resolve_only && limits.provider.is_empty();
+        let alternate = if !character
+            && req.voice_key == "default"
+            && (automatic || limits.provider == openrouter)
+        {
+            self.speech.alternate(&req.language, &limits.model)
+        } else {
+            None
+        };
+        let provider = alternate.unwrap_or(self.speech.as_ref());
+        let billing = if alternate.is_some() {
+            openrouter
+        } else {
+            speech::BILLING_PROVIDER
+        };
+        if !limits.provider.is_empty() && limits.provider != billing
+            || !req.resolve_only && billing == openrouter && limits.model.is_empty()
+        {
+            return Err(Status::failed_precondition("quote route is unavailable"));
+        }
         let (voice_key, voice, fallback) = if character {
             let r = engine_core::characters::narrate::resolve_voice(&req.voice_key);
             // The provider decides which approved voices it can serve (live: only its configured default).
@@ -1037,37 +1067,64 @@ impl EngineService for Service {
                 }
             }
         } else {
-            let v = self
-                .speech
-                .voice(&req.voice_key)
+            let v = provider
+                .routed_voice(&req.voice_key, &req.language)
                 .ok_or_else(|| Status::failed_precondition("voice unavailable"))?;
             (req.voice_key.clone(), v, None)
         };
-        let limits = req.limits.unwrap_or_default();
         if !limits.model.is_empty() && limits.model != voice.model_id {
             return Err(Status::failed_precondition(
                 "quote route differs from evaluated route",
             ));
         }
+        let mut fingerprint = voice.fingerprint();
+        if alternate.is_some() {
+            fingerprint.push_str(".mp3.grapheme-1.chunk-1");
+        } else if provider.audio_format() == "audio/mpeg" {
+            fingerprint.push_str(".mp3");
+        }
+        let fallback_models = if automatic && alternate.is_some() {
+            self.speech
+                .alternate_models(&req.language)
+                .into_iter()
+                .skip_while(|m| *m != voice.model_id)
+                .skip(1)
+                .map(str::to_owned)
+                .collect()
+        } else {
+            Vec::new()
+        };
         let mut response = pb::SynthesizeNarrationResponse {
             voice_id: voice.voice_id.clone(),
             model_id: voice.model_id.clone(),
-            settings_fingerprint: voice.fingerprint(),
+            settings_fingerprint: fingerprint,
             voice_key,
             voice_config_version: engine_core::characters::narrate::voices().version().into(),
             voice_fallback_reason: fallback.unwrap_or_default().into(),
             segment_id: req.segment_id.clone(),
             speaker_key: req.speaker_key.clone(),
+            provider: billing.into(),
+            timing_source: provider.timing_source().into(),
+            audio_format: provider.audio_format().into(),
+            fallback_models,
             ..Default::default()
         };
         if req.resolve_only {
             return Ok(Response::new(response));
         }
         // E10-06: a live voice vendor synthesizes only with passing live narration evidence.
-        self.live_voice("SynthesizeNarration")?;
+        self.live_voice(provider, &voice.model_id)?;
+        if req.text.trim().is_empty() {
+            return Err(Status::invalid_argument("narration text missing"));
+        }
         let speech_request = speech::SpeechRequest {
             text: req.text,
-            language: req.language,
+            // ElevenLabs' existing automatic language inference remains enabled.
+            language: if alternate.is_some() {
+                req.language
+            } else {
+                String::new()
+            },
             voice_id: voice.voice_id,
             model_id: voice.model_id.clone(),
         };
@@ -1087,20 +1144,43 @@ impl EngineService for Service {
                 },
             )
         };
+        let ms = if limits.deadline_unix_ms == 0 {
+            u64::from(timeout_ms)
+        } else {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| Status::unavailable("speech clock unavailable"))?;
+            u64::from(timeout_ms).min(
+                limits
+                    .deadline_unix_ms
+                    .saturating_sub(now.as_millis() as u64),
+            )
+        };
+        if ms == 0 {
+            return Err(Status::deadline_exceeded("speech deadline elapsed"));
+        }
+        let timeout = std::time::Duration::from_millis(ms);
         let started = std::time::Instant::now();
-        let (out, attempt) = speech::synthesize_bounded(
-            self.speech.as_ref(),
-            &speech_request,
-            std::time::Duration::from_millis(u64::from(timeout_ms)),
-            attempts,
+        let (out, attempt) = tokio::time::timeout(
+            timeout,
+            speech::synthesize_bounded(
+                provider,
+                &speech_request,
+                timeout,
+                if alternate.is_some() { 1 } else { attempts },
+            ),
         )
         .await
+        .map_err(|_| Status::deadline_exceeded("speech call timed out"))?
         .map_err(|e| match e {
             speech::SpeechError::MissingText => Status::invalid_argument("narration text missing"),
             speech::SpeechError::Timeout => Status::deadline_exceeded("speech call timed out"),
             speech::SpeechError::InvalidAlignment(_) => Status::data_loss("invalid alignment"),
             speech::SpeechError::RateLimited => {
                 Status::resource_exhausted("speech provider rate limited")
+            }
+            speech::SpeechError::Provider(speech::ProviderFailure::Rejected) => {
+                Status::failed_precondition("speech provider rejected the request")
             }
             speech::SpeechError::Provider(_) => Status::unavailable("speech provider unavailable"),
         })?;
@@ -1118,13 +1198,14 @@ impl EngineService for Service {
             end_ms: out.alignment.end_ms,
         });
         response.usage = Some(pb::Usage {
-            provider: u.provider,
+            provider: billing.into(),
             model: u.model,
             component: u.component,
             narration_characters: u.narration_characters,
             attempt: u.attempt,
             latency_ms: u.latency_ms,
             delivered: u.delivered,
+            timing_source: response.timing_source.clone(),
             ..Default::default()
         });
         Ok(Response::new(response))

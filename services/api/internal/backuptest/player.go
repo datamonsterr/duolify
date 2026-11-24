@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
+	"github.com/datamonsterr/duolify/services/api/internal/narration"
 	"github.com/datamonsterr/duolify/services/api/internal/narration/narrationtest"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
@@ -45,6 +46,16 @@ func authoredObjects() map[string][]byte {
 		objects["lessons/narration/v1/"+hash+"/audio.wav"] = speech.Audio
 		objects["lessons/narration/v1/"+hash+"/alignment.json"] = alignment
 	}
+	v2, err := (&narrationtest.Engine{OpenRouter: true}).SynthesizeNarration(context.Background(),
+		&pb.SynthesizeNarrationRequest{Text: "Seeded narration text.", VoiceKey: "default"})
+	if err != nil {
+		panic("invalid OpenRouter narration fixture")
+	}
+	hash := narration.ProviderContentHash("Seeded narration text.", v2.Provider, v2.ModelId, v2.VoiceId, v2.SettingsFingerprint)
+	alignmentV2, _ := json.Marshal(narration.Alignment{Version: 1, DurationMS: int(v2.DurationMs), Characters: v2.Alignment.Characters,
+		StartMS: v2.Alignment.StartMs, EndMS: v2.Alignment.EndMs, TimingSource: v2.TimingSource})
+	objects["lessons/narration/v2/"+hash+"/audio.wav"] = v2.Audio
+	objects["lessons/narration/v2/"+hash+"/alignment.json"] = alignmentV2
 	for key, raw := range courses.SharedDemoDocuments() {
 		objects[key] = raw
 	}
@@ -72,6 +83,39 @@ func authoredObjects() map[string][]byte {
 
 // RegionsManifestPrefix holds the protected Slide manifest with regions.
 const RegionsManifestPrefix = "lessons/generated/backup-regions"
+
+// SeedOpenRouterNarration adds a v2 reference to the same text as the existing v1 fixture.
+func (f *Fixture) SeedOpenRouterNarration(t *testing.T) {
+	t.Helper()
+	ctx := t.Context()
+	const text = "Seeded narration text."
+	speech, err := (&narrationtest.Engine{OpenRouter: true}).SynthesizeNarration(ctx, &pb.SynthesizeNarrationRequest{Text: text, VoiceKey: "default"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := narration.ProviderContentHash(text, speech.Provider, speech.ModelId, speech.VoiceId, speech.SettingsFingerprint)
+	base := "lessons/narration/v2/" + key
+	if _, err = f.DB.Pool.Exec(ctx, `INSERT INTO narration_assets
+		(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms,provider,timing_source)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		key, narration.TextHash(text), speech.VoiceId, speech.ModelId, speech.SettingsFingerprint, base+"/audio.wav", base+"/alignment.json",
+		speech.Characters, speech.AudioBytes, speech.DurationMs, speech.Provider, speech.TimingSource); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(ctx, `INSERT INTO slide_narrations
+		(lesson_id,learner_id,slide_id,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
+		SELECT 'f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','seed-openrouter','ready',$2,
+		       content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms
+		FROM narration_assets WHERE content_hash=$1`, key, text); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(ctx, `WITH hold AS (
+		INSERT INTO openrouter_narration_budget_ledger(occurred_at,usd_nanos) VALUES('2026-11-24T00:00:00Z',100000) RETURNING id,occurred_at
+	) INSERT INTO openrouter_narration_budget_ledger(occurred_at,usd_nanos,adjusts)
+	SELECT occurred_at,-40000,id FROM hold`); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // AssertPlaybackPositionRestored compares the complete learner cursor, including
 // its UTC timestamp, from the encrypted dump rather than reconstructing it.
@@ -126,6 +170,18 @@ func (f *Fixture) AssertNarrationRestored(t *testing.T, restored *pgxpool.Pool) 
 	}
 	if assetsBefore != assetsAfter || !bytes.Contains([]byte(assetsAfter), []byte(`"ref_count": 1`)) || !bytes.Contains([]byte(assetsAfter), []byte("lessons/narration/v1/")) {
 		t.Fatal("narration asset hash/reference restore mismatch", assetsBefore, assetsAfter)
+	}
+	const budget = `SELECT coalesce(jsonb_agg(to_jsonb(b) ORDER BY b.id),'[]'::jsonb)::text FROM openrouter_narration_budget_ledger b`
+	var budgetBefore, budgetAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), budget).Scan(&budgetBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), budget).Scan(&budgetAfter); err != nil || budgetBefore != budgetAfter {
+		t.Fatalf("OpenRouter budget restore mismatch: %v", err)
+	}
+	if budgetBefore != "[]" && (!strings.Contains(assetsAfter, `"provider": "openrouter"`) ||
+		!strings.Contains(assetsAfter, `"timing_source": "estimated"`) || !strings.Contains(assetsAfter, "lessons/narration/v2/")) {
+		t.Fatal("v2 asset provenance or reference missing after restore")
 	}
 	// E14-06: the voice preference and both voices' manifest references (old asset retained) survive restore.
 	const voices = `SELECT (SELECT narration_voice FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111') || ':' ||

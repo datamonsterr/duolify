@@ -91,8 +91,8 @@ func (s *Service) settleBudget(ctx context.Context, id string, actual int64) err
 }
 
 // alertBudgetExhausted records one refusal run: a PostHog event and an error log line for alerting.
-func (s *Service) alertBudgetExhausted(owner string, used, requested int64, denied int) {
+func (s *Service) alertBudgetExhausted(owner string, used, requested int64, denied int, model string) {
 	b := s.opts.Budget
 	s.opts.Logger.Error("narration monthly character budget exhausted", "characters_used", used, "characters_limit", b.Limit, "characters_requested", requested, "stop_percent", b.StopPercent, "items_denied", denied)
-	s.emit(owner, "narration_budget_exhausted", map[string]any{"characters_used": used, "characters_limit": b.Limit, "characters_requested": requested, "stop_percent": int64(b.StopPercent), "items_denied": int64(denied)})
+	s.emit(owner, "narration_budget_exhausted", map[string]any{"provider": elevenLabsProvider, "model": model, "reason_code": "budget_exhausted", "characters_used": used, "characters_limit": b.Limit, "characters_requested": requested, "stop_percent": int64(b.StopPercent), "items_denied": int64(denied)})
 }

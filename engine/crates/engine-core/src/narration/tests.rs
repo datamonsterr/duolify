@@ -2,6 +2,38 @@ use super::*;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
+#[test]
+fn grapheme_timing_expands_unicode_scalars_with_equal_intervals() {
+    let text = "a\u{301} 👩\u{200d}🔬!";
+    let a = estimated_alignment(text, 901).unwrap();
+    assert_eq!(a.characters.concat(), text);
+    assert_eq!(a.start_ms, [0, 0, 300, 300, 300, 300, 600]);
+    assert_eq!(a.end_ms, [300, 300, 300, 600, 600, 600, 901]);
+    assert!(estimated_alignment(" \u{2003}\t", 100).is_err());
+    assert!(estimated_alignment("x", 0).is_err());
+    assert!(estimated_alignment("x", MAX_TTS_TIMEOUT_MS + 1).is_err());
+}
+
+#[test]
+fn decoded_mp3_duration_rejects_empty_corrupt_and_oversized_audio() {
+    let audio = include_bytes!("../../../../../evals/fixtures/narration.openrouter.mp3");
+    assert!((950..=1075).contains(&decoded_mp3_duration_ms(audio).unwrap()));
+    for invalid in [&[][..], b"fake MP3", &audio[..128], &[0; (1 << 20) + 1]] {
+        assert!(decoded_mp3_duration_ms(invalid).is_none());
+    }
+}
+
+#[test]
+fn speech_chunks_preserve_unicode_and_prefer_word_boundaries() {
+    let text = "uno dos 三四五!";
+    let chunks = speech_chunks(text, 8).unwrap();
+    assert_eq!(chunks.concat(), text);
+    assert_eq!(chunks, ["uno dos ", "三四", "五!"]);
+    assert!(chunks.iter().all(|part| part.len() <= 8));
+    assert!(speech_chunks("👩‍🔬", 8).is_none());
+    assert!(speech_chunks("  ", 8).is_none());
+}
+
 fn request(text: &str) -> SpeechRequest {
     SpeechRequest {
         text: text.into(),

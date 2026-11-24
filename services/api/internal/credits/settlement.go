@@ -28,15 +28,31 @@ func CalculateSettlement(q pricing.Quote, usage []*enginev1.Usage) (Reservation,
 			}
 			continue
 		}
-		if u.Attempt == 0 || int64(u.Attempt) > q.Bounds["max_attempts"] || int64(u.LatencyMs) > q.Bounds["timeout_ms"] {
+		attemptLimit := q.Bounds["max_attempts"]
+		if u.Component == "audio" {
+			attemptLimit = q.AudioAttemptLimit()
+		}
+		if u.Attempt == 0 || int64(u.Attempt) > attemptLimit || int64(u.LatencyMs) > q.Bounds["timeout_ms"] {
 			return result, ErrUsage
 		}
 		var cost int64
 		if u.Component == "audio" {
-			if u.Provider != "elevenlabs" || u.Model != q.Policy.AudioModel || int64(u.NarrationCharacters) > q.Bounds["narration_characters"] {
+			rate := q.Policy.AudioRate(u.Provider, u.Model)
+			if rate <= 0 || int64(u.NarrationCharacters) > q.Bounds["narration_characters"] {
 				return result, ErrUsage
 			}
-			cost = product(int64(u.NarrationCharacters), q.Policy.AudioUSDNanosPerCharacter)
+			cost = product(int64(u.NarrationCharacters), rate)
+			if u.ProviderCostNanos != nil {
+				reported := *u.ProviderCostNanos
+				if u.Provider != "openrouter" || reported > math.MaxInt64 || u.UsageUnavailable {
+					return result, ErrUsage
+				}
+				if actual := int64(reported); actual <= cost {
+					cost = actual
+				} else {
+					return result, ErrUsage
+				}
+			}
 			if u.Delivered {
 				characters += int64(u.NarrationCharacters)
 			}
@@ -75,7 +91,11 @@ func CalculateSettlement(q pricing.Quote, usage []*enginev1.Usage) (Reservation,
 		// Unknown usage reserves its whole worst-case attempt cost, never zero.
 		if u.UsageUnavailable {
 			if u.Component == "audio" {
-				cost = product(q.Input.NarrationCharacters, q.Policy.AudioUSDNanosPerCharacter)
+				chars := int64(u.NarrationCharacters)
+				if chars == 0 {
+					chars = q.Input.NarrationCharacters
+				}
+				cost = product(chars, q.Policy.AudioRate(u.Provider, u.Model))
 			} else {
 				cost = attemptCost(q)
 			}
@@ -130,7 +150,7 @@ func attemptCost(q pricing.Quote) int64 {
 	return sumProducts([2]int64{q.Bounds["input_tokens"], input}, [2]int64{q.Bounds["output_tokens"], output})
 }
 func reservationCost(q pricing.Quote) int64 {
-	return sumProducts([2]int64{attemptCost(q), q.Bounds["max_attempts"]}, [2]int64{product(q.Input.NarrationCharacters, q.Policy.AudioUSDNanosPerCharacter), q.Bounds["max_attempts"]})
+	return sumProducts([2]int64{attemptCost(q), q.Bounds["max_attempts"]}, [2]int64{q.Input.NarrationCharacters, q.AudioCostEnvelopePerCharacter()})
 }
 
 // Reject config/usage arithmetic overflow rather than wrapping operational cost.

@@ -80,6 +80,14 @@ impl SpeechProvider for ElevenLabsSpeech {
         (key == "default").then(|| self.cfg.voice.clone())
     }
 
+    fn audio_format(&self) -> &'static str {
+        if self.cfg.output_format.starts_with("wav_") {
+            "audio/wav"
+        } else {
+            "audio/mpeg"
+        }
+    }
+
     async fn synthesize(&self, req: &SpeechRequest) -> Result<SpeechOutput> {
         let url = format!(
             "{}/v1/text-to-speech/{}/with-timestamps?output_format={}",
@@ -147,12 +155,7 @@ impl SpeechProvider for ElevenLabsSpeech {
             .collect::<Result<_>>()?;
         Ok(SpeechOutput {
             audio,
-            format: if self.cfg.output_format.starts_with("wav_") {
-                "audio/wav"
-            } else {
-                "audio/mpeg"
-            }
-            .into(),
+            format: self.audio_format().into(),
             duration_ms,
             alignment: Alignment {
                 characters: raw.characters,

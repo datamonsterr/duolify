@@ -8,7 +8,6 @@ import (
 	"sort"
 	"time"
 
-	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
@@ -131,7 +130,7 @@ func (s *Service) needed(ctx context.Context, owner, lessonID, voice string) (in
 	if len(texts) == 0 {
 		return 0, nil, ErrNotFound
 	}
-	resolved, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{SlideId: texts[0].id, VoiceKey: voice, ResolveOnly: true})
+	resolved, _, err := s.resolveRoutes(ctx, texts[0].id, "", voice, "", true)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -142,13 +141,15 @@ func (s *Service) needed(ctx context.Context, owner, lessonID, voice string) (in
 		if ValidText(text) != nil {
 			continue
 		}
-		hash := ContentHash(text, resolved.VoiceId, resolved.ModelId, resolved.SettingsFingerprint)
+		route := resolvedAsset(text, resolved)
+		hash := route.hash
 		if seen[hash] {
 			continue
 		}
 		seen[hash] = true
-		var state string
-		if e := s.opts.Pool.QueryRow(ctx, `SELECT state FROM narration_assets WHERE content_hash=$1`, hash).Scan(&state); e == nil && state == "ready" {
+		legacy, _ := route.legacyHash(text)
+		var ready bool
+		if e := s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM narration_assets WHERE content_hash IN ($1,$2) AND provider=$3 AND state='ready')`, hash, legacy, route.provider).Scan(&ready); e == nil && ready {
 			continue
 		} else if e != nil && !errors.Is(e, pgx.ErrNoRows) {
 			return 0, nil, e
@@ -261,20 +262,26 @@ func (s *Service) ApplyVoice(ctx context.Context, owner, lessonID, voice, quoteI
 	if pending == 0 {
 		// Every slide already has this voice stored: the switch is a free cache hit.
 		for _, t := range texts {
-			s.emit(owner, "narration_cache_hit", map[string]any{"lesson_id": lessonID, "slide_id": t.id, "model": s.modelFor(ctx, lessonID, owner, t.id, voice)})
+			asset := s.cachedVoiceAsset(ctx, lessonID, owner, t.id, voice)
+			properties := asset.properties(false)
+			properties["lesson_id"], properties["slide_id"] = lessonID, t.id
+			s.emit(owner, "narration_cache_hit", properties)
 		}
 		return "ready", nil
 	}
 	return "queued", nil
 }
 
-func (s *Service) modelFor(ctx context.Context, lessonID, owner, slideID, voice string) string {
-	var model string
-	// Analytics property only (cache-hit event): a failed read leaves the model empty and is logged.
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT model_id FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND voice_key=$4`, lessonID, owner, slideID, voice).Scan(&model); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		s.opts.Logger.Warn("narration model lookup failed", "error", err)
+func (s *Service) cachedVoiceAsset(ctx context.Context, lessonID, owner, slideID, voice string) meta {
+	var asset meta
+	err := s.opts.Pool.QueryRow(ctx, `SELECT n.model_id, COALESCE(a.provider,''), COALESCE(a.timing_source,'')
+		FROM slide_narrations n LEFT JOIN narration_assets a ON a.content_hash=n.content_hash
+		WHERE n.lesson_id=$1::uuid AND n.learner_id=$2::uuid AND n.slide_id=$3 AND n.voice_key=$4`, lessonID, owner, slideID, voice).
+		Scan(&asset.modelID, &asset.provider, &asset.timingSource)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		s.opts.Logger.Warn("narration cache lookup failed", "error", err)
 	}
-	return model
+	return asset
 }
 
 // VoiceChange is the state of the selected voice's synthesis for one Lesson.

@@ -13,6 +13,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -131,7 +132,9 @@ func synthesize(req *enginev1.SynthesizeNarrationRequest, retired map[string]boo
 // Engine is an in-process gRPC EngineService with injectable per-text faults.
 type Engine struct {
 	enginev1.UnimplementedEngineServiceServer
-	mu sync.Mutex
+	// OpenRouter opts this disposable twin into the CF-02 routes.
+	OpenRouter bool
+	mu         sync.Mutex
 	// Faults maps exact narration text to "engine" or "vendor_outage" (provider outage), "ratelimit" (vendor 429 after retry) or "alignment" (gap).
 	faults    map[string]string
 	synthCall int
@@ -199,13 +202,40 @@ func (e *Engine) SynthesizeNarration(_ context.Context, req *enginev1.Synthesize
 		}
 	}
 	e.mu.Unlock()
+	openRouterMode := e.OpenRouter || req.Language == "en-x-cf02"
+	route := req.GetLimits().GetProvider()
+	routed := openRouterMode && req.VoiceKey == "default" && req.SpeakerKey == "" && route != "elevenlabs"
+	if routed && !req.ResolveOnly && (fault == "openrouter_outage" || (fault == "kokoro_outage" && req.GetLimits().GetModel() == "hexgrad/kokoro-82m")) {
+		return nil, status.Error(codes.Unavailable, "speech provider unavailable")
+	}
 	if (fault == "engine" || fault == "vendor_outage") && !req.GetResolveOnly() {
 		return nil, status.Error(codes.Unavailable, "speech provider unavailable")
 	}
 	if fault == "ratelimit" && !req.GetResolveOnly() {
 		return nil, status.Error(codes.ResourceExhausted, "speech provider rate limited")
 	}
-	out, err := synthesize(req, retired)
+	generate := req
+	if routed {
+		generate = proto.Clone(req).(*enginev1.SynthesizeNarrationRequest)
+		generate.Limits = nil
+	}
+	out, err := synthesize(generate, retired)
+	if err == nil && openRouterMode {
+		out.Provider, out.TimingSource = "elevenlabs", "vendor"
+		if routed {
+			out.Provider, out.TimingSource = "openrouter", "estimated"
+			out.ModelId, out.VoiceId = "hexgrad/kokoro-82m", "af_heart"
+			if req.GetLimits().GetModel() == "microsoft/mai-voice-2.1-flash" {
+				out.ModelId, out.VoiceId = "microsoft/mai-voice-2.1-flash", "en-US-Harper:MAI-Voice-2.1-Flash"
+			} else if req.ResolveOnly && route == "" {
+				out.FallbackModels = []string{"microsoft/mai-voice-2.1-flash"}
+			}
+			out.SettingsFingerprint = "fixture-fp-grapheme-1"
+		}
+		if out.Usage != nil {
+			out.Usage.Provider, out.Usage.Model, out.Usage.TimingSource = out.Provider, out.ModelId, out.TimingSource
+		}
+	}
 	if err == nil && fault == "alignment" && len(out.GetAlignment().GetCharacters()) > 1 {
 		a := out.Alignment
 		a.Characters, a.StartMs, a.EndMs = a.Characters[1:], a.StartMs[1:], a.EndMs[1:]

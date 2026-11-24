@@ -93,6 +93,10 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../engine-eval/src/live.rs"),
     ),
     (
+        "engine-eval/src/narration_openrouter.rs",
+        include_str!("../../../engine-eval/src/narration_openrouter.rs"),
+    ),
+    (
         "engine-eval/src/runner.rs",
         include_str!("../../../engine-eval/src/runner.rs"),
     ),
@@ -208,6 +212,14 @@ pub const SOURCES: &[(&str, &str)] = &[
         "engine-providers/src/elevenlabs.rs",
         include_str!("../../../engine-providers/src/elevenlabs.rs"),
     ),
+    (
+        "engine-providers/src/openrouter_tts.rs",
+        include_str!("../../../engine-providers/src/openrouter_tts.rs"),
+    ),
+    (
+        "engine/config/narration-openrouter.json",
+        include_str!("../../../../config/narration-openrouter.json"),
+    ),
 ];
 
 /// Source files that never shape a model call (backups, pricing tables, this gate itself).
@@ -305,6 +317,17 @@ struct Report {
     #[serde(default)]
     dataset_cases: usize,
     task_reports: BTreeMap<String, TaskReport>,
+    #[serde(default)]
+    results: Vec<NarrationEvidence>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NarrationEvidence {
+    id: String,
+    task: String,
+    passed: bool,
+    #[serde(default)]
+    served_models: Vec<String>,
 }
 
 /// Evidence state for one build. `Gate::check(task)` is the only way to enable a live feature.
@@ -318,6 +341,7 @@ pub struct Summary {
     pub dataset: String,
     pub dataset_revision: String,
     pub passed_tasks: Vec<String>,
+    narration_models: Vec<String>,
 }
 
 impl Gate {
@@ -341,6 +365,7 @@ impl Gate {
                 dataset: "verified-by-caller".into(),
                 dataset_revision: String::new(),
                 passed_tasks: tasks.iter().map(|t| t.to_string()).collect(),
+                narration_models: Vec::new(),
             }),
         }
     }
@@ -349,6 +374,19 @@ impl Gate {
     pub fn check(&self, task: &str) -> Result<(), Denial> {
         let summary = self.run.as_ref().map_err(Clone::clone)?;
         if summary.passed_tasks.iter().any(|t| t == task) {
+            Ok(())
+        } else {
+            Err(Denial::TaskNotPromoted)
+        }
+    }
+
+    /// OpenRouter speech needs model-specific audio and timing evidence on the pinned dataset.
+    pub fn check_narration_model(&self, model: &str) -> Result<(), Denial> {
+        self.check("lesson_narration")?;
+        let summary = self.run.as_ref().map_err(Clone::clone)?;
+        if summary.dataset == "verified-by-caller"
+            || summary.narration_models.iter().any(|m| m == model)
+        {
             Ok(())
         } else {
             Err(Denial::TaskNotPromoted)
@@ -436,6 +474,14 @@ fn evaluate(raw: &str, current_fingerprint: &str, pins: &str) -> Result<Summary,
             .iter()
             .filter(|(_, t)| ok(t))
             .map(|(name, _)| name.clone())
+            .collect(),
+        narration_models: report
+            .results
+            .into_iter()
+            .filter(|r| {
+                r.passed && r.task == "lesson_narration" && r.id.starts_with("openrouter-tts-live-")
+            })
+            .flat_map(|r| r.served_models)
             .collect(),
     })
 }

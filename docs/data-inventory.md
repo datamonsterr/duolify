@@ -487,6 +487,16 @@ repointing to a retained prior settings version of the same text, or by a tracke
 regeneration at the original hash. Content hashes and fixed codes only reach analytics
 (`narration_cache_hit`, `narration_generated`, `narration_failed`); learner text never does.
 
+CF-02 records the actual provider and timing source on each narration asset. The new
+`lessons/narration/v2/…` MP3/WAV and alignment objects share the existing versioned
+protected-copy policy. Legacy keys and reference counts still restore. The append-only
+`openrouter_narration_budget_ledger` stores a timestamp, USD nanodollars, a reservation
+UUID and optional adjustment UUID in the encrypted Postgres backup. It carries no Learner,
+Lesson, text or asset identifier. Usage is account-level and survives asset erasure.
+Quote policies keep approved endpoint rates and immutable snapshot history in the existing
+Pricing backup and audit records. Consent-aware narration events carry bounded route
+identifiers and cost counts. No narration text or audio leaves in telemetry.
+
 E14-03 adds synchronized narration clocking, offline audio preloading, and player preference persistence:
 - **Disposable Client Cache**: Preloaded audio and alignment assets are retained in the browser's Cache API under cache name `duolify-narration-v1`. This client cache is disposable, enables offline restart and slide narration playback, is purged on lesson completion or explicit eviction (`clearLessonCache`), and is never backed up to servers.
 - **Per-Device Preferences**: Player preferences (`rate` within allowed speeds 0.75/1/1.25/1.5, `muted` boolean, `captions` boolean) persist per-device in `localStorage` under `duolify.player-preferences`. These store non-identifying player settings without learner PII, private text, or credentials.

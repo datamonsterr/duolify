@@ -1,5 +1,14 @@
 # Golden set
 
+CF-02 adds offline OpenRouter narration cases for Kokoro, MAI, language gating, decoded
+Unicode caption timing, chunking, fallback and exhaustion. The `openrouter-tts-live-*`
+rows in `fixtures/golden.sample.jsonl` also contain the synthetic text and model for
+owner-run promotion. Include those rows in a verified, pinned dataset revision before
+recording live evidence. A passing case must contain delivered audio with valid alignment
+for the same model. The recorder uses the worst published character rate from the eval
+pricing config when the binary response supplies no cost. Run the offline suite with
+`mise run engine:eval`.
+
 E17-09 `character_snapshot` fixtures and `characters.publication.json` exercise the
 production content-only validator and runtime safety overlay: private fields and
 library identities are refused, on-demand reuse remains independent, takedowns

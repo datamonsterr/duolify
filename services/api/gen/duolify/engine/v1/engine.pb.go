@@ -500,8 +500,13 @@ type SynthesizeNarrationResponse struct {
 	VoiceFallbackReason string `protobuf:"bytes,13,opt,name=voice_fallback_reason,json=voiceFallbackReason,proto3" json:"voice_fallback_reason,omitempty"`
 	SegmentId           string `protobuf:"bytes,14,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
 	SpeakerKey          string `protobuf:"bytes,15,opt,name=speaker_key,json=speakerKey,proto3" json:"speaker_key,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Resolved route and timing provenance, also returned without audio for resolve_only.
+	Provider     string `protobuf:"bytes,16,opt,name=provider,proto3" json:"provider,omitempty"`
+	TimingSource string `protobuf:"bytes,17,opt,name=timing_source,json=timingSource,proto3" json:"timing_source,omitempty"`
+	// Other eligible models of the resolved provider, in fallback order.
+	FallbackModels []string `protobuf:"bytes,18,rep,name=fallback_models,json=fallbackModels,proto3" json:"fallback_models,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SynthesizeNarrationResponse) Reset() {
@@ -637,6 +642,27 @@ func (x *SynthesizeNarrationResponse) GetSpeakerKey() string {
 		return x.SpeakerKey
 	}
 	return ""
+}
+
+func (x *SynthesizeNarrationResponse) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *SynthesizeNarrationResponse) GetTimingSource() string {
+	if x != nil {
+		return x.TimingSource
+	}
+	return ""
+}
+
+func (x *SynthesizeNarrationResponse) GetFallbackModels() []string {
+	if x != nil {
+		return x.FallbackModels
+	}
+	return nil
 }
 
 type MapCharacterRequest struct {
@@ -1262,9 +1288,12 @@ type Usage struct {
 	ErrorCode           string                 `protobuf:"bytes,16,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	// Tokens were estimated from delivered bytes (bounded by the quote) because the provider
 	// sent no final usage frame; the API settles them as partial usage.
-	Estimated     bool `protobuf:"varint,17,opt,name=estimated,proto3" json:"estimated,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Estimated bool `protobuf:"varint,17,opt,name=estimated,proto3" json:"estimated,omitempty"`
+	// Narration provenance and known provider cost, if the audio transport supplies it.
+	TimingSource      string  `protobuf:"bytes,18,opt,name=timing_source,json=timingSource,proto3" json:"timing_source,omitempty"`
+	ProviderCostNanos *uint64 `protobuf:"varint,19,opt,name=provider_cost_nanos,json=providerCostNanos,proto3,oneof" json:"provider_cost_nanos,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Usage) Reset() {
@@ -1414,6 +1443,20 @@ func (x *Usage) GetEstimated() bool {
 		return x.Estimated
 	}
 	return false
+}
+
+func (x *Usage) GetTimingSource() string {
+	if x != nil {
+		return x.TimingSource
+	}
+	return ""
+}
+
+func (x *Usage) GetProviderCostNanos() uint64 {
+	if x != nil && x.ProviderCostNanos != nil {
+		return *x.ProviderCostNanos
+	}
+	return 0
 }
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.
@@ -5284,7 +5327,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"characters\x18\x01 \x03(\tR\n" +
 	"characters\x12\x19\n" +
 	"\bstart_ms\x18\x02 \x03(\rR\astartMs\x12\x15\n" +
-	"\x06end_ms\x18\x03 \x03(\rR\x05endMs\"\xd9\x04\n" +
+	"\x06end_ms\x18\x03 \x03(\rR\x05endMs\"\xc3\x05\n" +
 	"\x1bSynthesizeNarrationResponse\x12\x14\n" +
 	"\x05audio\x18\x01 \x01(\fR\x05audio\x12!\n" +
 	"\faudio_format\x18\x02 \x01(\tR\vaudioFormat\x12\x1f\n" +
@@ -5307,7 +5350,10 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\n" +
 	"segment_id\x18\x0e \x01(\tR\tsegmentId\x12\x1f\n" +
 	"\vspeaker_key\x18\x0f \x01(\tR\n" +
-	"speakerKey\"e\n" +
+	"speakerKey\x12\x1a\n" +
+	"\bprovider\x18\x10 \x01(\tR\bprovider\x12#\n" +
+	"\rtiming_source\x18\x11 \x01(\tR\ftimingSource\x12'\n" +
+	"\x0ffallback_models\x18\x12 \x03(\tR\x0efallbackModels\"e\n" +
 	"\x13MapCharacterRequest\x12\x16\n" +
 	"\x06prompt\x18\x01 \x01(\tR\x06prompt\x126\n" +
 	"\x06limits\x18\x02 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"i\n" +
@@ -5349,7 +5395,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\rHealthRequest\"H\n" +
 	"\x0eHealthResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1c\n" +
-	"\tproviders\x18\x02 \x03(\tR\tproviders\"\xcb\x04\n" +
+	"\tproviders\x18\x02 \x03(\tR\tproviders\"\xbd\x05\n" +
 	"\x05Usage\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12!\n" +
@@ -5371,7 +5417,10 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x11usage_unavailable\x18\x0f \x01(\bR\x10usageUnavailable\x12\x1d\n" +
 	"\n" +
 	"error_code\x18\x10 \x01(\tR\terrorCode\x12\x1c\n" +
-	"\testimated\x18\x11 \x01(\bR\testimated\"\xe4\x04\n" +
+	"\testimated\x18\x11 \x01(\bR\testimated\x12#\n" +
+	"\rtiming_source\x18\x12 \x01(\tR\ftimingSource\x123\n" +
+	"\x13provider_cost_nanos\x18\x13 \x01(\x04H\x00R\x11providerCostNanos\x88\x01\x01B\x16\n" +
+	"\x14_provider_cost_nanos\"\xe4\x04\n" +
 	"\vUsageLimits\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\rR\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x02 \x01(\rR\foutputTokens\x12\x1d\n" +
@@ -5961,6 +6010,7 @@ func file_duolify_engine_v1_engine_proto_init() {
 	if File_duolify_engine_v1_engine_proto != nil {
 		return
 	}
+	file_duolify_engine_v1_engine_proto_msgTypes[15].OneofWrappers = []any{}
 	file_duolify_engine_v1_engine_proto_msgTypes[39].OneofWrappers = []any{
 		(*GenerateLessonEvent_Progress)(nil),
 		(*GenerateLessonEvent_Slide)(nil),
