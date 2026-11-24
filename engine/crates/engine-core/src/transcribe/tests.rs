@@ -222,16 +222,32 @@ async fn silence_hallucinated_by_the_fallback_becomes_empty_text() {
         let out = transcribe(&router(p, f), &rec(&quiet)).await.unwrap();
         assert_eq!(out.transcription.text, "", "{invented:?}");
     }
-    // A real sentence from the fallback, or the same words from the primary, are kept.
+    // A real sentence from the fallback is kept.
     let (p, f) = (
         scripted(vec![Some(Err(None))]),
         scripted(vec![said("Thank you for the explanation", 3)]),
     );
-    let out = transcribe(&router(p, f), &rec(&quiet)).await.unwrap();
+    let out = transcribe(&router(p, f), &rec(&speech_like()))
+        .await
+        .unwrap();
     assert_eq!(out.transcription.text, "Thank you for the explanation");
-    let (p, f) = (scripted(vec![said("Thank you.", 3)]), scripted(vec![]));
-    let out = transcribe(&router(p, f), &rec(&quiet)).await.unwrap();
-    assert_eq!(out.transcription.text, "Thank you.");
+}
+
+#[tokio::test]
+async fn any_text_the_primary_invents_on_digital_silence_becomes_empty_text() {
+    // Live: qwen3-asr answered "Ahora." to 5 s of digital silence in 1 of 8 calls.
+    let quiet = silent();
+    for invented in ["Ahora.", "Thank you.", "Subtitles by the community"] {
+        let (p, f) = (scripted(vec![said(invented, 3)]), scripted(vec![]));
+        let out = transcribe(&router(p, f), &rec(&quiet)).await.unwrap();
+        assert!(!out.fallback_used);
+        assert_eq!(out.transcription.text, "", "{invented:?}");
+    }
+    // The same words on audio with sound are kept.
+    let sound = speech_like();
+    let (p, f) = (scripted(vec![said("Ahora.", 3)]), scripted(vec![]));
+    let out = transcribe(&router(p, f), &rec(&sound)).await.unwrap();
+    assert_eq!(out.transcription.text, "Ahora.");
 }
 
 #[tokio::test]
