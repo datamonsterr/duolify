@@ -18,7 +18,13 @@ async fn main() -> anyhow::Result<()> {
     let mode = startup_cfg.provider_mode;
     let service = Service::new(
         Arc::new(engine_providers::router(&mode)?),
-        engine_providers::elevenlabs::select_speech(|k| std::env::var(k).ok()),
+        engine_providers::openrouter_tts::select_speech(|k| {
+            if mode == "mock" && k == "NARRATION_LIVE_ENABLED" {
+                None
+            } else {
+                std::env::var(k).ok()
+            }
+        })?,
     );
     // E10-06: one line per gated task, so a deploy without valid evidence is alertable.
     engine_server::log_promotion_status(&service);

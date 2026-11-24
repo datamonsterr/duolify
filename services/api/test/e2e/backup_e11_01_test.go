@@ -13,6 +13,7 @@ import (
 func TestBackupWorkerRecoversSyntheticDatabase(t *testing.T) {
 	fixture := backuptest.New(t)
 	fixture.Seed(t)
+	fixture.SeedOpenRouterNarration(t)
 	fixture.UsePackagedWorker(t)
 	date := time.Now().UTC().Format(time.DateOnly)
 	key := fixture.ArchiveKey(date)

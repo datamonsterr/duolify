@@ -1703,6 +1703,8 @@ pub struct ModelPrice {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PriceTable {
     pub models: HashMap<String, ModelPrice>,
+    #[serde(default)]
+    pub audio_nanos_per_character: HashMap<String, u64>,
 }
 
 impl PriceTable {
@@ -1872,7 +1874,29 @@ impl Runner {
             let live = self.provider_name != "mock" || self.custom_router.is_some();
             // Provider-reported spend for tasks that are not token priced (voice transcription).
             let mut extra_cost_usd = 0.0;
-            let response_text = if case.task == "transcribe" {
+            let response_text = if canonical == "lesson_narration"
+                && live
+                && let Some(model) = case.input["openrouter_tts_model"].as_str()
+            {
+                let rate = *price_table
+                    .audio_nanos_per_character
+                    .get(model)
+                    .context("missing narration eval rate")?;
+                let scored = crate::narration_openrouter::live(
+                    &case.input,
+                    rate,
+                    self.budget_usd.map(|budget| budget - total_cost_usd),
+                )
+                .await?;
+                extra_cost_usd = scored.cost_usd;
+                _attempts = scored.attempts;
+                scored.text
+            } else if canonical == "lesson_narration"
+                && !live
+                && let Some(fixture) = case.input["openrouter_tts_fixture"].as_str()
+            {
+                crate::narration_openrouter::recorded(fixture).await?
+            } else if case.task == "transcribe" {
                 let scored = if live {
                     crate::transcribe::live(
                         &case.input,

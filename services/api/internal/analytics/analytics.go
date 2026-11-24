@@ -219,6 +219,24 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			}
 		}
 	}
+	narrationRoute := func() {
+		if provider := input["provider"]; provider == "openrouter" || provider == "elevenlabs" {
+			out["provider"] = provider
+		}
+		ids("model")
+		if source := input["timing_source"]; source == "vendor" || source == "estimated" {
+			out["timing_source"] = source
+		}
+		boolean("fallback_used")
+		switch input["reason_code"] {
+		case "budget_exhausted", "narration_budget_exhausted", "provider_rejected", "route_unavailable",
+			"invalid_alignment", "invalid_output", "invalid_request", "missing_text", "timeout",
+			"rate_limited", "engine_unavailable", "storage_unavailable", "usage_unavailable",
+			"insufficient_credits", "quote_unavailable", "quote_expired", "settlement_failed",
+			"voice_insufficient_credits", "narration_off":
+			out["reason_code"] = input["reason_code"]
+		}
+	}
 	switch event {
 	case "action_quote_accepted":
 		ids("quote_id", "feature", "pricing_version")
@@ -597,9 +615,11 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		numeric("actual_usd", "budget_usd", "threshold", "actual_percent", "cost_nanos", "budget_nanos", "cache_hit_rate", "paid_margin")
 		boolean("ok")
 	case "narration_generated":
+		narrationRoute()
 		ids("lesson_id", "slide_id", "voice_id", "model", "voice_key", "speaker_key")
 		numeric("characters", "latency_ms")
 	case "narration_cache_hit":
+		narrationRoute()
 		ids("lesson_id", "slide_id", "model", "voice_key", "speaker_key")
 	case "character_voice_fallback":
 		ids("speaker_key", "voice_config_version")
@@ -610,8 +630,11 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			}
 		}
 	case "narration_budget_exhausted":
+		narrationRoute()
 		numeric("characters_used", "characters_limit", "characters_requested", "stop_percent", "items_denied")
+		numeric("usd_nanos_used", "usd_nanos_limit", "usd_nanos_requested")
 	case "narration_failed":
+		narrationRoute()
 		ids("lesson_id", "slide_id", "error_code")
 	case "narration_played":
 		ids("lesson_id", "slide_id")
@@ -668,6 +691,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			out["entry_point"] = v
 		}
 	case "$ai_generation":
+		if input["feature"] == "narration" {
+			narrationRoute()
+		}
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
 		ids("$ai_provider", "$ai_model", "feature", "error_code")

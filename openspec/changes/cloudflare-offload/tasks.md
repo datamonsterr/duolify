@@ -36,23 +36,25 @@ There are no new authoritative records. Disposable Gateway cache may hold eligib
 
 Add routing cases for an eligible public request, a private request, transcription with ZDR, and before-first-output vs mid-stream failure. Use fakes and offline Golden set cases, submit relevant rows for the pinned dataset, and keep the existing model fallback and live promotion gate. Gateway → direct OpenRouter is bounded and uses the same provider policy.
 
-## CF-02 (W1) — Opt-in Workers AI TTS Narration provider
+## CF-02 (W1) — OpenRouter TTS narration provider
 
 **Labels** `area:engine`, `area:api`, `ready-for-agent`
 
-**Blocked by** none. Owner approval applies to a change of default or new spend.
+**Blocked by** none. Model-specific live evidence and pricing activation remain release gates.
 
 ### Spec
 
 - [Narration delta](specs/narration/spec.md), [Lesson player delta](specs/lesson-player/spec.md), and [Pricing config delta](specs/pricing-config/spec.md).
-- [ ] Add a Workers AI implementation behind the existing trait in `engine/crates/engine-core/src/narration`, with the vendor adapter in `engine/crates/engine-providers`. Expose `NARRATION_PROVIDER=workers_ai|elevenlabs` (default `elevenlabs`) and allowlist `WORKERS_AI_TTS_MODEL` for Aura-2 EN/ES and Aura-1. Implement language gating, audio-derived timing and Workers AI → budgeted ElevenLabs → captions. Retain ElevenLabs for curated Plus/Pro voices and pinned dialogue. Reject the retired MeloTTS model and preserve the recorded historical contract.
-- [ ] Version the hash with actual provider and model, keep replay and legacy refs, reserve neurons in the shared budget, and cover fallback attempts and quote compatibility through the existing Pricing config cost-policy approval.
+- [x] Implement OpenRouter speech with `NARRATION_PROVIDER=openrouter|elevenlabs` (default `openrouter`), language-gated Kokoro and MAI voices, private Gateway transport, decoded alignment, chunking and fallback to budgeted ElevenLabs then captions. Keep curated Plus/Pro voices and pinned dialogue on ElevenLabs.
+- [x] Version hash identities for the actual route, preserve legacy replay and recovery, reserve OpenRouter USD in a shared monthly budget and cover fallback costs and quote compatibility through Pricing approval.
 
 ### Tests (TDD order)
 
-1. **E2E** `services/api/test/e2e/workers_ai_narration_test.go` and `apps/client/e2e/narration-cf-02.spec.ts` — use synthetic fixtures to play estimated captions with seek/speed and offline cache, assert fallback playback or captions-only, provider-specific reuse, and no learner charge for undelivered audio.
-2. **Integration** `engine/crates/engine-providers/tests/workers_ai_tts.rs`, `engine/crates/engine-server/tests/narration.rs`, `services/api/internal/narration/workers_ai_budget_integration_test.go`, and `services/api/internal/pricing/narration_provider_cost_integration_test.go` — fake authenticated binary MP3 and bad response, cover provider fallback, mixed language, concurrent UTC-day admissions, unknown outcomes, restore of both hash versions, and approved cost-only version activation.
-3. **Unit** `engine/crates/engine-core/src/narration/tests.rs` and `services/api/internal/narration/workers_ai_budget_test.go` — check Unicode grapheme expansion, bounds/corruption, provider/model hash separation, language mapping, conservative rounding, permanent error classification and budget day rollover.
+1. **E2E** `services/api/test/e2e/openrouter_narration_test.go` and `apps/client/e2e/narration-cf-02.spec.ts` — use synthetic fixtures to play estimated captions with seek/speed and offline cache, assert fallback playback or captions-only, provider-specific reuse, and no learner charge for undelivered audio.
+2. **Integration** `engine/crates/engine-providers/tests/openrouter_tts.rs`, `engine/crates/engine-server/tests/narration.rs`, `services/api/internal/narration/openrouter_budget_integration_test.go`, and `services/api/internal/pricing/narration_provider_cost_integration_test.go` — fake authenticated binary MP3 and bad response, cover provider fallback, mixed language, concurrent UTC-month admissions, unknown outcomes, restore of both hash versions, and approved cost-only version activation.
+3. **Unit** `engine/crates/engine-core/src/narration/tests.rs` and `services/api/internal/narration/openrouter_budget_test.go` — check Unicode grapheme expansion, bounds/corruption, provider/model hash separation, language mapping, conservative rounding, permanent error classification and budget day rollover.
+
+After the provider change, the failing-first E2E still required estimated timing, offline playback and captions when both budgets were exhausted. The API case switched its fake to Kokoro, eligible MAI and ElevenLabs. The transport integration switched to authenticated `/audio/speech` and raw MP3. The budget integration switched from neuron counts to UTC-month USD and added cost approval. The unit coverage retained vendor-independent Unicode alignment and replaced neuron arithmetic and route identities with OpenRouter cost and model cases.
 
 ### Acceptance
 
@@ -62,15 +64,15 @@ Add routing cases for an eligible public request, a private request, transcripti
 
 ### Analytics
 
-Extend existing `narration_generated`, `narration_cache_hit`, `narration_failed`, `narration_budget_exhausted` and `$ai_generation` with applicable provider/model, timing source, fallback, neurons and bounded reason code. Preserve existing analytics and consent on playback and synthesis.
+Extend existing `narration_generated`, `narration_cache_hit`, `narration_failed`, `narration_budget_exhausted` and `$ai_generation` with applicable provider/model, timing source, fallback, cost counts and bounded reason code. Preserve existing analytics and consent on playback and synthesis.
 
 ### Data and backup
 
-Store provider/model, timing and audio references and per-day cost reservations in the existing authoritative records or covered Postgres additions. Restore both legacy and new keys with their reference counts and versioned audio/alignment objects. Include any new learner-linked records in backup and privacy fixtures. Retain auditable approved cost versions and unchanged learner rate.
+Store provider/model, timing and audio references and UTC-month cost reservations in the existing authoritative records or covered Postgres additions. Restore both legacy and new keys with their reference counts and versioned audio/alignment objects. Include any new learner-linked records in backup and privacy fixtures. Retain auditable approved cost versions and unchanged learner rate.
 
 ### AI reliability
 
-Add recorded `lesson_narration` cases to `evals/fixtures/golden.sample.jsonl` and `evals/fixtures/narration.workers-ai.json` for supported languages, unsupported language or retired model, corrupt MP3, Unicode timing, repeated requests, vendor outage and budget exhaustion. Submit cases for the pinned Hugging Face dataset and require applicable live promotion evidence before routing Learner traffic. Workers AI Free cap and existing ElevenLabs cap bound fallback spend.
+Add recorded `lesson_narration` cases to `evals/fixtures/golden.sample.jsonl` and `evals/fixtures/narration.openrouter.json` for supported languages, unsupported languages, corrupt MP3, Unicode timing, repeated requests, vendor outage and budget exhaustion. Submit cases for the pinned Hugging Face dataset and require applicable live promotion evidence before routing Learner traffic. OpenRouter monthly USD cap and existing ElevenLabs cap bound fallback spend.
 
 ## CF-03 (W3) — Edge area and public read Worker
 

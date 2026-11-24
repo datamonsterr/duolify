@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
+	"golang.org/x/text/unicode/norm"
 )
 
 const maxObjectBytes = 1 << 20
@@ -19,6 +20,11 @@ const maxObjectBytes = 1 << 20
 var identifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
 var networkURL = regexp.MustCompile(`(?i)(?:https?:)?//[^\s<>"'()\\]+`)
 var errInvalid = errors.New("invalid lesson content")
+
+// NormalizeNarrationText is the text matched by stored character alignments and dedup keys.
+func NormalizeNarrationText(text string) string {
+	return strings.Join(strings.Fields(norm.NFC.String(text)), " ")
+}
 
 // Checkpoint identifies a bounded moment in a slide.
 type Checkpoint struct {

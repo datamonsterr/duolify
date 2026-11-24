@@ -1,4 +1,5 @@
 pub mod elevenlabs;
+pub mod openrouter_tts;
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use engine_core::{Completion, CompletionStream, LlmProvider, Route, StreamEvent};

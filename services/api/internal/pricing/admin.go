@@ -1379,6 +1379,11 @@ func validateEffectiveInstant(ctx context.Context, tx pgx.Tx, effective time.Tim
 // policyCoversActions rejects a pinned quote policy that cannot quote one of the version's AI actions:
 // every such action needs a rated model, and its fallback chain may only name rated models.
 func policyCoversActions(p QuotePolicy, c Config) error {
+	for model, rate := range p.OpenRouterAudioRates {
+		if (model != "hexgrad/kokoro-82m" && model != "microsoft/mai-voice-2.1-flash") || !rate.valid() {
+			return errors.New("invalid OpenRouter narrator cost basis")
+		}
+	}
 	for action := range c.Actions {
 		if action == "narration" || action == "cached_replay" {
 			continue
@@ -1402,6 +1407,11 @@ func policyCoversActions(p QuotePolicy, c Config) error {
 func adverseQuotePolicy(before, after QuotePolicy) bool {
 	if after.USDNanosPerCredit < before.USDNanosPerCredit || after.MaxAttempts < before.MaxAttempts || after.FreeConcurrency < before.FreeConcurrency || after.TTLSeconds < before.TTLSeconds || after.AudioUSDNanosPerCharacter > before.AudioUSDNanosPerCharacter {
 		return true
+	}
+	for model, rate := range before.OpenRouterAudioRates {
+		if next, ok := after.OpenRouterAudioRates[model]; !ok || next.MaxUSDNanosPerCharacter > rate.MaxUSDNanosPerCharacter {
+			return true
+		}
 	}
 	for _, v := range before.Voices {
 		if !slices.Contains(after.Voices, v) {

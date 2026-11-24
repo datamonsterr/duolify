@@ -242,3 +242,90 @@ async fn character_segments_use_allowlisted_voices_and_fall_back_without_provide
     );
     assert_eq!(r.alignment.unwrap().characters.len(), text.chars().count());
 }
+
+#[tokio::test]
+async fn openrouter_tts_gates_models_and_dispatches_only_the_admitted_route() {
+    use engine_providers::openrouter_tts::{Model, OpenRouterSpeech, SpeechRoutes};
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(503))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let routes = [Model::Kokoro, Model::Mai]
+        .into_iter()
+        .map(|model| OpenRouterSpeech::new(&server.uri(), None, "fixture-token", model).unwrap())
+        .collect();
+    let mut client = client_with(Arc::new(SpeechRoutes::new(
+        Arc::new(engine_core::narration::MockSpeechProvider),
+        routes,
+    )))
+    .await;
+    let mut english = request("Look closely.", true);
+    english.language = "EN-GB".into();
+    english.limits = None;
+    let selected = client
+        .synthesize_narration(english.clone())
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        (
+            &*selected.provider,
+            &*selected.timing_source,
+            &*selected.model_id
+        ),
+        ("openrouter", "estimated", Model::Kokoro.id())
+    );
+    assert_eq!(selected.fallback_models, [Model::Mai.id()]);
+    for (language, vendor, model) in [
+        ("vi-VN", "openrouter", Model::Mai.id()),
+        ("ar", "elevenlabs", "eleven_flash_v2_5"),
+    ] {
+        let mut probe = english.clone();
+        probe.language = language.into();
+        let resolved = client
+            .synthesize_narration(probe)
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!((&*resolved.provider, &*resolved.model_id), (vendor, model));
+    }
+    let mut curated = english.clone();
+    curated.voice_key = "fixture-warm".into();
+    assert_eq!(
+        client
+            .synthesize_narration(curated)
+            .await
+            .unwrap()
+            .into_inner()
+            .provider,
+        "elevenlabs"
+    );
+
+    english.resolve_only = false;
+    english.limits = Some(pb::UsageLimits {
+        provider: "openrouter".into(),
+        model: selected.model_id,
+        max_attempts: 1,
+        ..Default::default()
+    });
+    assert_eq!(
+        client
+            .synthesize_narration(english.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unavailable
+    );
+    let limits = english.limits.as_mut().unwrap();
+    limits.provider = "elevenlabs".into();
+    limits.model = "eleven_flash_v2_5".into();
+    let fallback = client
+        .synthesize_narration(english)
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(fallback.usage.unwrap().provider, "elevenlabs");
+}

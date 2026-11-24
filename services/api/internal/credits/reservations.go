@@ -621,6 +621,10 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 		if u.ErrorCode != "" {
 			properties["error_code"] = u.ErrorCode
 		}
+		if u.Component == "audio" && q.Action == "narration" {
+			properties["timing_source"] = u.TimingSource
+			properties["reason_code"] = u.ErrorCode
+		}
 		if envelope, ok := strings.CutPrefix(q.Action, "tutor_"); ok {
 			// The short/long envelope and how the prompt cache was used; counts only, never prompt text.
 			properties["envelope"] = envelope

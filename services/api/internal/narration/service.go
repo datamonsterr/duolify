@@ -25,7 +25,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 // Speech is the engine narration RPC.
@@ -71,6 +70,8 @@ type Options struct {
 	Segments SegmentSource
 	// Budget caps live provider characters per subscription cycle; the zero value enforces nothing.
 	Budget Budget
+	// OpenRouterBudget bounds model attempts across all workers. Zero suspends the route.
+	OpenRouterBudget OpenRouterBudget
 }
 
 // Service queues and performs per-slide synthesis.
@@ -270,8 +271,12 @@ type item struct {
 	rows map[string]rowInfo
 	// callVoice is the logical voice key sent to the engine; segment names the first row's segment.
 	callVoice  string
+	language   string
 	characters int
 	meta       meta
+	routes     []meta
+	route      int
+	hold       providerHold
 	usage      *enginev1.Usage
 	latency    uint32
 }
@@ -279,13 +284,16 @@ type item struct {
 // rowInfo is what one narration row records about its resolved voice.
 type rowInfo struct {
 	voice, speaker, actualKey, configVersion, fallback string
+	route                                              *meta
+	routeFallback                                      bool
 }
 
 // resolvedVoice is one engine resolution shared by every row that asks for the same voice.
 type resolvedVoice struct {
-	call     string
-	response *enginev1.SynthesizeNarrationResponse
-	fallback string
+	call      string
+	response  *enginev1.SynthesizeNarrationResponse
+	fallbacks []*enginev1.SynthesizeNarrationResponse
+	fallback  string
 }
 
 func (it *item) segment() bool { return it.rows[it.slides[0]].speaker != "" }
@@ -356,6 +364,10 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 	if len(pending) == 0 {
 		return nil
 	}
+	language, err := s.courseLanguage(ctx, owner, lessonID)
+	if err != nil {
+		return err
+	}
 	resolutions := map[string]*resolvedVoice{}
 	var entitled *bool
 	isEntitled := func() bool {
@@ -377,14 +389,14 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 		}
 		resolved := resolutions[p.speaker+"|"+call]
 		if resolved == nil {
-			response, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{SlideId: p.id, SegmentId: segmentOf(p.speaker, p.id), SpeakerKey: p.speaker, VoiceKey: call, ResolveOnly: true})
+			response, fallbacks, err := s.resolveRoutes(ctx, p.id, p.speaker, call, language, consent != "")
 			if err != nil {
 				if e := s.retryOrFail(ctx, owner, lessonID, p.voice, p.id, "engine_unavailable", final, err); e != nil && resolveFailed == nil {
 					resolveFailed = e
 				}
 				continue
 			}
-			resolved = &resolvedVoice{call: call, response: response, fallback: reason}
+			resolved = &resolvedVoice{call: call, response: response, fallbacks: fallbacks, fallback: reason}
 			if reason == "" {
 				resolved.fallback = response.VoiceFallbackReason
 			}
@@ -398,12 +410,15 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 			continue
 		}
 		r := resolved.response
-		hash := ContentHash(text, r.VoiceId, r.ModelId, r.SettingsFingerprint)
+		primary := resolvedAsset(text, r)
+		hash := primary.hash
 		it := items[hash]
 		if it == nil {
-			audioKey, alignmentKey := Keys(hash)
-			it = &item{hash: hash, text: text, characters: len([]rune(text)), rows: map[string]rowInfo{}, callVoice: resolved.call,
-				meta: meta{hash: hash, textHash: TextHash(text), voiceID: r.VoiceId, modelID: r.ModelId, fingerprint: r.SettingsFingerprint, audioKey: audioKey, alignmentKey: alignmentKey}}
+			it = &item{hash: hash, text: text, language: language, characters: len([]rune(text)), rows: map[string]rowInfo{}, callVoice: resolved.call,
+				meta: primary, routes: []meta{primary}}
+			for _, fallback := range resolved.fallbacks {
+				it.routes = append(it.routes, resolvedAsset(text, fallback))
+			}
 			items[hash] = it
 			order = append(order, hash)
 		}
@@ -419,6 +434,20 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 	}
 	// One synthesis per key: locks are taken in hash order on one connection, so concurrent runs
 	// with identical narration wait here instead of calling the provider again.
+	lockHashes := make(map[string]bool)
+	for _, it := range items {
+		for _, route := range it.routes {
+			lockHashes[route.hash] = true
+			if legacy, ok := route.legacyHash(it.text); ok {
+				lockHashes[legacy] = true
+			}
+		}
+	}
+	locks := make([]string, 0, len(lockHashes))
+	for hash := range lockHashes {
+		locks = append(locks, hash)
+	}
+	sort.Strings(locks)
 	sort.Strings(order)
 	select {
 	case s.lockSlots <- struct{}{}:
@@ -431,7 +460,7 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 		return err
 	}
 	defer conn.Release()
-	for _, hash := range order {
+	for _, hash := range locks {
 		if _, err = conn.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended($1,0))`, "narration:"+hash); err != nil {
 			return err
 		}
@@ -444,28 +473,9 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 	fallbackSeen := map[string]bool{}
 	for _, hash := range order {
 		it := items[hash]
-		var state string
-		var hit meta
-		err = s.opts.Pool.QueryRow(ctx, `SELECT state,characters,audio_bytes,duration_ms FROM narration_assets WHERE content_hash=$1`, hash).Scan(&state, &hit.characters, &hit.bytes, &hit.duration)
-		switch {
-		case err == nil && state == "ready":
-			it.meta.characters, it.meta.bytes, it.meta.duration = hit.characters, hit.bytes, hit.duration
-			for _, slide := range it.slides {
-				info := it.rows[slide]
-				if err = s.finish(ctx, owner, lessonID, info.voice, slide, StatusReady, "", &it.meta, info); errors.Is(err, errNotPending) {
-					continue
-				} else if err != nil {
-					return err
-				}
-				s.emit(owner, "narration_cache_hit", s.rowProperties(map[string]any{"lesson_id": lessonID, "slide_id": slide, "model": it.meta.modelID}, info))
-				s.noteFallback(owner, info, fallbackSeen)
-			}
-		case err == nil:
-			// The shared object is gone: recovery is tracked and the Learner is never charged.
-			if err = s.holdForRegeneration(ctx, it.hash, lessonID, owner, it.slides); err != nil {
-				return err
-			}
-		default:
+		if found, err := s.reuseCandidate(ctx, owner, lessonID, it, fallbackSeen); err != nil {
+			return err
+		} else if !found {
 			fresh = append(fresh, it)
 		}
 	}
@@ -556,51 +566,47 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 		}
 		return first
 	}
-	// Admit the worst case of two provider attempts per item before any live call.
-	budgetHolds := map[*item]string{}
+	quotes := pricing.NewQuotes(s.opts.Pool).WithEvents(s.opts.Events).WithApprovedVoices(s.voices.Keys())
+	policy, err := quotes.ActivePolicy(ctx)
+	if err != nil {
+		return retryAll("quote_unavailable", err)
+	}
+	// Provider admission precedes the learner quote. Release every hold that never
+	// reaches dispatch, including consent refusal, insufficient credits and cancellation.
+	planned := fresh
 	defer func() {
-		for _, id := range budgetHolds {
-			_ = s.settleBudget(context.WithoutCancel(ctx), id, 0)
+		for _, it := range planned {
+			s.releaseHold(ctx, it.meta.provider, it.hold, 0)
 		}
 	}()
-	if s.opts.Budget.Enabled() {
-		var admitted []*item
-		var denied int
-		var requested, lastUsed int64
-		for _, it := range fresh {
-			amount := int64(it.characters) * 2
-			id, used, err := s.reserveBudget(ctx, amount, time.Now())
-			if err != nil {
-				return retryAll("budget_unavailable", err)
-			}
-			lastUsed = used
-			if id != "" {
-				budgetHolds[it] = id
-				admitted = append(admitted, it)
-				continue
-			}
-			denied++
-			requested += amount
-			for _, slide := range it.slides {
-				if err := s.finish(ctx, owner, lessonID, it.rows[slide].voice, slide, StatusDisabled, CodeBudgetExhausted, nil); err != nil {
-					return err
-				}
+	var admitted []*item
+	var denials elevenLabsDenials
+	for _, it := range fresh {
+		code, e := s.admitNext(ctx, owner, it, policy, 0, false, &denials)
+		if e != nil {
+			return retryAll("budget_unavailable", e)
+		}
+		if code == "" {
+			admitted = append(admitted, it)
+			continue
+		}
+		for _, slide := range it.slides {
+			if e = s.finish(ctx, owner, lessonID, it.rows[slide].voice, slide, StatusDisabled, code, nil); e != nil {
+				return e
 			}
 		}
-		if denied > 0 {
-			s.alertBudgetExhausted(owner, lastUsed, requested, denied)
-		}
-		if fresh = admitted; len(fresh) == 0 {
-			return nil
-		}
+	}
+	if denials.items > 0 {
+		s.alertBudgetExhausted(owner, denials.used, denials.requested, denials.items, denials.model)
+	}
+	if fresh = admitted; len(fresh) == 0 {
+		return nil
 	}
 	characters := int64(0)
 	for _, it := range fresh {
 		characters += int64(it.characters)
 	}
-	quotes := pricing.NewQuotes(s.opts.Pool).WithEvents(s.opts.Events).WithApprovedVoices(s.voices.Keys())
 	var quote pricing.Quote
-	var err error
 	if consent != "" {
 		// The Learner's explicit consent bounds the run: it must still be valid and cover the characters.
 		quote, err = quotes.Get(ctx, owner, consent)
@@ -630,13 +636,19 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 		return retryAll("reservation_unavailable", err)
 	}
 	// release frees only this audio reservation: nothing else was reserved with it.
-	release := func(claimed bool) {
+	release := func(claimed bool, usages ...*enginev1.Usage) {
 		fctx := context.WithoutCancel(ctx)
 		if !claimed {
 			_, _ = s.opts.Financial.Release(fctx, owner, reservation.ID)
 			return
 		}
-		_, _ = s.opts.Financial.Settle(fctx, owner, reservation.ID, []*enginev1.Usage{{Provider: "elevenlabs", Model: quote.Input.Model, Attempt: 1, Component: "audio"}})
+		if len(usages) == 0 {
+			usages = []*enginev1.Usage{{Provider: elevenLabsProvider, Model: quote.Input.Model, Attempt: 1, Component: "audio"}}
+		}
+		for _, use := range usages {
+			use.Delivered = false
+		}
+		_, _ = s.opts.Financial.Settle(fctx, owner, reservation.ID, usages)
 	}
 	if err = s.opts.Financial.Claim(ctx, owner, reservation.ID); err != nil {
 		release(false)
@@ -647,47 +659,21 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 		release(true)
 		return retryAll("limits_unavailable", err)
 	}
-	limits.Provider, limits.Model = "elevenlabs", quote.Input.Model
 	callCtx, cancel := context.WithDeadline(ctx, reservation.DeadlineAt)
 	defer cancel()
 
 	var delivered []*item
+	served := make(map[string]*item)
+	var usages []*enginev1.Usage
 	var retryErr error
 	for _, it := range fresh {
-		callStarted := time.Now()
-		callLimits := limits
-		first := it.rows[it.slides[0]]
-		if it.segment() {
-			// Character segments keep the stricter ceilings: 30 s and one retry per call.
-			callLimits = proto.Clone(limits).(*enginev1.UsageLimits)
-			SegmentLimits(callLimits)
-		}
-		// Once dispatch begins, an uncertain outcome retains the full reservation.
-		budgetID := budgetHolds[it]
-		delete(budgetHolds, it)
-		response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: it.slides[0], SegmentId: segmentOf(first.speaker, it.slides[0]), SpeakerKey: first.speaker, Text: it.text, VoiceKey: it.callVoice, Limits: callLimits})
-		if budgetID != "" && err == nil && response != nil && response.Usage != nil && response.Usage.Attempt >= 1 && response.Usage.Attempt <= 2 {
-			_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, int64(it.characters)*int64(response.Usage.Attempt))
-		}
-		if _, _, refused := engine.NotPromoted(err); refused && budgetID != "" {
-			// The engine refused before any provider request: nothing was spent.
-			_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, 0)
-		}
-		it.latency = latencyMS(time.Since(callStarted))
-		if err == nil {
-			err = ValidateOutput(it.text, response)
-		}
-		if err == nil && it.segment() && (response.SpeakerKey != first.speaker || response.SegmentId != segmentOf(first.speaker, it.slides[0])) {
-			err = ErrOutput // a segment answered for another speaker or position is rejected
-		}
-		if err == nil && (response.VoiceId != it.meta.voiceID || response.ModelId != it.meta.modelID || response.SettingsFingerprint != it.meta.fingerprint) {
-			err = ErrOutput
+		response, attempts, reused, err := s.dispatchItem(callCtx, owner, it, limits, policy, quote, served)
+		usages = append(usages, attempts...)
+		if reused {
+			continue
 		}
 		if err == nil {
 			err = s.store(ctx, it, response)
-		}
-		if err == nil && response.Usage == nil {
-			err = errUsageUnavailable
 		}
 		if err != nil {
 			code := failureCode(err)
@@ -696,46 +682,44 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 			} else if errors.Is(err, errUsageUnavailable) {
 				code = "usage_unavailable"
 			}
-			s.emit(owner, "$ai_generation", aiProperties(quote, "", int64(it.characters), it.latency, false, code))
-			if retryable(err) && !errors.Is(err, errUsageUnavailable) {
-				for _, slide := range it.slides {
-					if e := s.retryOrFail(ctx, owner, lessonID, it.rows[slide].voice, slide, code, final, err); e != nil && retryErr == nil {
-						retryErr = e
-					}
-				}
-				continue
+			if len(attempts) > 0 {
+				last := attempts[len(attempts)-1]
+				last.Delivered, last.ErrorCode = false, code
+			}
+			if it.meta.legacy {
+				s.emit(owner, "$ai_generation", aiProperties(quote, "", int64(it.characters), it.latency, false, code))
 			}
 			for _, slide := range it.slides {
-				if e := s.finish(ctx, owner, lessonID, it.rows[slide].voice, slide, StatusFailed, code, nil); e != nil {
+				info := it.rows[slide]
+				info.route, info.routeFallback = &it.meta, it.route > 0
+				_, _, refused := engine.NotPromoted(err)
+				if !final && !refused && retryable(err) && !errors.Is(err, errUsageUnavailable) {
+					retryErr = fmt.Errorf("narration %s: %w", code, err)
+					continue
+				}
+				if e := s.finish(ctx, owner, lessonID, info.voice, slide, StatusFailed, code, nil, info); e != nil && !errors.Is(e, errNotPending) {
+					release(true, usages...)
 					return e
 				}
 			}
 			continue
 		}
-		usage := response.Usage
-		usage.Component, usage.Delivered, usage.ArtifactId, usage.LatencyMs = "audio", true, it.hash, it.latency
-		if usage.Attempt == 0 {
-			usage.Attempt = 1
-		}
-		it.usage = usage
+		it.usage = response.Usage
 		it.meta.characters, it.meta.bytes, it.meta.duration = int(response.Characters), int(response.AudioBytes), int(response.DurationMs)
 		delivered = append(delivered, it)
+		served[it.hash] = it
 	}
 	if len(delivered) == 0 {
-		// Nothing was delivered: the audio reservation is released and nothing is charged.
-		release(true)
+		// Vendor attempts can cost USD even when the learner receives only captions.
+		release(true, usages...)
 		return retryErr
-	}
-	usages := make([]*enginev1.Usage, 0, len(delivered))
-	for _, it := range delivered {
-		usages = append(usages, it.usage)
 	}
 	// Aggregate settlement: delivered characters are summed and rounded up once.
 	settled, err := s.opts.Financial.SettleWith(ctx, owner, reservation.ID, usages, func(tx pgx.Tx, _ credits.Reservation) error {
 		for _, it := range delivered {
-			if _, e := tx.Exec(ctx, `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
-				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (content_hash) DO UPDATE SET state='ready',updated_at=now()`,
-				it.hash, it.meta.textHash, it.meta.voiceID, it.meta.modelID, it.meta.fingerprint, it.meta.audioKey, it.meta.alignmentKey, it.meta.characters, it.meta.bytes, it.meta.duration); e != nil {
+			if _, e := tx.Exec(ctx, `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms,provider,timing_source)
+				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (content_hash) DO UPDATE SET state='ready',updated_at=now()`,
+				it.hash, it.meta.textHash, it.meta.voiceID, it.meta.modelID, it.meta.fingerprint, it.meta.audioKey, it.meta.alignmentKey, it.meta.characters, it.meta.bytes, it.meta.duration, it.meta.provider, it.meta.timingSource); e != nil {
 				return e
 			}
 			for _, slide := range it.slides {
@@ -747,6 +731,7 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 		return nil
 	})
 	if err != nil {
+		release(true, usages...)
 		var first error
 		for _, it := range delivered {
 			for _, slide := range it.slides {
@@ -758,17 +743,23 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 		return first
 	}
 	for _, it := range delivered {
-		for _, slide := range it.slides {
+		for i, slide := range it.slides {
 			info := it.rows[slide]
-			s.emit(owner, "narration_generated", s.rowProperties(map[string]any{"lesson_id": lessonID, "slide_id": slide, "characters": it.characters, "voice_id": it.meta.voiceID, "model": it.meta.modelID, "latency_ms": it.latency}, info))
+			properties := it.meta.properties(it.route > 0)
+			properties["lesson_id"], properties["slide_id"] = lessonID, slide
+			if i == 0 || it.meta.legacy {
+				properties["characters"], properties["voice_id"], properties["latency_ms"] = it.characters, it.meta.voiceID, it.latency
+				s.emit(owner, "narration_generated", s.rowProperties(properties, info))
+			}
+			if i > 0 {
+				s.emit(owner, "narration_cache_hit", s.rowProperties(properties, info))
+			}
 			s.noteFallback(owner, info, fallbackSeen)
 		}
-		generation := aiProperties(quote, it.usage.Model, int64(it.characters), it.latency, true, "")
-		generation["pricing_version"] = settled.PricingVersion
-		s.emit(owner, "$ai_generation", generation)
-		// Further slides sharing the hash in this run reuse the object at no charge.
-		for _, slide := range it.slides[1:] {
-			s.emit(owner, "narration_cache_hit", s.rowProperties(map[string]any{"lesson_id": lessonID, "slide_id": slide, "model": it.meta.modelID}, it.rows[slide]))
+		if it.meta.legacy {
+			generation := aiProperties(quote, it.usage.Model, int64(it.characters), it.latency, true, "")
+			generation["pricing_version"] = settled.PricingVersion
+			s.emit(owner, "$ai_generation", generation)
 		}
 	}
 	return retryErr
@@ -798,6 +789,8 @@ func (s *Service) store(ctx context.Context, it *item, r *enginev1.SynthesizeNar
 
 type meta struct {
 	hash, textHash, voiceID, modelID, fingerprint, audioKey, alignmentKey string
+	provider, timingSource, audioFormat                                   string
+	legacy                                                                bool
 	characters, bytes, duration                                           int
 }
 
@@ -828,6 +821,8 @@ func failureCode(err error) string {
 		return "invalid_request"
 	case codes.ResourceExhausted:
 		return "rate_limited"
+	case codes.FailedPrecondition:
+		return "provider_rejected"
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "timeout"
@@ -865,7 +860,12 @@ func (s *Service) finish(ctx context.Context, owner, lessonID, voice, slideID, s
 		return err
 	}
 	if st == StatusFailed || st == StatusDisabled {
-		s.emit(owner, "narration_failed", map[string]any{"lesson_id": lessonID, "slide_id": slideID, "error_code": code})
+		p := map[string]any{}
+		if len(info) > 0 && info[0].route != nil {
+			p = info[0].route.properties(info[0].routeFallback)
+		}
+		p["lesson_id"], p["slide_id"], p["error_code"], p["reason_code"] = lessonID, slideID, code, code
+		s.emit(owner, "narration_failed", p)
 	}
 	return nil
 }

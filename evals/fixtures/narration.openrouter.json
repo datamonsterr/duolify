@@ -1,0 +1,11 @@
+{
+  "kokoro-en": {"language":"en-GB","text":"A shadow changes when the light moves."},
+  "kokoro-es": {"language":"es-MX","text":"¡Mira cómo cambia la sombra!"},
+  "kokoro-ja": {"language":"ja-JP","text":"影の長さを比べよう。"},
+  "mai-vi": {"language":"Tiếng Việt","text":"Hãy so sánh hai cái bóng."},
+  "mai-secondary": {"language":"English","text":"Look at the shadow.","fail_model":"hexgrad/kokoro-82m"},
+  "foreign-language": {"language":"ar","text":"قارن الظلال."},
+  "unicode-chunks": {"language":"ja","text":"光と影を見比べよう。","repeat":150},
+  "corrupt-mp3": {"language":"ja","text":"光と影。","corrupt":true,"elevenlabs_budget":false},
+  "budgets-exhausted": {"language":"en","text":"Compare both shadows.","openrouter_budget":false,"elevenlabs_budget":false}
+}

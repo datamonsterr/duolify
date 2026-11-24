@@ -228,7 +228,7 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	}
 	t.Cleanup(func() { _ = f.events.Close() })
 	f.faults = &faultStore{Objects: f.objects}
-	f.startQueue(ctx, t, false)
+	f.startQueue(t.Context(), t, false)
 	return f
 }
 
@@ -975,7 +975,11 @@ func (f *Fixture) RunJob(t *testing.T, date string) {
 				t.Fatalf("backup exhausted retries: %+v", job.Errors)
 			}
 		case <-timeout.C:
-			t.Fatal("backup worker did not complete")
+			job, err := f.queue.JobGet(t.Context(), inserted.Job.ID)
+			if err != nil {
+				t.Fatalf("backup worker did not complete and job lookup failed: %v", err)
+			}
+			t.Fatalf("backup worker did not complete: state %s, errors %+v", job.State, job.Errors)
 		case <-t.Context().Done():
 			t.Fatal(t.Context().Err())
 		}

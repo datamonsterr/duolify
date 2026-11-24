@@ -92,6 +92,10 @@ func run() (result error) {
 	if err := accounts.ApplyDeletionTombstones(boot, db.Pool); err != nil {
 		return err
 	}
+	// Initialize the disposable cost policy before any fixture takes a catalogue snapshot.
+	if err := narrationtest.ActivateOpenRouterCostPolicy(boot, db.Pool); err != nil {
+		return err
+	}
 	catalogue, err := pricing.Load(boot, db.Queries)
 	if err != nil {
 		return err
@@ -339,7 +343,8 @@ func run() (result error) {
 
 	notesService := notes.NewServiceWithEnrichment(db.Pool, nil, paidCredits, engineClient)
 	// E14-01: queue mock narration for a seeded lesson; slide faults exercise recovery.
-	narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: objects, Speech: engineClient, Financial: paidCredits, Entitlements: paidCredits, FixtureVoices: true, JobAttempts: 1, Segments: characterService})
+	narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: objects, Speech: engineClient, Financial: paidCredits, Entitlements: paidCredits, FixtureVoices: true, JobAttempts: 1, Segments: characterService,
+		OpenRouterBudget: narration.OpenRouterBudget{MonthlyCapNanos: narration.DefaultOpenRouterMonthlyCapNanos}})
 	narrationQueue, err := narrationService.Queue()
 	if err != nil {
 		return err
@@ -361,13 +366,22 @@ func run() (result error) {
 			Fail     map[string]string `json:"fail"`
 			Salt     string            `json:"salt"`
 			// NoTopup leaves the Learner without audio credits (E14-06 recovery path).
-			NoTopup bool `json:"no_topup"`
+			NoTopup    bool `json:"no_topup"`
+			OpenRouter bool `json:"openrouter"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
 		owner := accounts.LearnerID(r.Context())
+		if in.OpenRouter {
+			if _, err := db.Pool.Exec(r.Context(), `UPDATE course_creations cc SET request=cc.request || '{"brief":{"language":"en-x-cf02"}}'::jsonb
+				FROM courses c JOIN course_units u ON u.course_id=c.id JOIN course_lesson_stubs l ON l.unit_id=u.id
+				WHERE c.creation_id=cc.id AND l.id=$1::uuid AND l.learner_id=$2::uuid`, in.LessonID, owner); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+		}
 		manifest, err := saltedManifest(objects, in.Salt)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
