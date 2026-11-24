@@ -98,8 +98,13 @@ if pnpm exec playwright install-deps --dry-run chromium >"$missing"; then
 fi
 cat "$missing"
 if grep -q '^Missing system dependencies (' "$missing"; then
-  packages=$(sed -n '/^Missing system dependencies (/,$s/^ \([^ ]\+\)$/\1/p' "$missing")
-  if [ -n "$packages" ] && sudo timeout --kill-after=10s 30s apt-get install -y --no-install-recommends --no-download $packages &&
+  packages=$(awk '/^Missing system dependencies \([0-9]+\):$/ { collecting=1; next }
+    collecting && /^[[:space:]]+[a-z0-9][a-z0-9+.:~-]*[[:space:]]*$/ { print $1 }' "$missing")
+  if [ -z "$packages" ]; then
+    echo 'Could not parse the missing Playwright packages.' >&2
+    exit 1
+  fi
+  if sudo timeout --kill-after=10s 30s apt-get install -y --no-install-recommends --no-download $packages &&
     pnpm exec playwright install-deps --dry-run chromium; then
     exit 0
   fi
