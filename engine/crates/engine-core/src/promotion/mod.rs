@@ -277,6 +277,8 @@ pub const EXCLUDED_SOURCES: &[&str] = &[
     "engine-eval/src/compare.rs",
     // Guard parity harness: compares two guard arms, never decides a case.
     "engine-eval/src/parity.rs",
+    // Comparison-run model overrides: stamp the report so it can never promote.
+    "engine-eval/src/overrides.rs",
 ];
 
 /// SHA-256 over the evaluated inputs, each framed by its path and length.

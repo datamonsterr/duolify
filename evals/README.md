@@ -256,3 +256,14 @@ Live runs (any provider other than `mock`) re-run each failed case once, inside 
 
 An earlier attempt whose provider usage is unknown (timeout, error) is priced at its envelope's worst case (`attempt.worst_case_nanos`, or the default eval envelope when none is recorded) and reported under `results[].warnings`. A case is critical (`usage_unavailable`) only when the delivered completion's own usage is unknown.
 
+
+## Comparison runs without a branch per model
+
+`EVAL_MODEL_OVERRIDE="task=vendor/model@effort>fallback-a>fallback-b,..."` replaces the primary (and optionally the fallback chain; `>none` clears it) of the named `engine/config/models.toml` tasks for one live run. Without `@effort` no `reasoning` field is sent, so name the effort of the model you compare against. `EVAL_GUARD_MODEL=<decision model>` swaps the fast guard model (`GUARD_CLASSIFIER=fast` runs). Either one stamps the report `status = "model_override"` and appends `+override[...]` to `prompt_revision`, so it can never satisfy the promotion gate. Compare two such reports with `mise run engine:compare` (pairs by case id: pass rate, cost, latency p50 and p95). Example, `lesson_slides` primary candidates (route name `lesson`):
+
+```sh
+cd engine; D=../evals/datasets/duolify-golden
+EVAL_MODEL_OVERRIDE='lesson=tencent/hy4-flash@none>z-ai/glm-5.3-flash' cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/golden.jsonl --limit 0 --budget 1 --reports ../evals/reports/model-base
+EVAL_MODEL_OVERRIDE='lesson=<candidate>@low>z-ai/glm-5.3-flash'        cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/golden.jsonl --limit 0 --budget 1 --reports ../evals/reports/model-cand
+mise run engine:compare -- ../evals/reports/model-base/<r>.json ../evals/reports/model-cand/<r>.json
+```

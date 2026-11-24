@@ -651,7 +651,12 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
     engine_core::guard::install_fast(Arc::new(decisions::DecisionsGuard::new(
         openrouter.clone(),
         decisions::ENDPOINT.into(),
-        decisions::GUARD_MODEL.into(),
+        // `EVAL_GUARD_MODEL` swaps the fast guard model for one comparison run (engine-eval
+        // stamps such a report as `model_override`, never promotable).
+        std::env::var("EVAL_GUARD_MODEL")
+            .ok()
+            .filter(|m| !m.trim().is_empty())
+            .unwrap_or_else(|| decisions::GUARD_MODEL.into()),
     )));
     engine_core::ProviderRouter::new(
         Arc::new(HttpProvider::openrouter(openrouter.clone(), url.into())),

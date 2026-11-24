@@ -40,7 +40,7 @@ cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/pending
 GUARD_CLASSIFIER=fast cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/pending-prompt-skills.jsonl --limit 0 --budget 0.1 --reports ../evals/reports/guard-fast
 ```
 
-Compare the two guard models by editing `GUARD_MODEL` in `engine-providers/src/decisions.rs` on a throwaway branch. Router thresholds are data: tune `--threshold` per skill on these rows, never on the 12 spike cases.
+Compare the two guard models per run with `EVAL_GUARD_MODEL=liquid/d1.2` and `EVAL_GUARD_MODEL=microsoft/microsoft-decision-1.1` (no branch; the report is stamped `model_override` and cannot promote). Reports list per-case latency. Router thresholds are data: tune `--threshold` per skill on these rows, never on the 12 spike cases.
 
 ## Guard parity with the four screens (task 5.3)
 

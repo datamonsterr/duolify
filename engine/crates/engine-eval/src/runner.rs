@@ -1842,9 +1842,15 @@ impl Runner {
     }
 
     pub async fn run_cases(&self, cases: Vec<Case>, thresholds: &Thresholds) -> Result<EvalReport> {
-        let router = match &self.custom_router {
+        let mut router = match &self.custom_router {
             Some(r) => r.clone(),
             None => engine_providers::router(&self.provider_name)?,
+        };
+        // Comparison runs only: overrides stamp the report so it cannot promote.
+        let override_label = if self.provider_name != "mock" || self.custom_router.is_some() {
+            crate::overrides::apply_env(&mut router)?
+        } else {
+            None
         };
         let price_table = PriceTable::load();
         let needs_preview = cases.iter().any(|case| case.task == "course_preview");
@@ -1979,6 +1985,10 @@ impl Runner {
             results,
         };
 
+        if let Some(label) = override_label {
+            report.status = "model_override".into();
+            report.prompt_revision = format!("{}+override[{label}]", report.prompt_revision);
+        }
         report.live_promoted = check_promotion_gate(&report).is_ok();
 
         Ok(report)
