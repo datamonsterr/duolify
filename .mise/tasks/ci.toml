@@ -42,6 +42,15 @@ test "${CHANGES_RESULT:?changes result required}" = success
 description = "Expose the configured pnpm store to actions/cache"
 run = 'echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"'
 
+["ci:playwright-apt-key"]
+description = "Expose the runner image and Playwright version for the apt cache"
+dir = "{{config_root}}/apps/client"
+run = '''
+set -eu
+version=$(pnpm exec playwright --version | awk '{print $2}')
+printf 'key=apt-playwright-%s-%s-%s-%s\n' "${ImageOS:?}" "${ImageVersion:?}" "$(uname -m)" "$version" >> "$GITHUB_OUTPUT"
+'''
+
 ["ci:tauri-deps"]
 description = "Install Tauri 2 Linux prerequisites (WebKitGTK 4.1); downloads are kept in ~/.cache/apt-archives for actions/cache"
 run = '''
@@ -61,15 +70,52 @@ dir = "{{config_root}}/apps/client"
 run = '''
 set -eu
 
+archives="$HOME/.cache/playwright-apt-archives"
+lists="$HOME/.cache/playwright-apt-lists"
+mkdir -p "$archives/partial"
 apt_config=/etc/apt/apt.conf.d/99duolify-playwright-timeouts
 printf '%s\n' \
   'Acquire::Retries "3";' \
   'Acquire::http::Timeout "30";' \
-  'Acquire::https::Timeout "30";' | sudo tee "$apt_config" >/dev/null
+  'Acquire::https::Timeout "30";' \
+  'APT::Sandbox::User "root";' \
+  "Dir::Cache::archives \"$archives\";" | sudo tee "$apt_config" >/dev/null
 trap 'sudo rm -f "$apt_config"' EXIT
 
+# Playwright's dry run reports the packages apt would install. Try those from
+# the runner-image-specific archive first, without updating package indexes.
+missing=$(mktemp)
+mirror_backup=$(mktemp)
+mirror=/etc/apt/apt-mirrors.txt
+if [ -f "$mirror" ]; then sudo cp "$mirror" "$mirror_backup"; fi
+trap 'if [ -s "$mirror_backup" ]; then sudo cp "$mirror_backup" "$mirror"; fi; rm -f "$missing" "$mirror_backup"; sudo rm -f "$apt_config"; sudo chmod -R a+rX "$archives" "$lists" 2>/dev/null || true' EXIT
+if [ -d "$lists" ]; then
+  sudo cp -a "$lists/." /var/lib/apt/lists/
+fi
+if pnpm exec playwright install-deps --dry-run chromium >"$missing"; then
+  cat "$missing"
+  exit 0
+fi
+cat "$missing"
+if grep -q '^Missing system dependencies (' "$missing"; then
+  packages=$(awk '/^Missing system dependencies \([0-9]+\):$/ { collecting=1; next }
+    collecting && /^[[:space:]]+[a-z0-9][a-z0-9+.:~-]*[[:space:]]*$/ { print $1 }' "$missing")
+  if [ -z "$packages" ]; then
+    echo 'Could not parse the missing Playwright packages.' >&2
+    exit 1
+  fi
+  if sudo timeout --kill-after=10s 30s apt-get install -y --no-install-recommends --no-download $packages &&
+    pnpm exec playwright install-deps --dry-run chromium; then
+    exit 0
+  fi
+  echo 'Cached apt packages were incomplete; falling back to the network.'
+fi
+
 for attempt in 1 2 3; do
-  if timeout 150s pnpm exec playwright install-deps chromium; then
+  # Run timeout as root: it can signal the entire process group, including apt.
+  if sudo env "PATH=$PATH" "HOME=$HOME" timeout --kill-after=10s 120s pnpm exec playwright install-deps chromium; then
+    mkdir -p "$lists"
+    sudo cp -a /var/lib/apt/lists/. "$lists/"
     exit 0
   else
     status=$?
@@ -77,6 +123,11 @@ for attempt in 1 2 3; do
 
   if [ "$attempt" -lt 3 ]; then
     echo "Playwright system dependency installation failed (attempt $attempt/3, exit $status); retrying in 10 seconds" >&2
+    # The hosted runner's regional mirror can be unusually slow. On retry,
+    # use Ubuntu's primary archive rather than repeatedly hitting that mirror.
+    if [ -s "$mirror_backup" ]; then
+      printf '%s\n' 'http://archive.ubuntu.com/ubuntu/' | sudo tee "$mirror" >/dev/null
+    fi
     sleep 10
   fi
 done
