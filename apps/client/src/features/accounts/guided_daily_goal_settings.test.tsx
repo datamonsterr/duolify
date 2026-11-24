@@ -32,6 +32,7 @@ const settings = {
 };
 beforeEach(() => {
   localStorage.clear();
+  window.location.hash = "#goals";
   vi.clearAllMocks();
   vi.mocked(profileApi.readSettings).mockResolvedValue(settings);
 });

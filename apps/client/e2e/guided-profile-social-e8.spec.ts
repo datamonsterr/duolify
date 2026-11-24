@@ -72,7 +72,7 @@ for (const [width, height, scheme] of [
     });
 
     test("daily goal and reminder clock as a chat", async ({ page }) => {
-      await page.goto("/settings");
+      await page.goto("/settings#goals");
       await expect(
         page.getByRole("heading", { name: "Settings" }),
       ).toBeVisible();
