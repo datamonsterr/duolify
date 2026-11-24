@@ -3,10 +3,10 @@ import {
   waitOnExecutionContext,
 } from "cloudflare:test";
 import handler from "../../workers/public-read/index";
-import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import {
   demo,
+  env,
   fixture,
   market,
   origin,

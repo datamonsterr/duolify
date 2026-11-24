@@ -84,9 +84,10 @@ func u32(n int64) uint32 {
 var errTurnLost = errors.New("turn state lost")
 
 // beginTurn inserts the idempotency/quote claim. existing is non-nil when the key already ran.
-func (s *Service) beginTurn(ctx context.Context, owner, course string, in sendInput) (id string, replay *storedTurn, status int, err error) {
+func (s *Service) beginTurn(ctx context.Context, owner, course string, in sendInput, thread string) (id string, replay *storedTurn, status int, err error) {
 	for range 2 {
-		err = s.opts.Pool.QueryRow(ctx, `INSERT INTO tutor_turns(learner_id,course_id,idempotency_key,quote_id) VALUES($1::uuid,$2::uuid,$3,$4::uuid) ON CONFLICT DO NOTHING RETURNING id::text`, owner, course, in.IdempotencyKey, in.QuoteID).Scan(&id)
+		err = s.opts.Pool.QueryRow(ctx, `INSERT INTO tutor_turns(learner_id,course_id,idempotency_key,quote_id,thread_id)
+VALUES($1::uuid,$2::uuid,$3,$4::uuid,NULLIF($5,'')::uuid) ON CONFLICT DO NOTHING RETURNING id::text`, owner, course, in.IdempotencyKey, in.QuoteID, thread).Scan(&id)
 		if err == nil {
 			return id, nil, 0, nil
 		}
@@ -94,13 +95,17 @@ func (s *Service) beginTurn(ctx context.Context, owner, course string, in sendIn
 			return "", nil, http.StatusServiceUnavailable, err
 		}
 		var t storedTurn
-		err = s.opts.Pool.QueryRow(ctx, `SELECT id::text,state,COALESCE(thread_id::text,''),COALESCE(assistant_message_id::text,''),created_at FROM tutor_turns WHERE learner_id=$1::uuid AND idempotency_key=$2`, owner, in.IdempotencyKey).Scan(&t.ID, &t.State, &t.ThreadID, &t.AssistantID, &t.CreatedAt)
+		err = s.opts.Pool.QueryRow(ctx, `SELECT id::text,state,COALESCE(thread_id::text,''),COALESCE(assistant_message_id::text,''),created_at
+FROM tutor_turns WHERE learner_id=$1::uuid AND course_id=$2::uuid AND idempotency_key=$3 AND quote_id=$4::uuid`, owner, course, in.IdempotencyKey, in.QuoteID).Scan(&t.ID, &t.State, &t.ThreadID, &t.AssistantID, &t.CreatedAt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Another key already owns this quote.
 			return "", nil, http.StatusConflict, nil
 		}
 		if err != nil {
 			return "", nil, http.StatusServiceUnavailable, err
+		}
+		if scope, ok := scopeFromContext(ctx); ok && !scope.canReadTurn(t.ThreadID, t.CreatedAt) {
+			return "", nil, http.StatusConflict, nil
 		}
 		if t.State != "pending" {
 			return "", &t, 0, nil
@@ -189,20 +194,28 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		regionFailure(w, err)
 		return
 	}
-	thread, newThread := in.ThreadID, false
-	if thread != "" {
-		var ok bool
-		if s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid AND course_id=$3::uuid)`, thread, owner, course).Scan(&ok) != nil || !ok {
+	scope, scoped := scopeFromContext(ctx)
+	if scoped {
+		if in.ThreadID != "" && in.ThreadID != scope.ThreadID {
 			fail(w, http.StatusNotFound, "not_found")
 			return
 		}
-	} else {
+		in.ThreadID = scope.ThreadID
+	}
+	thread, newThread := in.ThreadID, false
+	if thread != "" {
+		if !s.ownsThread(ctx, owner, course, thread) {
+			fail(w, http.StatusNotFound, "not_found")
+			return
+		}
+	} else if !scoped {
 		var err error
 		if thread, err = s.latestThread(ctx, owner, course); err != nil {
 			fail(w, http.StatusServiceUnavailable, "unavailable")
 			return
 		}
 	}
+	existingThread := thread
 	if thread == "" {
 		thread, newThread = uuid.NewString(), true
 	}
@@ -212,7 +225,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		fail(w, http.StatusConflict, "quote_unavailable")
 		return
 	}
-	turn, stored, status, err := s.beginTurn(ctx, owner, course, in)
+	turn, stored, status, err := s.beginTurn(ctx, owner, course, in, existingThread)
 	if err != nil {
 		s.opts.Logger.Error("tutor turn claim failed", "error", err)
 		fail(w, status, "unavailable")
@@ -382,7 +395,11 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 			}
 			streaming = true
 		}
-		beat := time.NewTicker(sse.Interval())
+		interval := sse.Interval()
+		if scoped {
+			interval = min(interval, 20*time.Second)
+		}
+		beat := time.NewTicker(interval)
 		defer beat.Stop()
 	recv:
 		for {

@@ -1,8 +1,12 @@
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
-  test: { fileParallelism: false, testTimeout: 15_000 },
+  test: {
+    exclude: [...configDefaults.exclude, "test/**/chat*.test.ts"],
+    fileParallelism: false,
+    testTimeout: 15_000,
+  },
   plugins: [
     cloudflareTest({
       wrangler: { configPath: "./wrangler.jsonc" },

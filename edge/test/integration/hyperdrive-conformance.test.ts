@@ -1,7 +1,6 @@
-import { env } from "cloudflare:workers";
 import { Client } from "pg";
 import { describe, expect, it, vi } from "vitest";
-import { action, fixture, market, origin, workerInMode } from "../fixture";
+import { action, env, fixture, market, origin, workerInMode } from "../fixture";
 
 async function compare(path: string, status: number = 200) {
   const go = await origin(path);

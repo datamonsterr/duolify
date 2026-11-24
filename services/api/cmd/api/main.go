@@ -430,6 +430,14 @@ func run(ctx context.Context, args []string) (result error) {
 	logger.Info("course invite push adapter", "adapter", pushName)
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
 	playerService := player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery, CastSafety: characterService.SafetyProjection})
+	tutorService := chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Slides: playerService, Events: events, Notes: notesService, Logger: logger})
+	var chatEdge *chat.Edge
+	if cfg.ChatEdgeEnabled {
+		chatEdge = chat.NewEdge(chat.EdgeOptions{
+			Secret: cfg.EdgeServiceSecret, Tutor: tutorService, SessionActive: auth.ActiveSession,
+			GuidedSetup: http.HandlerFunc(auth.ServeSetupChatHTTP), GuidedBrief: courseService,
+		})
+	}
 	handler := httpapi.New(httpapi.Dependencies{
 		Steering:                steeringService,
 		Sharing:                 sharingService,
@@ -443,7 +451,8 @@ func run(ctx context.Context, args []string) (result error) {
 		Accounts:                auth,
 		Credits:                 creditService,
 		CourseBrief:             courseService,
-		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Slides: playerService, Events: events, Notes: notesService, Logger: logger}),
+		Tutor:                   tutorService,
+		ChatEdge:                chatEdge,
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  quotesService,

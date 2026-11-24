@@ -1,4 +1,4 @@
-import { env, exports } from "cloudflare:workers";
+import { env as bindings, exports } from "cloudflare:workers";
 
 interface Fixture {
   course: string;
@@ -11,18 +11,19 @@ interface Fixture {
 
 declare global {
   namespace Cloudflare {
-    interface Env {
-      EDGE_FIXTURE: string;
-      MARKETPLACE_DB: Hyperdrive;
-      MARKETPLACE_RATE_LIMIT: RateLimit;
-      PUBLIC_READ_ORIGIN: string;
-      PUBLIC_READ_ORIGIN_SECRET: string;
-    }
     interface GlobalProps {
       mainModule: typeof import("../workers/public-read/index");
     }
   }
 }
+
+export const env = bindings as unknown as {
+  EDGE_FIXTURE: string;
+  MARKETPLACE_DB: Hyperdrive;
+  MARKETPLACE_RATE_LIMIT: RateLimit;
+  PUBLIC_READ_ORIGIN: string;
+  PUBLIC_READ_ORIGIN_SECRET: string;
+};
 
 export const fixture = JSON.parse(env.EDGE_FIXTURE) as Fixture;
 export const market = "/v1/marketplace/courses";

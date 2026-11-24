@@ -3,14 +3,17 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "agents": "0.34.0",
     "pg": "8.23.1"
   },
   "devDependencies": {
+    "@msw/cloudflare": "0.2.0",
     "@cloudflare/vitest-plugin": "1.9.0",
     "@cloudflare/workers-types": "5.20261119.1",
     "@types/pg": "8.23.1",
     "@types/node": "26.6.6",
     "esbuild": "0.28.2",
+    "msw": "3.0.7",
     "prettier": "3.10.1",
     "typescript": "6.0.3",
     "vitest": "5.1.0",

@@ -151,7 +151,7 @@ No AI. Use an injected Siteverify client and official public dummy fixtures. Tra
 ### Spec
 
 - [Tutor chat delta](specs/tutor-chat/spec.md), [Guided chat delta](specs/guided-chat/spec.md), and [W4 design](design.md#w4-chat-sessions-at-the-edge).
-- [ ] Add per-Learner-session SQLite-backed Durable Objects using the `agents` package, hibernating WebSocket, and SSE fallback. Gate upgrades and SSE before deriving object identity, use scoped service-to-service auth to Go, and delegate quote/reserve/settle/release and chat persistence to the existing Go API/ledger. Keep `CHAT_EDGE_ENABLED=false` by default and preserve the existing Engine route. Keep scripts, offline behavior and consent for optional paid Guided chat detours.
+- [x] Add per-Learner-session SQLite-backed Durable Objects using the `agents` package, hibernating WebSocket, and SSE fallback. Gate upgrades and SSE before deriving object identity, use scoped service-to-service auth to Go, and delegate quote/reserve/settle/release and chat persistence to the existing Go API/ledger. Keep `CHAT_EDGE_ENABLED=false` by default and preserve the existing Engine route. Keep scripts, offline behavior and consent for optional paid Guided chat detours.
 
 ### Tests (TDD order)
 

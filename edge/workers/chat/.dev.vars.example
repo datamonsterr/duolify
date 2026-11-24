@@ -1,0 +1,6 @@
+# Chat Worker local overrides. Copy to .dev.vars beside wrangler.jsonc.
+CHAT_EDGE_ENABLED=false
+CHAT_API_ORIGIN=http://127.0.0.1:4191
+API_ALLOWED_ORIGINS=http://127.0.0.1:4193
+# Same high-entropy value as the Go API, at least 32 bytes.
+EDGE_SERVICE_SECRET=

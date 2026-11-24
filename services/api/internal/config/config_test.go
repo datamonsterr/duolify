@@ -21,6 +21,8 @@ func TestLoad(t *testing.T) {
 		{"bad tracer flag", "LESSON_TEST_TRACER_ENABLED", "bogus", "LESSON_TEST_TRACER_ENABLED"},
 		{"tracer enabled", "LESSON_TEST_TRACER_ENABLED", "true", ""},
 		{"tracer kill switch", "LESSON_TEST_TRACER_ENABLED", "false", ""},
+		{"bad chat edge flag", "CHAT_EDGE_ENABLED", "bogus", "CHAT_EDGE_ENABLED"},
+		{"missing chat edge secret", "CHAT_EDGE_ENABLED", "true", "EDGE_SERVICE_SECRET"},
 		{"tls engine", "ENGINE_ADDR", "https://engine:50051", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,6 +51,9 @@ func TestLoad(t *testing.T) {
 			}
 			if tt.name == "defaults" && !cfg.LessonTestTracerEnabled {
 				t.Fatal("lesson test tracer must default to enabled (ADR 0017)")
+			}
+			if tt.name == "defaults" && cfg.ChatEdgeEnabled {
+				t.Fatal("chat edge must default to disabled")
 			}
 			if tt.name == "tracer kill switch" && cfg.LessonTestTracerEnabled {
 				t.Fatal("LESSON_TEST_TRACER_ENABLED=false must disable the lesson test")

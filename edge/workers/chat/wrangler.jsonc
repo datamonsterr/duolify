@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "duolify-chat",
+  "main": "index.ts",
+  "compatibility_date": "2026-11-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "ChatSession", "class_name": "ChatSession" }],
+  },
+  "exports": {
+    "ChatSession": { "type": "durable-object", "storage": "sqlite" },
+  },
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "observability": { "enabled": false },
+  "vars": {
+    "CHAT_EDGE_ENABLED": "false",
+    "CHAT_API_ORIGIN": "http://127.0.0.1:4191",
+    "API_ALLOWED_ORIGINS": "",
+  },
+}

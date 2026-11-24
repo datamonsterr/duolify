@@ -1,6 +1,6 @@
 # Edge Workers
 
-The public-read Worker lives in `workers/public-read/`. Routing starts disabled. Hyperdrive has a placeholder ID and the checked-in configuration attaches no routes.
+The public-read Worker lives in `workers/public-read/`. The chat Worker has its own Wrangler configuration in `workers/chat/`. Both start disabled. Hyperdrive has a placeholder ID and the checked-in configurations attach no routes.
 
 Run `mise run client:install` from the workspace root to install dependencies. Run `mise run edge:lint ::: edge:test ::: edge:build` for local checks. The test task runs workerd against disposable Postgres and Redis seeded through the Go sharing integration fixture. It uses `duolify_edge_ro` through the Hyperdrive binding. The build type-checks and bundles locally.
 
@@ -17,3 +17,7 @@ Set `PUBLIC_READ_EDGE_ENABLED=true` to exercise offload. Mirror Go's `API_ALLOWE
 Marketplace and share responses retain `no-store` and `noindex`. The Worker cache keeps only anonymous successes. Trusted Go cache fills read Postgres directly to establish a single deadline. A moderation hide reaches both Marketplace surfaces within the configured TTL. Go still applies its rate limiter to origin misses and authenticated requests. The Worker uses Cloudflare's approximate per-location rate limiter with 60 requests per address per 60 seconds.
 
 A rollout needs a separate HTTPS Go origin, the owner-authorized Tunnel and Access checks, and matching release flags. Keep request logs off for share and search paths. [ADR 0026](../docs/adr/0026-cloudflare-offload-and-melotts.md)
+
+For local chat development, copy `workers/chat/.dev.vars.example` to `workers/chat/.dev.vars` and run `mise run edge:dev-chat` on port 4192. Point `CHAT_API_ORIGIN` to the migrated Go API on port 4191. Set `CHAT_EDGE_ENABLED=true` on both services and match their `EDGE_SERVICE_SECRET` and `API_ALLOWED_ORIGINS`. `mise run edge:test-chat` runs only the chat tests, including an eviction and wake with the WebSocket still connected. The full `edge:test` task also runs public-read conformance.
+
+The chat Worker holds connections in a SQLite-backed Agent. Go owns credit reservations, settlement and history. The Worker issues no ledger or storage writes for chat content. [CF-05 transport contract](../openspec/changes/cloudflare-offload/design.md#cf-05-client-transport-contract)

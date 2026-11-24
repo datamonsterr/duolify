@@ -33,6 +33,15 @@ func (s *Service) ConfigureSetupChat(opts SetupChatOptions) {
 	s.setupChat = opts
 }
 
+// ServeSetupChatHTTP accepts the learner context established by Go's Edge chat service boundary.
+func (s *Service) ServeSetupChatHTTP(w http.ResponseWriter, r *http.Request) {
+	if LearnerID(r.Context()) == "" {
+		failure(w, errCredentials)
+		return
+	}
+	s.handleSetupChat(w, r)
+}
+
 func (s *Service) handleSetupChat(w http.ResponseWriter, r *http.Request) {
 	if s.setupChat.Engine == nil || s.setupChat.Pricing == nil {
 		respond(w, http.StatusServiceUnavailable, map[string]string{"error": "Setup chat is currently unavailable. Use the form instead."})
@@ -174,16 +183,17 @@ func (s *Service) handleSetupChat(w http.ResponseWriter, r *http.Request) {
 	}
 	if !optOut && s.setupChat.Events != nil && learnerID != "" {
 		_ = s.setupChat.Events.Capture(learnerID, "$ai_generation", map[string]any{
-			"provider":      resp.GetUsage().GetProvider(),
-			"model":         resp.GetUsage().GetModel(),
-			"input_tokens":  resp.GetUsage().GetInputTokens(),
-			"output_tokens": resp.GetUsage().GetOutputTokens(),
-			"latency_ms":    resp.GetUsage().GetLatencyMs(),
-			"task":          "setup_chat",
-			"fallback_used": false,
-			"source":        "api",
-			"platform":      "web",
-			"app_version":   "0.1.0",
+			"provider":       resp.GetUsage().GetProvider(),
+			"model":          resp.GetUsage().GetModel(),
+			"input_tokens":   resp.GetUsage().GetInputTokens(),
+			"output_tokens":  resp.GetUsage().GetOutputTokens(),
+			"latency_ms":     resp.GetUsage().GetLatencyMs(),
+			"task":           "setup_chat",
+			"chat_transport": analytics.ChatTransport(ctx),
+			"fallback_used":  false,
+			"source":         "api",
+			"platform":       "web",
+			"app_version":    "0.1.0",
 		})
 	}
 

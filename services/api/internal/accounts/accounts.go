@@ -588,6 +588,13 @@ func SessionIDFromContext(ctx context.Context) (string, bool) {
 	return id, ok && id != ""
 }
 
+// ActiveSession checks the live storage authority shared by access JWTs and Edge chat grants.
+func (s *Service) ActiveSession(ctx context.Context, learner, session string) (bool, error) {
+	var active bool
+	err := s.pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM auth_sessions WHERE id=$1::uuid AND learner_id=$2::uuid AND revoked_at IS NULL AND expires_at>now())", session, learner).Scan(&active)
+	return active, err
+}
+
 // Protect rejects missing, expired, revoked and deleted-account credentials.
 func (s *Service) Protect(next http.Handler) http.Handler {
 	return s.protect(next, nil)
@@ -613,8 +620,7 @@ func (s *Service) guard(next http.Handler, denied func(*http.Request), optional 
 		if optional {
 			if raw, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
 				if claims, err := s.ParseAccess(raw); err == nil {
-					var active bool
-					if s.pool.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM auth_sessions WHERE id=$1::uuid AND learner_id=$2::uuid AND revoked_at IS NULL AND expires_at>now())", claims.ID, claims.Subject).Scan(&active) == nil && active {
+					if active, err := s.ActiveSession(r.Context(), claims.Subject, claims.ID); err == nil && active {
 						ctx := context.WithValue(r.Context(), learnerKey{}, claims.Subject)
 						r = r.WithContext(context.WithValue(ctx, sessionKey{}, claims.ID))
 					}
@@ -641,8 +647,7 @@ func (s *Service) guard(next http.Handler, denied func(*http.Request), optional 
 			failure(w, errCredentials)
 			return
 		}
-		var active bool
-		err = s.pool.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM auth_sessions WHERE id=$1::uuid AND learner_id=$2::uuid AND revoked_at IS NULL AND expires_at>now())", claims.ID, claims.Subject).Scan(&active)
+		active, err := s.ActiveSession(r.Context(), claims.Subject, claims.ID)
 		if err != nil {
 			failure(w, err)
 			return
