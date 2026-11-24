@@ -86,7 +86,7 @@ test("sidebar becomes five tabs with More, preserving route draft and scroll", a
       .getByRole("link", { name: "Quick notes", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("complementary", { name: "Your progress" }),
+    page.getByRole("group", { name: "Your progress" }),
   ).toBeVisible();
   await page.getByRole("searchbox").fill("private draft");
   await page.setViewportSize({ width: 320, height: 740 });
@@ -158,11 +158,19 @@ test("desktop navigation groups learning and account links and shows compact pro
     "rgb(31, 122, 13)",
   );
 
-  const rail = page.getByRole("complementary", { name: "Your progress" });
-  await expect(rail.getByRole("progressbar")).toHaveCount(2);
-  await expect(rail.getByText("3 day streak")).toBeVisible();
-  await expect(rail.getByText("23 / 46 XP today")).toBeVisible();
-  await expect(rail.getByText(/\$|€|£/)).toHaveCount(0);
+  // The right rail is gone: streak, XP and credits are one block under the sidebar nav.
+  await expect(
+    page.getByRole("complementary", { name: "Your progress" }),
+  ).toHaveCount(0);
+  const stats = page
+    .locator(".sidebar")
+    .getByRole("group", { name: "Your progress" });
+  await expect(stats.getByRole("link", { name: "3 day streak" })).toBeVisible();
+  await expect(
+    stats.getByRole("link", { name: "23 of 46 XP today" }),
+  ).toBeVisible();
+  await expect(stats.getByRole("link", { name: /credits$/ })).toBeVisible();
+  await expect(stats.getByText(/\$|€|£/)).toHaveCount(0);
 });
 
 for (const mode of ["light", "dark"] as const) {
@@ -233,17 +241,19 @@ test("breakpoints and safe area reserve the full tab height at 200% text", async
   page,
 }) => {
   await page.goto("/more");
-  for (const [width, sidebar, rail] of [
-    [767, false, false],
-    [768, true, false],
-    [1199, true, false],
-    [1200, true, true],
+  for (const [width, sidebar] of [
+    [767, false],
+    [768, true],
+    [1199, true],
+    [1200, true],
   ] as const) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.locator(".sidebar")).toBeVisible({ visible: sidebar });
     await expect(
-      page.getByRole("complementary", { name: "Your progress" }),
-    ).toBeVisible({ visible: rail });
+      page.getByRole("group", { name: "Your progress" }),
+    ).toBeVisible({
+      visible: sidebar,
+    });
   }
   await page.setViewportSize({ width: 320, height: 740 });
   // The responsive hook mounts mobile tabs on its media-query notification.

@@ -84,15 +84,6 @@
   border-block-start: 1px solid var(--line);
   margin-block: var(--space-2);
 }
-.support-rail .card {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-}
-.support-rail .card h2,
-.support-rail .card p {
-  margin: 0;
-}
 .support-progress {
   display: block;
   inline-size: 100%;
@@ -115,13 +106,8 @@
   border-radius: var(--radius-pill);
   background: var(--primary);
 }
-.mobile-header,
-.support-rail {
+.mobile-header {
   display: none;
-}
-.support-rail {
-  padding: var(--space-10) var(--space-4);
-  overflow-y: auto;
 }
 .shell-link,
 .shell-links a,
@@ -214,14 +200,6 @@ textarea:focus-visible,
 select:focus-visible {
   outline: var(--size-focus-width) solid var(--focus);
   outline-offset: var(--size-focus-offset);
-}
-@media (width >= 75rem) {
-  .app-frame:not(.focused-frame) {
-    grid-template-columns: var(--size-sidebar) minmax(0, 1fr) var(--size-rail);
-  }
-  .support-rail {
-    display: block;
-  }
 }
 @media (width < 48rem) {
   .app-frame {
@@ -335,4 +313,43 @@ select:focus-visible {
   color: var(--primary);
   background: var(--surface);
   font-weight: var(--weight-strong);
+}
+.sidebar-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin-block-start: var(--space-2);
+}
+.sidebar-stats .stat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-2);
+  min-block-size: var(--size-target);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+.sidebar-stats .stat-xp {
+  grid-column: 1 / -1;
+}
+.sidebar-stats .stat-xp .support-progress {
+  grid-column: 1 / -1;
+  margin-block-end: var(--space-1);
+}
+.sidebar-stats .stat-flame .stat-icon {
+  color: var(--streak);
+}
+.sidebar-stats .stat-gem .stat-icon {
+  color: var(--credit-icon);
+}
+.sidebar-stats .stat-bolt .stat-icon {
+  color: var(--warning);
+}
+/* With the right rail gone the main panel is wide; keep running text readable. */
+.app-main p {
+  max-inline-size: var(--size-reading);
 }

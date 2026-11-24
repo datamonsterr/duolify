@@ -10,7 +10,7 @@ import { CourseCard } from "./CourseCard";
 import { AppLink, navigateTo } from "../../lib/navigation";
 import { ExampleCourses } from "./ExampleCourses";
 import { StatIcon } from "./StatIcon";
-import { useStreak, useWallet } from "../shell/RailCards";
+import { useStreak, useWallet } from "../shell/SidebarStats";
 import { useUiPreferences } from "./localization/Preferences";
 
 function subscribeOnline(notify: () => void) {

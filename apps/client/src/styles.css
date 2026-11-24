@@ -142,10 +142,6 @@ select:focus-visible,
   color: var(--info);
   border: 1px solid var(--info);
 }
-.sidebar-foot {
-  margin-block-start: auto;
-  font-size: var(--font-size-caption);
-}
 .main {
   min-inline-size: 0;
   padding: var(--space-10) var(--space-8);
@@ -709,9 +705,6 @@ progress::-moz-progress-bar {
     padding: var(--space-2) var(--space-1);
     font-size: var(--font-size-caption);
     text-align: center;
-  }
-  .sidebar-foot {
-    display: none;
   }
   .main {
     grid-row: 2;
