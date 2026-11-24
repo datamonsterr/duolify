@@ -78,15 +78,14 @@ fail-closed, retryable "unavailable" response. Mock mode (fixture router) is unc
 Any change to a fingerprinted source (above) makes the committed evidence stale. The ready
 pipeline (ready PRs, main, merge queues) then fails inside `checks / ci-ok` at the `engine-eval`
 job's `mise run engine:evidence -- --require-launch` step, which also fails when the evidence
-leaves any launch task (`promotion::LAUNCH_TASKS`: the 15 gated RPC tasks plus
-`lesson_narration`) closed. Draft PRs only print a warning. Refresh on the commit to merge,
+leaves any task in `promotion::LAUNCH_TASKS` closed. Draft PRs only print a warning. Refresh on the commit to merge,
 after every other engine change:
 
 ```bash
 # Credentials go in the process environment only: OpenRouter (the local CI key), and the
 # ElevenLabs key and voice for the lesson_narration cases.
 OPENROUTER_API_KEY=... ELEVENLABS_API_KEY=... ELEVENLABS_VOICE_ID=... EVAL_BUDGET_USD=0.5 \
-  mise run engine:eval-golden                             # all 41 cases, about $0.005 and ~70 ElevenLabs characters
+  mise run engine:eval-golden                             # all cases in the pinned revision
 # Export the ElevenLabs variables in the shell. The root mise.toml deliberately has no env template for them
 # (mise 2026.10 renders it empty for the real values, which silently ran narration on the mock). A missing key shows
 # as `configured:false` in lesson_narration results; CI sets them through the workflow env.

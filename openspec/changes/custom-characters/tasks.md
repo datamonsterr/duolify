@@ -90,9 +90,9 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 ## 9. Engine prompt to attributes mapping (not blocked; M)
 
-- [ ] 9.1 Golden cases first (see 14); then Engine structured-output mapping that returns only catalog ids and colours, never inferring attributes from names or nationalities; at most one repair or one fallback model.
+- [x] 9.1 Golden cases first (see 14); then Engine structured-output mapping that returns only catalog ids and colours, never inferring attributes from names or nationalities; at most one repair or one fallback model.
 - [x] 9.2 Paired additive proto change (API and Engine in one PR): `pose` on `CharacterSegment`, v2 spec transport; `buf breaking` clean.
-- [ ] 9.3 Integration: prompt path returns a draft the Learner edits; credit reserve/settle/release unchanged (25 Credits, ADR 0013); on failure open the free selector pre-filled with any validated partial attributes.
+- [x] 9.3 Integration: prompt path returns a draft the Learner edits; credit reserve/settle/release unchanged (25 Credits, ADR 0013); on failure open the free selector pre-filled with any validated partial attributes.
 
 ## 10. Selector UI and live preview (L; unblocked with placeholder art, ship flag off until 8.3)
 
@@ -119,7 +119,7 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 - [ ] 14.1 Integration: limits table from the design; selector creates count against 2 creates/minute, the 20 writes/hour bucket and the 10-Character cap but never spend Credits; account export includes Character documents (no prompts); erasure and restore drill render every restored document to its recorded checksum.
 - [ ] 14.2 Unit: new event emitters and `fields_changed` v2 allowlist contain no values; metrics defined in the design are queryable.
-- [ ] 14.3 Add `character_attributes` and extended `character_screen` Golden rows and thresholds; pin the Hugging Face revision when #25 provisions it (BLOCKED on #25, not on #40); mock fixtures run now.
+- [x] 14.3 Add v2 attribute mapping under `character_spec` and extended `character_screen` Golden rows and thresholds. Pin the verified Hugging Face revision and record live promotion evidence.
 
 ## 15. Rollout (blocked on #40)
 
