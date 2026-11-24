@@ -26,3 +26,18 @@ Run each arm twice and compare the paired cost difference with its standard erro
 2. Cached router decisions are ignored in monolithic mode: the router is only consulted by the routed path. They expire by TTL (30 days); to drop them at once, bump `ROUTER_VERSION` in `engine-core/src/router/mod.rs` (part of the cache key).
 3. To stop only the model router, the daily breaker closes it automatically past 1 percent of engine spend; a routed task whose router gives no answer uses its default skill set. There is no separate kill switch: flip the task to `monolithic`.
 4. Input guard: unset `INPUT_GUARD_ENABLED` on the API and restart. Nothing else changes; the four existing screens keep running.
+
+## Router and guard evidence (task 7.2)
+
+Rows live in `evals/datasets/duolify-golden/pending-prompt-skills.jsonl` (not yet published to the Hugging Face dataset). Run by the controller with `OPENROUTER_API_KEY` in the environment, from `engine/`:
+
+```sh
+D=../evals/datasets/duolify-golden
+# Router accuracy (40 rows, exact skill set, threshold 0.9) and the four router fallback rows; the model rows
+# call the Decisions API only (no chat spend); the fallback rows are scripted and cost nothing.
+cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/pending-prompt-skills.jsonl --limit 0 --budget 0.1 --reports ../evals/reports/router
+# Fast guard (decision model) on the tutor and note rows; the default run uses the chat classifier.
+GUARD_CLASSIFIER=fast cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/pending-prompt-skills.jsonl --limit 0 --budget 0.1 --reports ../evals/reports/guard-fast
+```
+
+Compare the two guard models by editing `GUARD_MODEL` in `engine-providers/src/decisions.rs` on a throwaway branch. Router thresholds are data: tune `--threshold` per skill on these rows, never on the 12 spike cases.

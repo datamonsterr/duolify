@@ -18,8 +18,9 @@ pub struct Live {
 }
 
 /// Tasks whose live cases go through production builders here (screens run in the runner).
-pub const TASKS: [&str; 13] = [
+pub const TASKS: [&str; 14] = [
     "input_guard",
+    "skill_router",
     "course_preview",
     "course_outline",
     "lesson_slides",
@@ -191,6 +192,19 @@ pub async fn evaluate(
             .await?;
             let preview = parsed(&outcome.completion);
             let rejected = rejected.into_value();
+            // Skill-fit probes (golden pairs for the course_preview skills).
+            let html: String = preview["slides"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|s| s["html"].as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let math = ["²", "√", "≤", "×", "÷", "Δ", "π"]
+                .iter()
+                .any(|m| html.contains(m));
+            let skipped = brief.skip_topics.trim().to_lowercase();
+            let outline_text = preview["units"].to_string().to_lowercase();
             Ok(bounded(
                 outcome,
                 json!({
@@ -198,6 +212,9 @@ pub async fn evaluate(
                     "title": preview["title"],
                     "unit_count": preview["units"].as_array().map_or(0, Vec::len),
                     "slide_count": preview["slides"].as_array().map_or(0, Vec::len),
+                    "has_math_symbols": math,
+                    "has_code_block": html.contains("<pre") && html.contains("<code"),
+                    "skipped_topic_absent": skipped.is_empty() || !outline_text.contains(&skipped),
                     "arm": plan.mode,
                     "skill_count": plan.skills,
                 }),
@@ -633,11 +650,29 @@ pub async fn evaluate(
                 };
                 find(&base) == find(&out)
             });
+            // Share of the remaining (unprotected) lessons that survive the replan: the
+            // merge_vs_replace skill keeps what still fits.
+            let remaining: Vec<&str> = base
+                .iter()
+                .flat_map(|u| u.lessons.iter())
+                .map(|l| l.id.as_str())
+                .filter(|id| !protected.iter().any(|p| p == id))
+                .collect();
+            let kept = remaining
+                .iter()
+                .filter(|id| out.iter().any(|u| u.lessons.iter().any(|l| &l.id == *id)))
+                .count();
+            let remaining_kept = if remaining.is_empty() {
+                1.0
+            } else {
+                kept as f64 / remaining.len() as f64
+            };
             Ok(bounded(
                 outcome,
                 json!({
                     "unavailable": raw.is_none(),
                     "protected_kept": protected_kept,
+                    "remaining_kept": remaining_kept,
                     "leaked": raw
                         .as_deref()
                         .is_some_and(|t| leaks(t) || engine_core::steering::leaks_prompt(t, &instructions)),
@@ -684,6 +719,51 @@ pub async fn evaluate(
                 .context("unknown guard surface")?;
             let text = input["text"].as_str().unwrap_or_default();
             let topic = input["course_topic"].as_str().unwrap_or_default();
+            // Fallback rows: a classifier outage or a malformed verdict follows the surface rule,
+            // with no model call (deterministic, no spend).
+            if matches!(input["fault"].as_str(), Some("outage" | "malformed")) {
+                let decision = Decision::from_verdict(surface, None);
+                return Ok(Live {
+                    text: json!({
+                        "delivered": true,
+                        "allowed": decision.allowed,
+                        "reason_code": decision.reason.map(|r| r.code()).unwrap_or(""),
+                        "source": decision.source.code(),
+                        "surface": input["surface"],
+                        "arm": "guard",
+                    })
+                    .to_string(),
+                    attempts: vec![],
+                    completion: None,
+                });
+            }
+            // `GUARD_CLASSIFIER=fast` runs the decision-model classifier the API uses on the
+            // fail-open surfaces (tutor chat, quick note) instead of the chat classifier.
+            if surface.is_fast()
+                && std::env::var("GUARD_CLASSIFIER").is_ok_and(|c| c == "fast")
+                && guard::pre_filter(surface, text).is_none()
+            {
+                let model = guard::fast().context("no fast guard installed (live mode only)")?;
+                let verdict = tokio::time::timeout(surface.budget(), model.classify(surface, text))
+                    .await
+                    .ok()
+                    .and_then(Result::ok);
+                let decision = Decision::from_verdict(surface, verdict);
+                return Ok(Live {
+                    text: json!({
+                        "delivered": true,
+                        "allowed": decision.allowed,
+                        "reason_code": decision.reason.map(|r| r.code()).unwrap_or(""),
+                        "source": decision.source.code(),
+                        "safe_response": decision.safe_response(),
+                        "surface": input["surface"],
+                        "arm": "guard_fast",
+                    })
+                    .to_string(),
+                    attempts: vec![],
+                    completion: None,
+                });
+            }
             let (decision, outcome) = if let Some(r) = guard::pre_filter(surface, text) {
                 (
                     Decision::block(r, Source::PreFilter),
@@ -717,9 +797,115 @@ pub async fn evaluate(
             }
             Ok(live)
         }
+        "skill_router" => skill_router(input).await,
         "lesson_narration" => narration(input).await,
         other => anyhow::bail!("no live evaluator for {other}"),
     }
+}
+
+/// Router accuracy and fallback cases (ADR 0025 task 7.2). `fault` absent: the installed decision
+/// model decides the model-routed skills of `task` for the structured `RouterInput` (the same
+/// path production uses, with a fresh cache and no breaker) and the result says whether the picked
+/// set equals `expected_skills`. `fault` in timeout, refusal, unknown_key or breaker_open runs
+/// the same selection against a scripted router and expects the task's default set: no network.
+async fn skill_router(input: &Value) -> Result<Live> {
+    use engine_core::router::{self, Breaker, Candidate, MemoryCache, RouterInput, SkillRouter};
+    use std::{collections::BTreeMap, time::Duration};
+
+    struct Scripted(&'static str);
+    #[async_trait::async_trait]
+    impl SkillRouter for Scripted {
+        async fn decide(&self, _: &RouterInput, _: &[Candidate]) -> Result<BTreeMap<String, f64>> {
+            match self.0 {
+                "timeout" => {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    Ok(BTreeMap::new())
+                }
+                "unknown_key" => Ok(BTreeMap::from([("not_a_skill".to_owned(), 0.99)])),
+                _ => anyhow::bail!("refused"),
+            }
+        }
+    }
+    struct Open;
+    #[async_trait::async_trait]
+    impl Breaker for Open {
+        async fn open(&self) -> bool {
+            true
+        }
+        async fn record_router(&self, _: u64) {}
+        async fn record_engine(&self, _: u64) {}
+    }
+
+    let task = input["task"].as_str().unwrap_or("lesson_slides");
+    let text = |k: &str| input[k].as_str().unwrap_or_default().to_owned();
+    let ri = RouterInput {
+        task: task.to_owned(),
+        title: text("title"),
+        goal: text("goal"),
+        topic: text("topic"),
+        level: text("level"),
+        locale: text("locale"),
+        flags: serde_json::from_value(input["flags"].clone()).unwrap_or_default(),
+    };
+    let lib = engine_core::skills::bundled();
+    let fault = input["fault"].as_str().unwrap_or("none");
+    let cache = MemoryCache::default();
+    let scripted = Scripted(match fault {
+        "timeout" => "timeout",
+        "unknown_key" => "unknown_key",
+        _ => "refusal",
+    });
+    let installed = router::installed();
+    let model: Option<&dyn SkillRouter> = match fault {
+        "none" => Some(installed.context("no decision model installed (live mode only)")?),
+        _ => Some(&scripted),
+    };
+    let breaker_open = Open;
+    let no_breaker = router::NoBreaker;
+    let breaker: &dyn Breaker = if fault == "breaker_open" {
+        &breaker_open
+    } else {
+        &no_breaker
+    };
+    let timeout = if fault == "timeout" {
+        Duration::from_millis(50)
+    } else {
+        router::TIMEOUT
+    };
+    let rule_managed: &[&str] = match task {
+        "lesson_slides" => engine_core::lessontest::RULE_SKILLS,
+        _ => &[],
+    };
+    let selection = router::select(
+        lib,
+        task,
+        vec![],
+        rule_managed,
+        &Default::default(),
+        &ri,
+        model,
+        &cache,
+        breaker,
+        timeout,
+    )
+    .await;
+    let mut ids = selection.ids.clone();
+    ids.sort();
+    let mut expected: Vec<String> =
+        serde_json::from_value(input["expected_skills"].clone()).unwrap_or_default();
+    expected.sort();
+    Ok(Live {
+        text: json!({
+            "delivered": true,
+            "skills": ids,
+            "source": selection.source.code(),
+            "exact": ids == expected,
+            "arm": "router",
+        })
+        .to_string(),
+        attempts: vec![],
+        completion: None,
+    })
 }
 
 /// Counts vendor calls so a case can prove a permanent rejection was not retried.
@@ -910,5 +1096,115 @@ mod pricing_cap_tests {
                 .unwrap(),
             6000
         );
+    }
+}
+
+#[cfg(test)]
+mod fallback_tests {
+    use super::*;
+
+    async fn run(input: Value) -> Value {
+        let live = if input["task"] == "input_guard" {
+            // The guard fault path never touches the router.
+            let router = engine_core::ProviderRouter::new(
+                std::sync::Arc::new(engine_core::MockProvider),
+                std::sync::Arc::new(engine_core::MockProvider),
+            )
+            .unwrap();
+            evaluate("input_guard", &input, &router, None)
+                .await
+                .unwrap()
+        } else {
+            skill_router(&input).await.unwrap()
+        };
+        serde_json::from_str(&live.text).unwrap()
+    }
+
+    #[tokio::test]
+    async fn router_faults_fall_back_to_the_default_set_with_no_spend() {
+        for (fault, source) in [
+            ("timeout", "default"),
+            ("refusal", "default"),
+            ("breaker_open", "breaker"),
+        ] {
+            let v = run(json!({"task":"lesson_slides","title":"TCP","fault":fault,
+                "expected_skills":["diagram_layout"]}))
+            .await;
+            assert_eq!(v["source"], source, "{fault}");
+            assert_eq!(v["skills"], json!(["diagram_layout"]), "{fault}");
+            assert_eq!(v["exact"], true, "{fault}");
+        }
+        // An answer that names only unknown ids is dropped id by id (the router's contract): the
+        // model answered, so no skill is loaded and the default set is not used.
+        let v = run(json!({"task":"lesson_slides","title":"TCP","fault":"unknown_key","expected_skills":[]})).await;
+        assert_eq!(
+            (v["source"].clone(), v["skills"].clone()),
+            (json!("model"), json!([]))
+        );
+    }
+
+    #[tokio::test]
+    async fn guard_outage_and_malformed_verdicts_follow_the_surface_rule() {
+        for fault in ["outage", "malformed"] {
+            let closed = run(
+                json!({"task":"input_guard","surface":"course_topic","text":"x","fault":fault}),
+            )
+            .await;
+            assert_eq!(
+                (closed["allowed"].clone(), closed["source"].clone()),
+                (json!(false), json!("failure"))
+            );
+            let open =
+                run(json!({"task":"input_guard","surface":"tutor_chat","text":"x","fault":fault}))
+                    .await;
+            assert_eq!(
+                (open["allowed"].clone(), open["source"].clone()),
+                (json!(true), json!("failure"))
+            );
+        }
+    }
+
+    /// The pending rows keep the router set honest (task 7.2): at least 8 accuracy inputs per
+    /// model-routed lesson skill, 3 adversarial inputs, and one fallback row per router fault.
+    #[test]
+    fn pending_router_rows_cover_every_model_skill_and_fault() {
+        let rows: Vec<Value> =
+            include_str!("../../../../evals/datasets/duolify-golden/pending-prompt-skills.jsonl")
+                .lines()
+                .map(|l| serde_json::from_str(l).unwrap())
+                .collect();
+        let lib = engine_core::skills::bundled();
+        let model_skills: Vec<&String> = lib
+            .task("lesson_slides")
+            .unwrap()
+            .skills
+            .keys()
+            .filter(|s| !engine_core::lessontest::RULE_SKILLS.contains(&s.as_str()))
+            .collect();
+        assert_eq!(model_skills.len(), 5);
+        for s in model_skills {
+            let n = rows
+                .iter()
+                .filter(|r| {
+                    r["task"] == "skill_router" && r["input"]["expected_skills"] == json!([s])
+                })
+                .filter(|r| r["input"].get("fault").is_none())
+                .count();
+            assert!(n >= 8, "{s} has {n} router rows");
+        }
+        let id_has = |p: &str| {
+            rows.iter()
+                .filter(|r| r["id"].as_str().unwrap().contains(p))
+                .count()
+        };
+        assert_eq!(id_has("live-router-adversarial"), 3);
+        for f in ["timeout", "refusal", "unknown_key", "breaker_open"] {
+            assert_eq!(id_has(&format!("live-router-fallback-{f}")), 1, "{f}");
+        }
+        assert_eq!(id_has("live-guard-fallback"), 4);
+        // Every row is a task the live harness can run.
+        for r in &rows {
+            assert!(TASKS.contains(&r["task"].as_str().unwrap()), "{}", r["id"]);
+        }
     }
 }

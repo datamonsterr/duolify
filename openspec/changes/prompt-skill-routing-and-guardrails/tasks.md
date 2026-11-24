@@ -55,7 +55,7 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 ## 7. Eval harness and golden cases (L)
 
 - [ ] 7.1 E2E: `duolify-eval --arm both` on recorded fixtures emits per arm tokens, cost, latency p50 and p95, pass rate, paired difference and noise margin.
-- [ ] 7.2 Integration: router accuracy case kind, guard case kind (false-positive ceiling), fallback cases (router timeout, refusal, unknown key, breaker open; guard malformed and outage).
+- [x] 7.2 (built: `skill_router` case kind and live handler with scripted fault rows, guard outage and malformed rows, 40 accuracy rows plus 3 adversarial, golden rows for the course_preview, outline_replan and tutor_chat skills; rows are in `pending-prompt-skills.jsonl`, not yet published; no live run yet) Integration: router accuracy case kind, guard case kind (false-positive ceiling), fallback cases (router timeout, refusal, unknown key, breaker open; guard malformed and outage).
 - [ ] 7.3 Unit: scoring, ceilings, adversarial router inputs; add cases to the Hugging Face dataset and bump `pinned-datasets.toml`.
 - [ ] 7.4 Update `evals/README.md` and `thresholds.toml`.
 
