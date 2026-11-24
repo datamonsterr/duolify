@@ -49,6 +49,9 @@ export const handlers = [
   ),
   // SSO is off unless a test or the API turns it on.
   http.get("*/v1/auth/sso/config", () => HttpResponse.json({ enabled: false })),
+  http.get("*/v1/auth/turnstile/config", () =>
+    HttpResponse.json({ enabled: false }),
+  ),
   http.get("*/v1/lessons/:lesson/position", () => HttpResponse.json(null)),
   http.put("*/v1/lessons/:lesson/position", async ({ request }) =>
     HttpResponse.json(await request.json()),
