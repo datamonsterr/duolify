@@ -320,3 +320,25 @@ test("a dictated Quick note is saved at once with a voice anchor, and Undo remov
   await expect.poll(() => seen.deleted.length).toBe(1);
   await expect(page.getByTestId("toast")).toHaveCount(0);
 });
+
+test.describe("plain voice hints at phone size", () => {
+  const phone = VIEWPORTS[0];
+  test.use({ viewport: { width: phone.width, height: phone.height } });
+  test("permission denied shows a short toast beside the mic", async ({
+    page,
+    request,
+  }, info) => {
+    const { state } = await setup(page, request, phone, "voice-denied-phone");
+    await mock(page);
+    await page.context().addInitScript(() => {
+      navigator.mediaDevices.getUserMedia = () =>
+        Promise.reject(new DOMException("denied", "NotAllowedError"));
+    });
+    await openPanel(page, state.lesson);
+    await page.getByTestId("voice-mic").click();
+    await expect(page.getByTestId("toast")).toContainText(
+      "Microphone access is off",
+    );
+    await shot(page, info, phone, "voice-denied-toast");
+  });
+});
