@@ -185,7 +185,7 @@ Reuse bounded Engine paths and Golden set thresholds. Add synthetic Tutor/Guided
 ### Spec
 
 - [Tutor chat streaming](specs/tutor-chat/spec.md#requirement-streaming-replies), [Tutor chat recovery](specs/tutor-chat/spec.md#requirement-edge-chat-authority-and-recovery), and [Guided chat edge transport](specs/guided-chat/spec.md).
-- [ ] Add WebSocket transport behind the server flag, Edge SSE when upgrade/connection fails, and the existing Go/Engine fallback. Preserve one turn identity, consent, stop, draft recovery, offline behavior and accessible announcements. Include desktop and mobile screenshots of the connected and fallback UI in the PR body and request owner UI approval before merge.
+- [x] Add WebSocket transport behind the server flag, Edge SSE when upgrade/connection fails, and the existing Go/Engine fallback. Preserve one turn identity, consent, stop, draft recovery, offline behavior and accessible announcements. Include desktop and mobile screenshots of the connected and fallback UI in the PR body and request owner UI approval before merge.
 
 ### Tests (TDD order)
 

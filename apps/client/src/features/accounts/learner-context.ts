@@ -1,6 +1,7 @@
 import { authRequest, credentialStore, session } from "./session";
 import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
 import { applyServerMascot } from "./mascot-settings";
+import { sendGuidedTurn } from "../chat/chat-transport";
 
 export const contextFields = [
   { id: "goal", label: "Goal", kind: "text" },
@@ -173,14 +174,16 @@ export const profileApi = {
     is_follow_up?: boolean;
     draft?: Partial<ContextFields>;
   }) {
-    return authRequest<{
-      message: string;
-      quick_replies: { id: string; label: string }[];
-      updated_profile: Partial<ContextFields>;
-      next_step: string;
-      is_follow_up: boolean;
-      is_complete: boolean;
-    }>("/v1/me/setup-chat", turn, await accessToken());
+    return sendGuidedTurn("setup", turn, async () =>
+      authRequest<{
+        message: string;
+        quick_replies: { id: string; label: string }[];
+        updated_profile: Partial<ContextFields>;
+        next_step: string;
+        is_follow_up: boolean;
+        is_complete: boolean;
+      }>("/v1/me/setup-chat", turn, await accessToken()),
+    );
   },
   async readSettings() {
     const settings = await authRequest<LearnerSettings>(

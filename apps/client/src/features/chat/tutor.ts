@@ -240,7 +240,9 @@ async function call<T>(
   }
 }
 
-export const tutorService: TutorService = {
+import { createEdgeTutorService } from "./chat-transport";
+
+export const legacyTutorService: TutorService = {
   wallet: () => call("/v1/me/credits"),
   thread: (id) => call(`${course(id)}/thread`),
   quote: (id, cls, message, approveLargeContext, lesson, region) =>
@@ -331,3 +333,8 @@ export const tutorService: TutorService = {
     return done;
   },
 };
+
+export const tutorService: TutorService = createEdgeTutorService(
+  {},
+  legacyTutorService,
+);
