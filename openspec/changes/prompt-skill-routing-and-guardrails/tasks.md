@@ -9,17 +9,17 @@ Future implementation checklist; this change delivers specification and a measur
 
 ## 1. Skill module loader and fingerprint (M)
 
-- [ ] 1.1 E2E: a task with `prompt_mode = "monolithic"` produces byte-identical prompts to today for every golden fixture (guards all later groups).
-- [ ] 1.2 Integration: `engine/config/skills/*.toml` load at startup; unknown task, duplicate id, missing field, conflicting pair and over-budget set fail the boot check with a typed error.
-- [ ] 1.3 Unit: deterministic assembly (order, de-dup, cap, budget), token-count drift test (10 percent), skill files in `promotion::SOURCES` and `fingerprint_sources_cover_every_ai_module`.
-- [ ] 1.4 Implement `engine-core::skills` (loader, `assemble(task, ids, data) -> Prompt{system, user}`), config tables `[routing]`, `prompt_mode`; no skill content yet.
+- [x] 1.1 E2E: a task with `prompt_mode = "monolithic"` produces byte-identical prompts to today for every golden fixture (guards all later groups).
+- [x] 1.2 Integration: `engine/config/skills/*.toml` load at startup; unknown task, duplicate id, missing field, conflicting pair and over-budget set fail the boot check with a typed error.
+- [x] 1.3 Unit: deterministic assembly (order, de-dup, cap, budget), token-count drift test (10 percent), skill files in `promotion::SOURCES` and `fingerprint_sources_cover_every_ai_module`.
+- [x] 1.4 Implement `engine-core::skills` (loader, `assemble(task, ids, data) -> Prompt{system, user}`), config tables `[routing]`, `prompt_mode`; no skill content yet.
 
 ## 2. Provider system/user split and dynamic max_tokens (M)
 
-- [ ] 2.1 Integration: `request_model` sends `system` (prefix) and `user` (data) for routed prompts and the single `user` message for monolithic prompts; steering policy envelope unchanged.
+- [x] 2.1 Integration: `request_model` sends `system` (prefix) and `user` (data) for routed prompts and the single `user` message for monolithic prompts; steering policy envelope unchanged.
 - [ ] 2.2 Integration: `max_tokens` = min(task cap, ceiling-derived output) with task minimum; usage records `cached_input_tokens` and bills the cache-read rate.
-- [ ] 2.3 Unit: layout has no volatile value before the first user byte; same prefix across two requests is byte-identical.
-- [ ] 2.4 Implement; replace Rust `Debug` rendering of the lesson request (`format!("{context:?}")` in `engine-server`) with compact JSON behind the same switch and measure the token delta on the golden fixtures.
+- [x] 2.3 Unit: layout has no volatile value before the first user byte; same prefix across two requests is byte-identical.
+- [x] 2.4 Implement; replace Rust `Debug` rendering of the lesson request (`format!("{context:?}")` in `engine-server`) with compact JSON behind the same switch and measure the token delta on the golden fixtures.
 
 ## 3. Split prompts task by task, ordered by spend (L, three PRs)
 

@@ -85,12 +85,22 @@ impl HttpProvider {
                 body["provider"]["zdr"] = json!(true);
             }
         }
-        if let Some(data) = engine_core::steering::provider_data(input) {
+        // A routed prompt keeps its stable prefix first, so the provider can cache it; a
+        // steering policy, when present, follows it and the data stays the user message.
+        let steering = engine_core::steering::provider_data(input);
+        if route.system.is_some() || steering.is_some() {
+            let user = steering.as_deref().unwrap_or(input);
+            let system = match (&route.system, steering.is_some()) {
+                (Some(s), true) => format!("{s}\n\n{}", engine_core::steering::POLICY),
+                (Some(s), false) => s.clone(),
+                (None, _) => engine_core::steering::POLICY.to_string(),
+            };
             if self.anthropic {
-                body["system"] = json!(engine_core::steering::POLICY);
-                body["messages"] = json!([{"role":"user","content":data}]);
+                body["system"] = json!(system);
+                body["messages"] = json!([{"role":"user","content":user}]);
             } else {
-                body["messages"] = json!([{"role":"system","content":engine_core::steering::POLICY},{"role":"user","content":data}]);
+                body["messages"] =
+                    json!([{"role":"system","content":system},{"role":"user","content":user}]);
             }
         }
         // The one bounded repair replays the rejected answer and a corrective user turn.

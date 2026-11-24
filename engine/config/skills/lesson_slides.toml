@@ -1,0 +1,91 @@
+# Prompt skills for lesson_slides (ADR 0025, group 3a). Bodies start from the spike
+# (`evals/spikes/prompt-routing/run.py`). `prompt_mode` stays "monolithic" (today's single prompt)
+# until the task's rollout PR. Rule skills (language_practice, character_cast) are chosen from
+# request fields; model-routed ones (diagram, code, math, table, timeline) wait for the router
+# (group 4) and are not loaded until then. `default` skills load for every routed lesson.
+task = "lesson_slides"
+prompt_mode = "monolithic"
+
+[routing]
+max_skills = 4
+budget_tokens = 400
+
+[[skill]]
+id = "diagram_layout"
+description = "The lesson explains a process, structure, flow or labelled figure that is best drawn."
+tasks = ["lesson_slides"]
+version = 1
+order = 40
+tokens = 93
+default = true
+body = """Skill diagram_layout: draw the figure as inline SVG (viewBox 0 0 100 60) in the body slot, 3 to 6 labelled nodes, arrows with marker-end, one idea per slide, labels under 3 words. Region role diagram, description lists the node labels. Example: <svg data-slot=\"body\" viewBox=\"0 0 100 60\"><rect x=\"5\" y=\"20\" width=\"25\" height=\"15\"/><text x=\"8\" y=\"30\">Client</text></svg>"""
+
+[[skill]]
+id = "code_slide"
+description = "The lesson teaches programming, a query, a command or any code the learner reads."
+tasks = ["lesson_slides"]
+version = 1
+order = 41
+tokens = 71
+default = false
+body = """Skill code_slide: show code in <pre><code> inside the left or body slot, at most 8 lines, 24 columns wide per half, monospace, no syntax colors needed. Put the explanation of the key line in the other half (role explanation). Region role code, description quotes the key identifier."""
+
+[[skill]]
+id = "math_notation"
+description = "The lesson involves formulas, equations, numeric steps or units."
+tasks = ["lesson_slides"]
+version = 1
+order = 42
+tokens = 62
+default = false
+body = """Skill math_notation: write formulas with Unicode (x², √, ≤, π, ×, ÷), never LaTeX, one equation per line, work one step per line and highlight the changing term with <b>. Narration reads the formula in words. Region description quotes the formula."""
+
+[[skill]]
+id = "comparison_table"
+description = "The lesson contrasts two or more things (differences, pros and cons, A versus B)."
+tasks = ["lesson_slides"]
+version = 1
+order = 43
+tokens = 58
+default = false
+body = """Skill comparison_table: use one <table> in the body slot with a header row and 3 to 4 rows, one criterion per row, cells under 5 words. Narration walks one row at a time. Region role example, description names both compared items."""
+
+[[skill]]
+id = "timeline"
+description = "The lesson is about ordered events, history, stages or a sequence over time."
+tasks = ["lesson_slides"]
+version = 1
+order = 44
+tokens = 56
+default = false
+body = """Skill timeline: render 3 to 5 events as an ordered list <ol> with the date or step first in <b>, oldest first, in the body slot. Narration follows the order. Region role diagram, description lists the first and last event."""
+
+[[skill]]
+id = "narration_pacing"
+description = "Narration is read aloud by the player."
+tasks = ["lesson_slides"]
+version = 1
+order = 50
+tokens = 54
+default = true
+body = """Skill narration_pacing: write narration as short spoken sentences, 15 to 40 words per slide, with symbols and abbreviations spelled out; it is read aloud, so no lists or markup. duration_ms follows the word count."""
+
+[[skill]]
+id = "language_practice"
+description = "The learner locale is not English."
+tasks = ["lesson_slides"]
+version = 1
+order = 60
+tokens = 80
+default = false
+body = """Skill language_practice: write every learner-facing text (slides, narration, questions, explanations) in the language of learner.locale; keep code identifiers and quoted terms in their original form. When the topic is a foreign language, show the target phrase with its meaning and ask the learner to choose or say it."""
+
+[[skill]]
+id = "character_cast"
+description = "The request carries character_personas."
+tasks = ["lesson_slides"]
+version = 1
+order = 70
+tokens = 69
+default = false
+body = """Skill character_cast: each slide may list segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate. Keep the speakers in turn and each persona's voice recognisable."""
