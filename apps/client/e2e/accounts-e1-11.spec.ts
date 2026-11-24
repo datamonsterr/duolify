@@ -8,6 +8,9 @@ test.beforeEach(async ({ page, request }) => {
   await page.addInitScript(() =>
     localStorage.setItem("duolify.guided.onboarding", "off"),
   );
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
   await resetAuthRateLimits(request);
   await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
     const original = route.request();
