@@ -109,10 +109,10 @@ for (const { name, width, height } of viewports) {
       await expect(empty).toBeVisible();
       expect((await empty.boundingBox())!.height).toBeLessThan(200);
       await expect(
-        empty.getByRole("button", { name: "Create a course" }),
+        empty.getByRole("link", { name: "Create a course" }),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: "Create a course" }),
+        page.getByRole("link", { name: "Create a course" }).first(),
       ).toBeVisible();
     });
 

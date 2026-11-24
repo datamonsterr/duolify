@@ -188,14 +188,9 @@ export function Courses({
       {data?.length === 0 && (
         <div className="course-empty">
           <h2>What would you like to keep learning?</h2>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              navigateTo("/courses/create");
-            }}
-          >
+          <AppLink className="duo-button secondary" href="/courses/create">
             {t("courses.create")}
-          </Button>
+          </AppLink>
         </div>
       )}
       {data && (
