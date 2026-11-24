@@ -358,6 +358,9 @@ jobs:
         with:
           tauri: 'true'
           cache-key: native
+      - name: Identify Tauri apt cache
+        id: tauri-apt-key
+        run: mise run ci:tauri-apt-key
       - name: Restore Tauri apt archives and indexes
         id: tauri-apt
         uses: actions/cache/restore@v6
@@ -365,7 +368,7 @@ jobs:
           path: |
             ~/.cache/tauri-apt-archives
             ~/.cache/tauri-apt-lists
-          key: apt-tauri-v1-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ runner.arch }}-${{ hashFiles('scripts/ci/tauri-deps.sh') }}
+          key: ${{ steps.tauri-apt-key.outputs.key }}-${{ hashFiles('scripts/ci/tauri-deps.sh') }}
       - name: mise run ci:tauri-deps
         run: mise run ci:tauri-deps
         timeout-minutes: 10
@@ -665,6 +668,9 @@ jobs:
         with:
           tauri: 'true'
           cache-key: build
+      - name: Identify Tauri apt cache
+        id: tauri-apt-key
+        run: mise run ci:tauri-apt-key
       - name: Restore Tauri apt archives and indexes
         id: tauri-apt
         uses: actions/cache/restore@v6
@@ -672,7 +678,7 @@ jobs:
           path: |
             ~/.cache/tauri-apt-archives
             ~/.cache/tauri-apt-lists
-          key: apt-tauri-v1-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ runner.arch }}-${{ hashFiles('scripts/ci/tauri-deps.sh') }}
+          key: ${{ steps.tauri-apt-key.outputs.key }}-${{ hashFiles('scripts/ci/tauri-deps.sh') }}
       - name: mise run ci:tauri-deps
         run: mise run ci:tauri-deps
         timeout-minutes: 10

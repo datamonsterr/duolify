@@ -51,6 +51,13 @@ version=$(pnpm exec playwright --version | awk '{print $2}')
 printf 'key=apt-playwright-%s-%s-%s-%s\n' "${ImageOS:?}" "${ImageVersion:?}" "$(uname -m)" "$version" >> "$GITHUB_OUTPUT"
 '''
 
+["ci:tauri-apt-key"]
+description = "Expose the runner image for the Tauri apt cache"
+run = '''
+set -eu
+printf 'key=apt-tauri-v2-%s-%s-%s\n' "${ImageOS:?}" "${ImageVersion:?}" "$(uname -m)" >> "$GITHUB_OUTPUT"
+'''
+
 ["ci:tauri-deps"]
 description = "Install Tauri Linux prerequisites from the runner-specific apt cache"
 run = "bash scripts/ci/tauri-deps.sh"
