@@ -407,6 +407,7 @@ pub async fn select_lesson_skills(
         &input,
         crate::router::installed(),
         crate::router::shared_cache(),
+        crate::router::shared_breaker(),
         crate::router::TIMEOUT,
     )
     .await

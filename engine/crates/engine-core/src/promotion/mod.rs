@@ -246,6 +246,8 @@ pub const EXCLUDED_SOURCES: &[&str] = &[
     "engine-core/src/backup/mod.rs",
     "engine-core/src/pricing/mod.rs",
     "engine-core/src/promotion/mod.rs",
+    // Redis cache and breaker for router decisions: they bound spend, never the prompt text.
+    "engine-providers/src/state.rs",
     // engine-eval: command line, report writing and analytics rows decide nothing about whether a
     // case passed.
     "engine-eval/src/lib.rs",

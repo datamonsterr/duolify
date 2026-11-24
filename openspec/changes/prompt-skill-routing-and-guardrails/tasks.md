@@ -34,7 +34,7 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 ## 4. Router: rules, cache, model (L)
 
 - [ ] 4.1 E2E: lesson generation with a diagram topic loads `diagram_layout`; router outage loads the default set and the lesson still validates.
-- [ ] 4.2 (done: client, cache trait, fallback, model; open: Redis backend, daily breaker) Integration: Decisions API client behind `SkillRouter` trait (noul per undecided skill, threshold per skill, `provider.data_collection = deny`, 800 ms timeout, refusal and unknown-key handling) plus chat-model enum fallback; Redis cache with 30 day TTL keyed by (task, skills version, router version, input hash); daily budget breaker.
+- [x] 4.2 (client, cache trait, fallback, model, Redis cache and daily breaker via `engine-providers::state`) Integration: Decisions API client behind `SkillRouter` trait (noul per undecided skill, threshold per skill, `provider.data_collection = deny`, 800 ms timeout, refusal and unknown-key handling) plus chat-model enum fallback; Redis cache with 30 day TTL keyed by (task, skills version, router version, input hash); daily budget breaker.
 - [ ] 4.3 Unit: rule table per task, source precedence, cap and budget trimming, router input contains no free text (type-level: only `RouterInput` fields), counters.
 - [ ] 4.4 Implement; mock router for offline evals; recorded fixtures for the decision model.
 

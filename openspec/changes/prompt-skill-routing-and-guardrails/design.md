@@ -244,6 +244,12 @@ Net: tutor chat becomes about 15 to 20 percent cheaper after guard, lessons are 
 - Analytics: `input_guard_decision` with `surface`, `allowed`, `reason_code`, `guard_source` (`pre_filter`, `model`, `failure`) and `latency_ms`; closed enums only, never text.
 - Golden rows: 14 `live-guard-*` rows in `pending-prompt-skills.jsonl` (attacks decided by the pre-filter, self-harm, off-topic, grading attack, unsafe request, and benign look-alikes including a study question about suicide risk and a Vietnamese topic). A unit test keeps the pre-filter rows in step with the pre-filter.
 
+## 13. Router state in Redis (task 4.2)
+
+- `engine-providers::state` installs a Redis-backed `DecisionCache` (key `duolify:router:decision:<sha256>`, 30 day TTL) and `Breaker` when `REDIS_URL` is set (the compose engine service now passes it); otherwise the process keeps its memory cache and no breaker. Operations time out at 100 ms; a Redis error is a cache miss.
+- Breaker: counters `duolify:router:spend:<utc day>` (an estimate of 9,000 nanos per model call, since the Decisions API returns no cost to us) and `duolify:engine:spend:<utc day>` (the spend of every bounded run, in `eval::run_bounded_formatted`). Open when router spend is above 0.001 USD and above 1 percent of the day's engine spend; open means the default skill set (`router_source = breaker`), never a failed generation. If the counters cannot be read the breaker is open (the optional model is skipped).
+- Not measured: a real Redis round trip (no Redis in this environment; the unit tests run the same code over a fake `Kv`). The first routed live run on a deployment with Redis should confirm `router_source = cache` on a repeated lesson.
+
 ## Owner questions
 
 1. Self-harm response: which support resources and wording per supported locale (English, Vietnamese, Spanish), and who reviews them. The engine returns a code; the API shows owner-approved copy.

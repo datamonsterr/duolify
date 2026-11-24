@@ -65,6 +65,7 @@ async fn run(router: Option<&dyn SkillRouter>, cache: &dyn DecisionCache) -> Sel
         &input(),
         router,
         cache,
+        &NoBreaker,
         Duration::from_millis(50),
     )
     .await
@@ -125,6 +126,7 @@ async fn unknown_task_or_no_candidates_is_rules_only() {
         &input(),
         None,
         &MemoryCache::default(),
+        &NoBreaker,
         TIMEOUT,
     )
     .await;
@@ -155,4 +157,72 @@ fn input_is_bounded_and_the_cache_key_tracks_input_and_thresholds() {
     let mut other = input();
     other.title = "other".into();
     assert_ne!(k, cache_key(&l, "lesson_slides", &c(0.9), &other));
+}
+
+#[test]
+fn breaker_opens_when_router_spend_passes_one_percent_of_engine_spend_above_the_floor() {
+    assert!(
+        !breaker_open(BREAKER_FLOOR_NANOS, 0),
+        "the floor is always allowed"
+    );
+    assert!(breaker_open(BREAKER_FLOOR_NANOS + 1, 0));
+    assert!(!breaker_open(2_000_000, 200_000_000));
+    assert!(breaker_open(2_000_000, 199_999_999));
+    assert!(
+        !breaker_open(u64::MAX, u64::MAX),
+        "saturating, no overflow panic"
+    );
+}
+
+#[tokio::test]
+async fn open_breaker_skips_the_model_and_uses_the_default_set() {
+    let r = Fixed(
+        BTreeMap::from([("code_slide".to_string(), 0.99)]),
+        AtomicUsize::new(0),
+    );
+    let b = MemoryBreaker::default();
+    b.record_router(BREAKER_FLOOR_NANOS + 1).await;
+    let s = select(
+        &lib(),
+        "lesson_slides",
+        vec!["narration_pacing".into()],
+        MANAGED,
+        &BTreeMap::new(),
+        &input(),
+        Some(&r),
+        &MemoryCache::default(),
+        &b,
+        Duration::from_millis(50),
+    )
+    .await;
+    assert_eq!(s.source, Source::Breaker);
+    assert_eq!(s.ids, ["narration_pacing", "diagram_layout"]);
+    assert_eq!(r.1.load(Ordering::SeqCst), 0);
+    // Main-model spend reopens it.
+    b.record_engine(10_000_000_000).await;
+    assert!(!b.open().await);
+}
+
+#[tokio::test]
+async fn each_model_call_is_counted_and_a_cache_hit_is_free() {
+    let r = Fixed(BTreeMap::new(), AtomicUsize::new(0));
+    let b = MemoryBreaker::default();
+    let cache = MemoryCache::default();
+    for _ in 0..2 {
+        select(
+            &lib(),
+            "lesson_slides",
+            vec!["narration_pacing".into()],
+            MANAGED,
+            &BTreeMap::new(),
+            &input(),
+            Some(&r),
+            &cache,
+            &b,
+            Duration::from_millis(50),
+        )
+        .await;
+    }
+    assert_eq!(r.1.load(Ordering::SeqCst), 1);
+    assert_eq!(b.router.load(Ordering::Relaxed), ROUTER_CALL_NANOS);
 }
