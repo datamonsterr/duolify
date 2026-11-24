@@ -9,6 +9,7 @@ Duolify turns any topic a person wants to learn long-term into a Duolingo-style 
 | `apps/client` | Desktop + mobile app | Tauri 2, React, TypeScript, Vite |
 | `services/api` | Public API router, auth, progress, streaks, credits, workers | Go |
 | `engine` | AI agent engine: course and lesson generation, chat, notes, evals | Rust (Cargo workspace, gRPC via tonic) |
+| `edge` | Cloudflare Workers for public reads and edge transport | TypeScript, Wrangler, Workers Vitest |
 | `proto` | gRPC contract between `services/api` and `engine` | Protobuf + buf |
 | `evals` | Golden-set config (dataset lives on Hugging Face) | — |
 | `infra` | Docker, Railway config, backups | Docker compose, Railway |

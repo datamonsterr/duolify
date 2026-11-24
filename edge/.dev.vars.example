@@ -1,0 +1,18 @@
+# Set to true for local caching. The checked-in Worker config leaves routing disabled.
+PUBLIC_READ_EDGE_ENABLED=false
+PUBLIC_READ_MODE=hyperdrive
+# For local Hyperdrive export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_MARKETPLACE_DB in the shell.
+# Mirror Go's browser origin allowlist for Worker-generated error responses.
+API_ALLOWED_ORIGINS=http://localhost:1420,http://127.0.0.1:1420
+# Local Go API endpoint. Use an HTTPS origin outside loopback.
+PUBLIC_READ_ORIGIN=http://127.0.0.1:4191
+# Match the Go API values when testing Marketplace.
+MARKETPLACE_ENABLED=false
+MARKETPLACE_CACHE_TTL_SECONDS=60
+MARKETPLACE_PAGE_SIZE=20
+MARKETPLACE_MAX_PAGE_SIZE=50
+MARKETPLACE_MAX_QUERY_LENGTH=100
+MARKETPLACE_RATING_MIN_COUNT=10
+MARKETPLACE_RATING_PRIOR=3.5
+# Use the same synthetic local secret as Go. Empty disables Go-origin cache fills.
+PUBLIC_READ_ORIGIN_SECRET=

@@ -132,6 +132,10 @@ services:
     command: [serve]
     environment:
       <<: *api-env
+      # Only the API handles the trusted Worker-to-origin read protocol.
+      PUBLIC_READ_ORIGIN_SECRET: ${PUBLIC_READ_ORIGIN_SECRET:-}
+      MARKETPLACE_ENABLED: ${MARKETPLACE_ENABLED:-false}
+      MARKETPLACE_CACHE_TTL_SECONDS: ${MARKETPLACE_CACHE_TTL_SECONDS:-60}
       # Scoped append-only ledger access; never use RustFS root credentials.
       BACKUP_S3_ENDPOINT: http://objectstore:9000
       BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}

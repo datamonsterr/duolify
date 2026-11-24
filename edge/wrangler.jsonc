@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "duolify-public-read",
+  "main": "workers/public-read/index.ts",
+  "compatibility_date": "2026-11-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "hyperdrive": [
+    {
+      "binding": "MARKETPLACE_DB",
+      "id": "00000000000000000000000000000000",
+      "localConnectionString": "postgres://duolify_edge_ro:local-placeholder-only@127.0.0.1:5432/duolify?sslmode=disable",
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "MARKETPLACE_RATE_LIMIT",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 },
+    },
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "observability": { "enabled": false },
+  "vars": {
+    "PUBLIC_READ_EDGE_ENABLED": "false",
+    "PUBLIC_READ_MODE": "hyperdrive",
+    "API_ALLOWED_ORIGINS": "",
+    "PUBLIC_READ_ORIGIN": "http://127.0.0.1:4191",
+    "MARKETPLACE_ENABLED": "false",
+    "MARKETPLACE_CACHE_TTL_SECONDS": "60",
+  },
+}

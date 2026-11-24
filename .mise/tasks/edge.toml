@@ -1,0 +1,23 @@
+["edge:lint"]
+description = "Check Worker source and configuration formatting"
+dir = "{{config_root}}/edge"
+run = "pnpm exec prettier --check ."
+
+["edge:test"]
+description = "Test the Worker in workerd against seeded Go HTTP handlers"
+dir = "{{config_root}}/services/api"
+run = "go test -count=1 -tags integration,edge_conformance -run '^TestEdgePublicRead$' -v ./internal/sharing"
+
+["edge:build"]
+description = "Type-check and bundle the Worker locally"
+dir = "{{config_root}}/edge"
+run = [
+  "pnpm exec tsc --noEmit",
+  "pnpm exec esbuild workers/public-read/index.ts --bundle --platform=node --format=esm --external:pg-native --target=es2022 --outdir=dist/public-read",
+]
+
+["edge:dev"]
+description = "Run the public read Worker on loopback using local workerd"
+dir = "{{config_root}}/edge"
+env = { WRANGLER_SEND_METRICS = "false" }
+run = "pnpm exec wrangler dev --local --ip 127.0.0.1 --port 4190"
