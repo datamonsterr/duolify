@@ -506,6 +506,10 @@ func (s *Service) pageKey(q BrowseQuery) string {
 
 // Browse serves one catalogue page. viewer may be empty (anonymous).
 func (s *Service) Browse(ctx context.Context, viewer string, q BrowseQuery) (Page, error) {
+	return s.browse(ctx, viewer, q, true)
+}
+
+func (s *Service) browse(ctx context.Context, viewer string, q BrowseQuery, useRedis bool) (Page, error) {
 	if !s.cfg.MarketplaceEnabled {
 		return Page{}, ErrMarketplaceDisabled
 	}
@@ -521,7 +525,7 @@ func (s *Service) Browse(ctx context.Context, viewer string, q BrowseQuery) (Pag
 		viewer = ""
 	}
 	// A viewer with blocks gets an exact, uncached page; everyone else shares the cache.
-	cacheable := s.cache != nil
+	cacheable := useRedis && s.cache != nil
 	if cacheable && viewer != "" {
 		var blocks bool
 		if err = s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM learner_blocks WHERE blocker_id=$1 OR blocked_id=$1)`, viewer).Scan(&blocks); err != nil {
@@ -669,6 +673,7 @@ LIMIT %s`, key, tie, where.String(), keyset, arg(q.Limit+1))
 			it.RatingAverage = &avg
 		}
 		it.Description = clip(it.Description, 280)
+		it.PublishedAt = it.PublishedAt.UTC()
 		page.Items = append(page.Items, it)
 		positions = append(positions, p)
 	}
@@ -719,6 +724,7 @@ WHERE l.course_id=$1 AND l.delisted_at IS NULL AND l.hidden_at IS NULL`, courseI
 			return MarketCoursePage{}, ErrCourseUnavailable
 		}
 	}
+	p.PublishedAt = p.PublishedAt.UTC()
 	if p.RatingCount > 0 {
 		avg := float64(sum) / float64(p.RatingCount)
 		p.RatingAverage = &avg

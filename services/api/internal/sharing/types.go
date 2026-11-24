@@ -91,6 +91,8 @@ type Config struct {
 	PreviewRateWindowSeconds int
 	// TrustedProxyHops is how many reverse proxies append to X-Forwarded-For (shared with auth).
 	TrustedProxyHops int
+	// EdgeOriginSecret authenticates Worker-to-Go requests. An empty value disables the protocol.
+	EdgeOriginSecret string
 	// E15-07 Marketplace. The release flag is OFF until moderation and takedown ship and legal
 	// approves (ADR 0012); every cap below is configuration.
 	MarketplaceEnabled             bool
@@ -184,6 +186,7 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	}
 	// Only the exact word "true" turns the Marketplace on.
 	c.MarketplaceEnabled = getenv("MARKETPLACE_ENABLED") == "true"
+	c.EdgeOriginSecret = getenv("PUBLIC_READ_ORIGIN_SECRET")
 	positive := func(key string, dst *int, lo, hi int) {
 		if n, err := strconv.Atoi(getenv(key)); err == nil && n >= lo && n <= hi {
 			*dst = n

@@ -21,7 +21,7 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 	} {
 		mux.Handle(pattern, owner)
 	}
-	mux.Handle("GET /v1/public/shares/{token}", optional(NewPreviewHandler(s)))
+	mux.Handle("GET /v1/public/shares/{token}", optional(s.withEdgeReadAnalytics("share_preview", NewPreviewHandler(s))))
 	enroll := protect(NewEnrollHandler(s))
 	mux.Handle("POST /v1/public/shares/{token}/enroll", enroll)
 	mux.Handle("GET /v1/public/shares/{token}/enrollment", enroll)
@@ -39,9 +39,9 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 	}
 	// E15-07 Marketplace: public reads are anonymous-safe (the session only adds the block filter),
 	// enrollment and the owner listing routes need a session. Every route is a neutral 404 while the flag is off.
-	market := NewMarketHandler(s)
-	mux.Handle("GET /v1/marketplace/courses", optional(market))
-	mux.Handle("GET /v1/marketplace/courses/{id}", optional(market))
+	market := &MarketHandler{c: s, edge: s}
+	mux.Handle("GET /v1/marketplace/courses", optional(s.withEdgeReadAnalytics("marketplace", market)))
+	mux.Handle("GET /v1/marketplace/courses/{id}", optional(s.withEdgeReadAnalytics("course_page", market)))
 	mux.Handle("POST /v1/marketplace/courses/{id}/enroll", protect(market))
 	reviews := ReviewHandler{s: s}
 	mux.Handle("GET /v1/marketplace/courses/{id}/reviews", optional(reviews))

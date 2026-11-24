@@ -110,7 +110,7 @@ func allowlisted(event string) bool {
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
-		"marketplace_browsed", "marketplace_searched", "course_viewed", "example_courses_viewed", "example_course_enrolled",
+		"marketplace_browsed", "marketplace_searched", "course_viewed", "example_courses_viewed", "example_course_enrolled", "edge_public_read",
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
@@ -342,6 +342,17 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "published_lesson_reused", "published_lesson_generated_on_demand":
 		ids("course_id", "lesson_id")
 		numeric("version")
+	case "edge_public_read":
+		for key, allowed := range map[string][]string{
+			"surface":      {"share_preview", "course_page", "shared_demo", "marketplace"},
+			"read_path":    {"hyperdrive", "go_cache", "go_origin"},
+			"cache_status": {"hit", "miss", "bypass"},
+			"outcome":      {"served", "not_found", "unavailable"},
+		} {
+			if value, ok := input[key].(string); ok && slices.Contains(allowed, value) {
+				out[key] = value
+			}
+		}
 	case "marketplace_browsed", "marketplace_searched":
 		// Closed vocabulary only: the search text never reaches analytics, only its length.
 		if v, _ := input["category"].(string); marketCategories[v] {
