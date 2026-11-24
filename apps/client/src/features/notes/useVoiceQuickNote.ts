@@ -8,6 +8,7 @@ import { useUiPreferences } from "../design/localization/Preferences";
 import type { Transcript, VoiceNotice } from "../voice/useVoiceInput";
 import type { VoiceBubbleControls } from "../voice/VoiceBubble";
 import type { NoteAnchor } from "./note-queue";
+import { requestFormat, setFormatTurnsLeft } from "./format-turns";
 import { saveNote, undoSavedNote } from "./save-note";
 
 /** What the hook needs to know about the player at the instant it is asked. */
@@ -152,6 +153,30 @@ export function useVoiceQuickNote({
       has_region: !!start.anchor.rect,
       language,
     });
+    if (saved.freeFormatsLeft !== undefined)
+      setFormatTurnsLeft(saved.freeFormatsLeft);
+    // Past the free formats the note stays raw; the one action offers a paid Format on request.
+    if (saved.formatOffer && saved.id) {
+      const id = saved.id;
+      showToast({
+        id: "note-saved",
+        message: tr("imm.saved_format"),
+        action: {
+          label: tr("imm.format"),
+          onAction: () => {
+            showToast({ id: "note-saved", message: tr("imm.formatting") });
+            requestFormat(id).catch(() =>
+              showToast({
+                id: "note-saved",
+                message: tr("imm.format_failed"),
+                tone: "error",
+              }),
+            );
+          },
+        },
+      });
+      return;
+    }
     showToast({
       id: "note-saved",
       message: tr("imm.saved"),

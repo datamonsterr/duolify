@@ -8,6 +8,7 @@ import {
   trackQuickNoteReviewed,
 } from "../../lib/analytics";
 import { AppLink } from "../../lib/navigation";
+import { FormattedNote } from "./FormattedNote";
 import { NoteAnchorLine, type NoteAnchorView } from "./NoteAnchorLine";
 
 export type QuickNoteItem = {
@@ -28,6 +29,9 @@ export type QuickNoteItem = {
     | "raw_only"
     | "waiting_to_sync";
   summary?: string | null;
+  /** AI formatting of a Voice note; present only while it matches the current raw text. */
+  title?: string | null;
+  formatted_body?: string | null;
   tags?: string[] | null;
   links?: string[] | null;
   /** Set for notes saved from tutor chat; `unavailable` once that thread was deleted. */
@@ -91,6 +95,7 @@ export function NotesPage() {
 
   // Edit and revision concurrency states
   const [isEditing, setIsEditing] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
   const [editText, setEditText] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -1061,13 +1066,21 @@ export function NotesPage() {
               )}
 
               {/* Original note card */}
+              <FormattedNote
+                note={selectedNote}
+                showOriginal={showOriginal}
+                onToggle={() => setShowOriginal((v) => !v)}
+              />
               <div
                 style={{
                   background: "#fff",
                   border: "2px solid #E3E3E3",
                   borderRadius: "18px",
                   padding: "18px 20px",
-                  display: "flex",
+                  display:
+                    selectedNote.formatted_body && !showOriginal && !isEditing
+                      ? "none"
+                      : "flex",
                   flexDirection: "column",
                   gap: "10px",
                 }}

@@ -16,5 +16,16 @@ A headless `useVoiceQuickNote` hook in `features/notes`, extracted from the dict
 ## Decisions
 - Raw first, then format: the Learner can never lose a note to a model failure.
 - No review step: the Learner can Undo or edit on the Notes page.
-- Formatting adds no charge and no price; it shares the existing `quick_note` reservation.
+- Formatting is free for the first 5 Voice notes per Learner per local day (owner decision 2026-11-24); after that a Voice note is saved raw and only an explicit Format charges the existing `quick_note` price. No price changes.
 - No keys registered here; the hotkey layer binds hold `N` to the exported functions.
+
+## Free formats (owner decision 2026-11-24)
+- 5 free formatting turns per Learner per day. The counter is a Postgres row per Learner and local day (`quick_note_format_turns`), reset by the same Learner-local clock as the voice daily cap (`credits.LocalDay`). The API enforces it; the client only displays it.
+- A Voice note (anchor `input: voice`) is formatted only while it holds a grant: `quick_notes.format_grant` is `free` (a turn taken at save) or `paid` (an explicit Format request). The grant is set with a single atomic upsert (`used < 5`), so two saves cannot take the same last turn and one note never takes two turns. The grant is spent when the note is formatted and refunded (free turn returned, once) when formatting fails; the raw note is always kept.
+- A free turn spends no Credits: the job skips the reservation, uses the bounds of an unreserved `quick_note` quote, and writes the result in one transaction guarded by the claim.
+- After the free turns the note is saved `raw_only`, nothing is queued or charged. The Saved toast offers one action, Format; pressing it posts `POST /v1/notes/{id}/format`, which uses a free turn if one is back, else grants `paid` and the existing reservation and settlement charge the unchanged `quick_note` price.
+- Editing the raw text never formats again by itself: the old title and body stop being returned (their version no longer matches) and Format is offered again.
+- The rail icon shows the free turns left as a number in a small circle (5 to 1), hidden at 0 (`aria-label` "N free formats left"). `GET /v1/notes/format-turns` returns `limit`, `used`, `left`, `resets_at`.
+- Analytics (closed enums, no text): `quick_note_format_granted` and `quick_note_format_refunded` with `note_id`, `kind` (`free` or `paid`) and `free_left`.
+- Data: `title` and `formatted_body` live on `quick_note_enrichments` (account export, erasure and the anonymiser cover them), the counter table is erased with the Learner and is in the backup fixture.
+- Provider cost per `note_enrich` call (route `tencent/hy4-flash`, fallback `z-ai/glm-5.3-flash`, `engine/config/prices.toml`; the `quick_note` bound is 1200 input and 300 output tokens): worst case on the primary 1200 x 35 + 300 x 141 = 84,300 nanos = $0.0000843; on the fallback 1200 x 40 + 300 x 79 = 71,700 nanos = $0.0000717. A typical call (about 450 in, 150 out) costs about 36,900 nanos = $0.000037. Five free turns cost at most $0.00042 per Learner per day.

@@ -13,8 +13,11 @@
 ### 3. Verification
 - [x] 3.1 Screenshots: rail idle, recording, saved toast, Notes entry (390x844 and 844x390, light and dark), attached to the PR for the owner gate
 
-## PR C2: enrichment (blocked on owner decisions: credits for formatting, Hugging Face golden set)
-- [ ] 1.3 Integration (API): anchor persisted; enrichment job carries Slide context; `title` and `formatted_body` stored; failure keeps the raw note; export, erasure and anonymiser coverage
-- [ ] 1.5 Engine: `note_enrich` golden cases and deterministic checks (see proposal)
-- [ ] 2.4 Proto, migration, API, engine
-- [ ] 2.5b Notes page: formatted body and title with Show original
+## PR C2: enrichment and free formats (owner decisions 2026-11-24 recorded in design.md)
+- [x] 1.3 Integration (API): anchor persisted; enrichment job carries Slide context; `title` and `formatted_body` stored; failure keeps the raw note; export, erasure and anonymiser coverage
+- [x] 1.5 Engine: `note_enrich` golden cases and deterministic checks (see proposal)
+- [x] 2.4 Proto, migration, API, engine
+- [x] 2.5b Notes page: formatted body and title with Show original
+- [x] 2.6 Free formats: 5 per Learner per day, atomic and idempotent per note, refund on failure; rail badge; Format toast action after 0; no automatic charge
+- [x] 3.2 Hugging Face golden set: revision pinned with its SHA-256; voice-note formatting cases; `mise run engine:eval` passes
+- [x] 3.3 Screenshots for the owner gate: badge 5 and 1, Format toast, formatted Notes entry with Show original (844x390 and 390x844, light and dark)
