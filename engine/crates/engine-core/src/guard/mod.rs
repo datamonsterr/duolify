@@ -18,7 +18,32 @@ pub enum Reason {
     TooLong,
 }
 
+/// Guard contract version returned on the wire.
+pub const VERSION: &str = "guard-v1";
+
+impl Source {
+    pub fn code(self) -> &'static str {
+        match self {
+            Source::PreFilter => "pre_filter",
+            Source::Model => "model",
+            Source::Failure => "failure",
+        }
+    }
+}
+
 impl Reason {
+    /// Every code, in the order of the verdict schema.
+    pub const ALL: [Reason; 6] = [
+        Reason::PromptInjection,
+        Reason::UnsafeContent,
+        Reason::SelfHarm,
+        Reason::Pii,
+        Reason::OffTopicForCourse,
+        Reason::TooLong,
+    ];
+    pub fn from_code(code: &str) -> Option<Reason> {
+        Self::ALL.into_iter().find(|r| r.code() == code)
+    }
     pub fn code(self) -> &'static str {
         match self {
             Reason::PromptInjection => "prompt_injection",
@@ -54,6 +79,19 @@ pub enum OnFailure {
 }
 
 impl Surface {
+    pub fn from_code(code: &str) -> Option<Surface> {
+        Some(match code {
+            "course_topic" => Surface::CourseTopic,
+            "steer" => Surface::Steer,
+            "outline_chat" => Surface::OutlineChat,
+            "character" => Surface::Character,
+            "course_publish" => Surface::CoursePublish,
+            "review" => Surface::Review,
+            "quick_note" => Surface::QuickNote,
+            "tutor_chat" => Surface::TutorChat,
+            _ => return None,
+        })
+    }
     pub fn on_failure(self) -> OnFailure {
         match self {
             Surface::QuickNote | Surface::TutorChat => OnFailure::Open,
@@ -95,14 +133,14 @@ pub struct Decision {
 }
 
 impl Decision {
-    fn allow(source: Source) -> Self {
+    pub fn allow(source: Source) -> Self {
         Self {
             allowed: true,
             reason: None,
             source,
         }
     }
-    fn block(reason: Reason, source: Source) -> Self {
+    pub fn block(reason: Reason, source: Source) -> Self {
         Self {
             allowed: false,
             reason: Some(reason),
@@ -219,13 +257,32 @@ pub fn parse_verdict(text: &str) -> anyhow::Result<Option<Reason>> {
     #[serde(deny_unknown_fields)]
     struct V {
         allowed: bool,
-        reason_code: Option<Reason>,
+        reason_code: Option<String>,
     }
     let v: V = serde_json::from_str(text.trim())?;
-    match (v.allowed, v.reason_code) {
+    // The strict output schema uses "" for no reason; null and absent mean the same.
+    let code = v.reason_code.filter(|c| !c.is_empty());
+    match (v.allowed, code) {
         (true, _) => Ok(None),
-        (false, Some(r)) => Ok(Some(r)),
+        (false, Some(c)) => Ok(Some(
+            Reason::from_code(&c).ok_or_else(|| anyhow::anyhow!("unknown reason_code"))?,
+        )),
         (false, None) => anyhow::bail!("block without reason_code"),
+    }
+}
+
+/// Maps a classifier verdict (`None` = outage or malformed) through the surface failure rule.
+impl Decision {
+    pub fn from_verdict(surface: Surface, verdict: Option<Option<Reason>>) -> Self {
+        match verdict {
+            Some(None) => Decision::allow(Source::Model),
+            Some(Some(r)) => Decision::block(r, Source::Model),
+            None => match surface.on_failure() {
+                OnFailure::Open => Decision::allow(Source::Failure),
+                // Closed surfaces use the generic reason; the caller shows its retry message.
+                OnFailure::Closed => Decision::block(Reason::UnsafeContent, Source::Failure),
+            },
+        }
     }
 }
 
@@ -241,16 +298,10 @@ pub async fn check(surface: Surface, text: &str, model: Option<&dyn GuardModel>)
             .and_then(Result::ok),
         None => None,
     };
-    match verdict {
-        Some(None) => Decision::allow(Source::Model),
-        Some(Some(r)) => Decision::block(r, Source::Model),
-        None => match surface.on_failure() {
-            OnFailure::Open => Decision::allow(Source::Failure),
-            // Closed surfaces use the generic reason; the caller shows its retry message.
-            OnFailure::Closed => Decision::block(Reason::UnsafeContent, Source::Failure),
-        },
-    }
+    Decision::from_verdict(surface, verdict)
 }
+
+pub mod classifier;
 
 #[cfg(test)]
 mod tests;

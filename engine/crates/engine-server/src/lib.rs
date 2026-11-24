@@ -560,6 +560,51 @@ impl EngineService for Service {
             attempts: outcome.attempts.iter().map(attempt_usage).collect(),
         }))
     }
+    async fn guard_input(
+        &self,
+        request: Request<pb::GuardInputRequest>,
+    ) -> Result<Response<pb::GuardInputResponse>, Status> {
+        use engine_core::guard::{self, Source, Surface};
+        let req = request.into_inner();
+        let surface = Surface::from_code(&req.surface)
+            .ok_or_else(|| Status::invalid_argument("unknown_surface"))?;
+        let respond = |d: &guard::Decision, attempts: Vec<pb::Usage>| {
+            Response::new(pb::GuardInputResponse {
+                allowed: d.allowed,
+                reason_code: d.reason.map(|r| r.code().to_owned()).unwrap_or_default(),
+                source: d.source.code().to_owned(),
+                guard_version: guard::VERSION.into(),
+                attempts,
+            })
+        };
+        // The deterministic pre-filter decides without a model or promotion evidence.
+        if let Some(r) = guard::pre_filter(surface, &req.text) {
+            return Ok(respond(
+                &guard::Decision::block(r, Source::PreFilter),
+                vec![],
+            ));
+        }
+        // A live route classifies only with passing live `input_guard` evidence; without it the
+        // surface's failure rule decides, as for an outage.
+        let mut attempts = vec![];
+        let verdict = if self.live_model("GuardInput", "input_guard").is_ok() {
+            match guard::classifier::run(&self.router, surface, &req.text, &req.course_topic).await
+            {
+                Ok(o) => {
+                    attempts = o.attempts.iter().map(attempt_usage).collect();
+                    o.completion
+                        .and_then(|c| guard::parse_verdict(&c.text).ok())
+                }
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+        Ok(respond(
+            &guard::Decision::from_verdict(surface, verdict),
+            attempts,
+        ))
+    }
     async fn screen_character(
         &self,
         request: Request<pb::ScreenCharacterRequest>,

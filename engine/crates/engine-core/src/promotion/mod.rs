@@ -137,6 +137,10 @@ pub const SOURCES: &[(&str, &str)] = &[
         "engine-core/src/guard/mod.rs",
         include_str!("../guard/mod.rs"),
     ),
+    (
+        "engine-core/src/guard/classifier.rs",
+        include_str!("../guard/classifier.rs"),
+    ),
     // Skill router (ADR 0025): decides which skills a routed prompt loads.
     (
         "engine-core/src/router/mod.rs",

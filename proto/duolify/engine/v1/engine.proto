@@ -9,6 +9,10 @@ option go_package = "github.com/datamonsterr/duolify/services/api/gen/duolify/en
 service EngineService {
   // ScreenInstruction classifies untrusted style/focus data at platform expense.
   rpc ScreenInstruction(ScreenInstructionRequest) returns (ScreenInstructionResponse);
+  // GuardInput is the input guard (ADR 0025): one verdict for learner free text on any surface,
+  // at platform expense. The engine applies the surface's failure rule; the response never
+  // echoes the text.
+  rpc GuardInput(GuardInputRequest) returns (GuardInputResponse);
   // ReplanOutline proposes remaining content; protected lessons must be echoed unchanged.
   rpc ReplanOutline(ReplanOutlineRequest) returns (ReplanOutlineResponse);
   // ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
@@ -407,6 +411,25 @@ message ScreenInstructionResponse {
   string reason_code = 2;
   string screening_version = 3;
   repeated Usage attempts = 4;
+}
+
+message GuardInputRequest {
+  // surface is one of course_topic, steer, outline_chat, character, course_publish, review,
+  // quick_note, tutor_chat.
+  string surface = 1;
+  string text = 2;
+  string course_topic = 3;
+}
+
+message GuardInputResponse {
+  bool allowed = 1;
+  // reason_code is empty when allowed: prompt_injection, unsafe_content, self_harm, pii,
+  // off_topic_for_course or too_long. A self_harm block asks the API for the safe response.
+  string reason_code = 2;
+  // source is pre_filter, model or failure (the surface's failure rule decided).
+  string source = 3;
+  string guard_version = 4;
+  repeated Usage attempts = 5;
 }
 
 message ReplanOutlineRequest {

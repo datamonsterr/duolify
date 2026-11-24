@@ -304,6 +304,22 @@ impl LlmProvider for MockProvider {
                 ""
             };
             serde_json::json!({"allowed":reason.is_empty(),"reason_code":reason}).to_string()
+        } else if data.as_ref().is_some_and(|v| v["task"] == "input_guard") {
+            // Deterministic fixture provider, never a substitute for live guarding.
+            let text = data.as_ref().unwrap()["text"]
+                .as_str()
+                .unwrap_or_default()
+                .to_lowercase();
+            let reason = if text.contains("hurt myself") || text.contains("end my life") {
+                "self_harm"
+            } else if text.contains("unsafe content") || text.contains("graphic violence") {
+                "unsafe_content"
+            } else if text.contains("off topic") {
+                "off_topic_for_course"
+            } else {
+                ""
+            };
+            serde_json::json!({"allowed":reason.is_empty(),"reason_code":reason}).to_string()
         } else if data
             .as_ref()
             .is_some_and(|v| v["task"] == "character_screen")
