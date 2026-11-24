@@ -44,6 +44,7 @@ export const ar: Record<MessageId, Message> = {
   "settings.back": "رجوع",
   "settings.loading": "جارٍ التحميل…",
   "settings.retry_load": "أعد المحاولة",
+  "settings.language_error": "تعذر تحميل اللغة. حاول مجددًا.",
   "settings.read_error": "تعذّرت قراءة الإعدادات. اتصل وأعد المحاولة.",
   "settings.save_error": "تعذّر حفظ الإعدادات. أعد المحاولة.",
   "settings.characters": "الشخصيات الخاصة",

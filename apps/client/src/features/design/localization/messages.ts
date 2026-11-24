@@ -87,6 +87,7 @@ export const en = {
   "settings.back": "Back",
   "settings.loading": "Loading…",
   "settings.retry_load": "Retry",
+  "settings.language_error": "Could not load the language. Try again.",
   "settings.read_error": "Could not read settings. Connect and retry.",
   "settings.save_error": "Could not save settings. Retry.",
   "settings.characters": "Private characters",

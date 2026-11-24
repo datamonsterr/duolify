@@ -102,19 +102,41 @@ export function UiPreferencesProvider({
         ? "dark"
         : "light"
       : preferences.appearance;
-  // Arabic loads on demand; until then the formatter falls back to English ids.
+  const [previousLocale, setPreviousLocale] = useState<Locale>(() =>
+    preferences.locale === "ar" ? "en" : preferences.locale,
+  );
   const [, arabicReady] = useState(arabicLoaded());
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const locale =
+    preferences.locale === "ar" && !arabicLoaded()
+      ? previousLocale
+      : preferences.locale;
   useEffect(() => {
-    if (preferences.locale === "ar" && !arabicLoaded())
-      void loadArabic().then(() => arabicReady(true));
-  }, [preferences.locale]);
+    if (preferences.locale !== "ar" || arabicLoaded()) return;
+    let active = true;
+    void loadArabic().then(
+      () => {
+        if (active) {
+          setLoadError(false);
+          arabicReady(true);
+        }
+      },
+      () => {
+        if (active) setLoadError(true);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [preferences.locale, loadAttempt]);
   useEffect(() => {
     const root = document.documentElement;
-    root.lang = preferences.locale === "en-XA" ? "en" : preferences.locale;
-    root.dir = preferences.locale === "ar" ? "rtl" : "ltr";
+    root.lang = locale === "en-XA" ? "en" : locale;
+    root.dir = locale === "ar" ? "rtl" : "ltr";
     root.dataset.theme = theme;
     root.dataset.motion = reducedMotion ? "reduce" : "full";
-  }, [preferences.locale, theme, reducedMotion]);
+  }, [locale, theme, reducedMotion]);
   function save(value: Preferences) {
     try {
       adapter?.save(value);
@@ -125,6 +147,7 @@ export function UiPreferencesProvider({
   }
   function update(patch: Partial<Preferences>) {
     const next = sanitizePreferences({ ...preferences, ...patch });
+    if (locale !== "ar") setPreviousLocale(locale);
     setPreferences(next);
     save(next);
     if (next.appearance !== preferences.appearance)
@@ -142,6 +165,7 @@ export function UiPreferencesProvider({
     }
     if (preferences.appearance !== "system") trackAppearance("system");
     trackPreference("reset");
+    if (locale !== "ar") setPreviousLocale(locale);
     setPreferences(sanitizePreferences(initialPreferences));
   }
   return (
@@ -150,7 +174,7 @@ export function UiPreferencesProvider({
         preferences,
         reducedMotion,
         theme,
-        ...createFormatter(preferences.locale),
+        ...createFormatter(locale),
         update,
         reset,
         retry: () => save(preferences),
@@ -158,6 +182,20 @@ export function UiPreferencesProvider({
       }}
     >
       {children}
+      {loadError && preferences.locale === "ar" && (
+        <div role="alert">
+          {createFormatter(locale).t("settings.language_error")}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setLoadError(false);
+              setLoadAttempt((n) => n + 1);
+            }}
+          >
+            {createFormatter(locale).t("settings.retry_load")}
+          </button>
+        </div>
+      )}
     </Context.Provider>
   );
 }
