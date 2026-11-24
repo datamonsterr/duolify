@@ -24,7 +24,7 @@ var movedIntoSkills = map[string]int64{"tutor_short": 175, "tutor_long": 175}
 func TestRoutedPrefixCoversSkillBudgets(t *testing.T) {
 	re := regexp.MustCompile(`(?m)^budget_tokens\s*=\s*(\d+)`)
 	for action, file := range routedSkillFiles {
-		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "engine", "config", "skills", file+".toml"))
+		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "engine", "config", "skills", file+".toml")) //nolint:gosec // fixed repo path, table keys only
 		if err != nil {
 			t.Fatal(err)
 		}

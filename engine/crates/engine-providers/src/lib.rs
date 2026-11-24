@@ -648,6 +648,11 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
         decisions::ENDPOINT.into(),
         decisions::ROUTER_MODEL.into(),
     )));
+    engine_core::guard::install_fast(Arc::new(decisions::DecisionsGuard::new(
+        openrouter.clone(),
+        decisions::ENDPOINT.into(),
+        decisions::GUARD_MODEL.into(),
+    )));
     engine_core::ProviderRouter::new(
         Arc::new(HttpProvider::openrouter(openrouter.clone(), url.into())),
         Arc::new(HttpProvider::openrouter(openrouter, url.into())),

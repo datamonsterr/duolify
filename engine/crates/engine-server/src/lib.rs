@@ -604,7 +604,15 @@ impl EngineService for Service {
         // A live route classifies only with passing live `input_guard` evidence; without it the
         // surface's failure rule decides, as for an outage.
         let mut attempts = vec![];
-        let verdict = if self.live_model("GuardInput", "input_guard").is_ok() {
+        // Tutor chat and quick notes use the fast decision model (design.md section 14); it has no
+        // chat-model usage to report and is platform-paid like the router.
+        let fast = guard::fast().filter(|_| surface.is_fast());
+        let verdict = if let Some(model) = fast {
+            tokio::time::timeout(surface.budget(), model.classify(surface, &req.text))
+                .await
+                .ok()
+                .and_then(Result::ok)
+        } else if self.live_model("GuardInput", "input_guard").is_ok() {
             match guard::classifier::run(&self.router, surface, &req.text, &req.course_topic).await
             {
                 Ok(o) => {

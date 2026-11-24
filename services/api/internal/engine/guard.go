@@ -26,6 +26,7 @@ const (
 type GuardEvent struct {
 	Surface, ReasonCode, Source string
 	Allowed                     bool
+	Late                        bool // the verdict arrived after GuardHold and did not hold the turn
 	Latency                     time.Duration
 }
 
@@ -69,11 +70,12 @@ func failsOpen(surface string) bool {
 	return surface == SurfaceTutorChat || surface == SurfaceQuickNote
 }
 
-// check asks the engine for one verdict. A transport failure follows the surface rule locally.
-func (c *Client) check(ctx context.Context, surface, text, topic string) error {
-	if !c.guard.on.Load() || strings.TrimSpace(text) == "" {
-		return nil
-	}
+// GuardHold is how long a fail-open surface (tutor chat, quick note) waits for the verdict before
+// proceeding (design.md section 14). A verdict that is late still completes in the background.
+const GuardHold = 800 * time.Millisecond
+
+// verdict asks the engine for one verdict. A transport failure follows the surface rule locally.
+func (c *Client) verdict(ctx context.Context, surface, text, topic string) GuardEvent {
 	started := time.Now()
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -89,13 +91,101 @@ func (c *Client) check(ctx context.Context, surface, text, topic string) error {
 	default:
 		ev.Allowed, ev.ReasonCode, ev.Source = res.GetAllowed(), res.GetReasonCode(), res.GetSource()
 	}
+	return ev
+}
+
+func (c *Client) observe(ctx context.Context, ev GuardEvent) {
 	if f := c.guard.observe.Load(); f != nil {
 		(*f)(ctx, ev)
 	}
+}
+
+func (ev GuardEvent) blocked() *BlockedError {
 	if ev.Allowed {
 		return nil
 	}
-	return &BlockedError{Surface: surface, ReasonCode: ev.ReasonCode, Source: ev.Source}
+	return &BlockedError{Surface: ev.Surface, ReasonCode: ev.ReasonCode, Source: ev.Source}
+}
+
+// check is the guard for surfaces that wait for the verdict (creation and publication, fail closed).
+// Tutor chat and quick notes use checkHeld.
+func (c *Client) check(ctx context.Context, surface, text, topic string) error {
+	if !c.guard.on.Load() || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	if failsOpen(surface) {
+		return c.checkHeld(ctx, surface, text, topic)
+	}
+	ev := c.verdict(ctx, surface, text, topic)
+	c.observe(ctx, ev)
+	if b := ev.blocked(); b != nil {
+		return b
+	}
+	return nil
+}
+
+// checkHeld waits GuardHold for the verdict. A verdict in time decides as usual. A late one fails
+// open: the turn proceeds, the verdict completes in the background (its event is marked Late), and a
+// late block is handed to the LateVerdict in ctx, if any, so a late self_harm can still reach the learner.
+func (c *Client) checkHeld(ctx context.Context, surface, text, topic string) error {
+	done := make(chan GuardEvent, 1)
+	bg := context.WithoutCancel(ctx)
+	go func() { done <- c.verdict(bg, surface, text, topic) }()
+	hold := time.NewTimer(GuardHold)
+	defer hold.Stop()
+	select {
+	case ev := <-done:
+		c.observe(ctx, ev)
+		if b := ev.blocked(); b != nil {
+			return b
+		}
+		return nil
+	case <-hold.C:
+	}
+	late, _ := ctx.Value(lateKey{}).(*LateVerdict)
+	if late != nil {
+		late.pending.Store(true)
+	}
+	go func() {
+		ev := <-done
+		ev.Late = true
+		c.observe(bg, ev)
+		if b := ev.blocked(); b != nil && late != nil {
+			late.ch <- b
+		}
+		if late != nil {
+			late.pending.Store(false)
+			close(late.ch)
+		}
+	}()
+	return nil
+}
+
+type lateKey struct{}
+
+// LateVerdict receives a block that arrived after the hold. The channel is closed when the verdict
+// is in (a block is sent first), so a reader can wait for it without polling.
+type LateVerdict struct {
+	ch      chan *BlockedError
+	pending atomic.Bool
+}
+
+// Pending is true when the hold expired and the verdict has not arrived yet.
+func (l *LateVerdict) Pending() bool { return l != nil && l.pending.Load() }
+
+// WithLateVerdict returns a context whose held guard reports a late block to the returned handle.
+func WithLateVerdict(ctx context.Context) (context.Context, *LateVerdict) {
+	l := &LateVerdict{ch: make(chan *BlockedError, 1)}
+	return context.WithValue(ctx, lateKey{}, l), l
+}
+
+// C yields the late block (if any), then closes. When the guard answered in time it never yields,
+// so callers check Pending before they wait.
+func (l *LateVerdict) C() <-chan *BlockedError {
+	if l == nil {
+		return nil
+	}
+	return l.ch
 }
 
 // lastUser returns the newest learner message of a tutor turn.

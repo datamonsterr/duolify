@@ -134,7 +134,7 @@ mod tests {
         let f = crate::structured::response_format("input_guard").unwrap();
         let en = &f["json_schema"]["schema"]["properties"]["reason_code"]["enum"];
         assert_eq!(en.as_array().unwrap().len(), Reason::ALL.len() + 1);
-        assert_eq!(limits(Surface::TutorChat).timeout_ms, 1000);
+        assert_eq!(limits(Surface::TutorChat).timeout_ms, 4000);
         assert_eq!(limits(Surface::TutorChat).max_attempts, 1);
         assert_eq!(limits(Surface::Steer).timeout_ms, 4000);
     }
