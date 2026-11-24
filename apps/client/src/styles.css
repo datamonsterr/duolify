@@ -171,58 +171,6 @@ select:focus-visible,
   color: var(--muted);
   margin-block: var(--space-2);
 }
-.courses-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-}
-.courses-header > div {
-  flex: 1 1 auto;
-}
-.courses-header h1 {
-  margin-block-end: 0;
-}
-.courses-search {
-  flex: 1 1 var(--size-reading);
-  max-inline-size: var(--size-reading);
-}
-.course-toolbar {
-  margin-block: var(--space-6);
-}
-.course-tabs {
-  display: flex;
-  inline-size: fit-content;
-  max-inline-size: 100%;
-  padding: var(--space-1);
-  border-radius: var(--radius-md);
-  background: var(--raised);
-}
-.course-tab {
-  flex: 1;
-  min-block-size: var(--size-target);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius-md) - var(--space-1));
-  background: transparent;
-  color: var(--muted);
-  font-weight: var(--weight-strong);
-}
-.course-tab.selected {
-  border-color: var(--line);
-  background: var(--surface);
-  color: var(--text);
-  font-weight: var(--weight-heavy);
-}
-.course-tab:disabled {
-  cursor: default;
-}
-.search-label {
-  display: grid;
-  gap: var(--space-2);
-  font-weight: var(--weight-strong);
-}
 input {
   min-inline-size: 0;
   inline-size: 100%;
@@ -294,14 +242,6 @@ input {
   :root body input[type="checkbox"]::before {
     content: none;
   }
-}
-.course-context,
-.course-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-block: var(--space-4);
 }
 .badge {
   display: inline-flex;
@@ -520,20 +460,6 @@ input {
 }
 .course-progress-copy {
   font-variant-numeric: tabular-nums;
-}
-.course-empty {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-4);
-  padding: var(--space-8);
-  text-align: center;
-  border: 1px solid var(--line);
-  border-block-end-width: var(--size-card-depth);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-}
-.course-empty .brand-mark {
-  margin-block: var(--space-6);
 }
 .course-skeleton {
   min-block-size: var(--size-timeline-min);

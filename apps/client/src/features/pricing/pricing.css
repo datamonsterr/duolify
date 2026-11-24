@@ -171,3 +171,26 @@
   color: var(--danger);
   overflow-wrap: anywhere;
 }
+/* Buttons size to their content and wrap as whole buttons, never to the full row. */
+.pricing .duo-button,
+.pricing .wallet-btn-options {
+  justify-self: start;
+  align-self: start;
+  white-space: nowrap;
+  margin-block: var(--space-1);
+  margin-inline-end: var(--space-2);
+}
+.pricing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.pricing-toolbar .duo-button,
+.pricing-nav .duo-button {
+  margin: 0;
+}
+.pricing-toolbar .pricing-refresh {
+  padding: 0;
+  margin-inline-start: auto;
+}
