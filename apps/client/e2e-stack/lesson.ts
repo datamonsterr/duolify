@@ -40,7 +40,7 @@ export async function playFirstLesson(page: Page, flow: Flow): Promise<void> {
   await expect(prepare).toBeVisible();
   await flow.step("course path, first lesson ready to prepare");
   await prepare.click();
-  await page.getByRole("button", { name: "Accept quote terms" }).click();
+  await page.getByRole("button", { name: "Accept terms" }).click();
   await flow.step("lesson quote accepted, preparing");
   const start = page.getByRole("link", { name: /Start lesson/i }).first();
   const failed = page.getByRole("alert").filter({
