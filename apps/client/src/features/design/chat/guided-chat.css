@@ -329,6 +329,11 @@
   white-space: nowrap;
   border: 0;
 }
+/* Actions sit last in the sheet, so the footer lands at its bottom edge. */
+.guided-sheet.modal[open] {
+  display: flex;
+  flex-direction: column;
+}
 @media (max-width: 47.999rem) {
   .guided-demo {
     padding: var(--space-3);

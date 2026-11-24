@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { guidedEnabled } from "../guided-chat/flags";
 import { session } from "../accounts/session";
@@ -299,9 +300,9 @@ export function AddFriend({ onClose }: { onClose: () => void }) {
             </p>
           )}
         </section>
-        <div className="social-actions">
+        <ActionFooter className="social-actions">
           <CloseButton onClick={onClose} />
-        </div>
+        </ActionFooter>
       </Body>
     </dialog>
   );

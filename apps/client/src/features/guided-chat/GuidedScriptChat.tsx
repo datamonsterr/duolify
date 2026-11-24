@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Button } from "../design/Button";
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { MascotAvatar, useMascotState } from "../../components/mascot";
 import { Feedback } from "../design/chat/Feedback";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -546,7 +547,7 @@ export function GuidedScriptChat({
             aria-label={t("guided.not_clear")}
           >
             <p>{t("guided.not_clear")}</p>
-            <div className="gc-actions">
+            <ActionFooter className="gc-actions">
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -574,7 +575,7 @@ export function GuidedScriptChat({
                   {t("guided.skip")}
                 </Button>
               )}
-            </div>
+            </ActionFooter>
           </div>
         )}
         {limited && <p className="field-hint">{t("guided.limit")}</p>}

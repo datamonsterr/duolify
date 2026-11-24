@@ -27,6 +27,21 @@ const send = (scope: ReturnType<Page["locator"]>) =>
 /** A guide bubble (the screen-reader log repeats each question, so match the bubble only). */
 const said = (scope: ReturnType<Page["locator"]>, text: string) =>
   scope.locator(".guided-bubble", { hasText: text }).first();
+/** Dialog action convention: footer below the chips, right-aligned (full width on phones). */
+async function footerBottomRight(page: Page, scope: Locator, name: string) {
+  const dialog = (await scope.boundingBox())!;
+  const action = (await scope
+    .getByRole("button", { name, exact: true })
+    .boundingBox())!;
+  const chip = (await scope.locator(".gc-chip").last().boundingBox())!;
+  expect(action.y).toBeGreaterThanOrEqual(chip.y + chip.height - 1);
+  if (page.viewportSize()!.width >= 600) {
+    expect(action.x + action.width).toBeGreaterThan(
+      dialog.x + dialog.width - 80,
+    );
+    expect(action.x).toBeGreaterThan(dialog.x + dialog.width / 2);
+  } else expect(action.width).toBeGreaterThan(dialog.width * 0.6);
+}
 const noOverflow = async (page: Page) =>
   expect(
     await page.evaluate(
@@ -272,6 +287,7 @@ for (const [width, height, scheme] of [
         .getByRole("button", { name: "Change answer: Only me" })
         .click();
       await expect(panel.getByRole("radio")).toHaveCount(2);
+      await footerBottomRight(page, panel, "Cancel");
       await shot(
         page,
         "share",

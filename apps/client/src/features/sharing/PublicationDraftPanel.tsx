@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
@@ -187,17 +188,19 @@ export function PublicationDraftPanel({
             }}
           />
         )}
-        <button
-          type="button"
-          className="duo-button secondary"
-          disabled
-          aria-describedby={`${id}-later`}
-        >
-          Public sharing is not available yet
-        </button>
         <p id={`${id}-later`} className="sharing-note">
           This draft stays private. Nothing is public and no link exists.
         </p>
+        <ActionFooter>
+          <button
+            type="button"
+            className="duo-button secondary"
+            disabled
+            aria-describedby={`${id}-later`}
+          >
+            Public sharing is not available yet
+          </button>
+        </ActionFooter>
       </div>
     </dialog>
   );

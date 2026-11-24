@@ -1,3 +1,6 @@
+import { Button } from "../design/Button";
+import { ActionFooter } from "../design/sheet/ActionFooter";
+import { ModalDialog } from "../design/sheet/ModalDialog";
 import { useState } from "react";
 import { trackPrivacyControl } from "../../lib/analytics";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -68,39 +71,32 @@ export function GuidedAccountData({
   }
 
   return (
-    <div className="settings-scrim" onClick={onClose}>
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={t(mode === "export" ? "g.export.title" : "g.delete.title")}
-        className="settings-dialog guided-account"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
-        }}
-      >
-        <GuidedScriptChat
-          script={script}
-          online={online}
-          onEvent={(event) => trackGuidedChat(script, "settings", event)}
-          onSubmit={submit}
-          onCancel={onClose}
-          focusOnMount
-        />
-        {done && (
-          <p role="status">
-            {t("g.export.done")}{" "}
-            <button type="button" className="gc-link" onClick={onClose}>
-              {t("guided.cancel")}
-            </button>
-          </p>
-        )}
-        {needsReauth && (
-          <p>
-            <a href="/sign-in?returnTo=%2Fsettings">{t("g.account.reauth")}</a>
-          </p>
-        )}
-      </section>
-    </div>
+    <ModalDialog
+      onClose={onClose}
+      aria-label={t(mode === "export" ? "g.export.title" : "g.delete.title")}
+      className="guided-account"
+    >
+      <GuidedScriptChat
+        script={script}
+        online={online}
+        onEvent={(event) => trackGuidedChat(script, "settings", event)}
+        onSubmit={submit}
+        onCancel={onClose}
+        focusOnMount
+      />
+      {done && <p role="status">{t("g.export.done")}</p>}
+      {done && (
+        <ActionFooter>
+          <Button variant="quiet" onClick={onClose}>
+            {t("guided.cancel")}
+          </Button>
+        </ActionFooter>
+      )}
+      {needsReauth && (
+        <p>
+          <a href="/sign-in?returnTo=%2Fsettings">{t("g.account.reauth")}</a>
+        </p>
+      )}
+    </ModalDialog>
   );
 }

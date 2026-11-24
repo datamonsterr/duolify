@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
@@ -222,7 +223,7 @@ export function MissingLessons({
       {status.state === "ready" &&
         run.kind !== "running" &&
         run.kind !== "problem" && (
-          <div className="sharing-actions">
+          <ActionFooter className="sharing-actions">
             <button
               ref={trigger}
               type="button"
@@ -231,7 +232,7 @@ export function MissingLessons({
             >
               Review quote
             </button>
-          </div>
+          </ActionFooter>
         )}
       {sheet && (
         <QuoteSheet
@@ -309,10 +310,7 @@ function QuoteSheet({
         {sheet.kind === "error" && (
           <div className="sharing-body">
             <p role="alert">{missingMessages[sheet.failure]}</p>
-            <div className="sharing-actions">
-              <button type="button" className="duo-button" onClick={onRetry}>
-                Retry
-              </button>
+            <ActionFooter className="sharing-actions">
               <button
                 type="button"
                 className="duo-button secondary"
@@ -320,7 +318,10 @@ function QuoteSheet({
               >
                 Cancel
               </button>
-            </div>
+              <button type="button" className="duo-button" onClick={onRetry}>
+                Retry
+              </button>
+            </ActionFooter>
           </div>
         )}
         {quote && (

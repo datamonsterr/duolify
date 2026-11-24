@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useEffect, useRef, useState } from "react";
 import { ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { trackGuidedUi, trackVoice } from "../../lib/analytics";
@@ -431,28 +432,30 @@ export function QuickNotePanel({
               {ENRICH_LABEL}
             </label>
 
-            <button
-              type="button"
-              className="duo-button primary"
-              onClick={() => void handleSave()}
-              disabled={!noteText.trim() || isSyncing}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: "48px",
-                padding: "0 16px",
-                borderRadius: "14px",
-                background: noteText.trim() ? "#1F7A0D" : "#E0E0E0",
-                color: noteText.trim() ? "#fff" : "#999",
-                fontWeight: 900,
-                fontSize: "15px",
-                border: "none",
-                cursor: noteText.trim() ? "pointer" : "not-allowed",
-              }}
-            >
-              Save quick note
-            </button>
+            <ActionFooter>
+              <button
+                type="button"
+                className="duo-button primary"
+                onClick={() => void handleSave()}
+                disabled={!noteText.trim() || isSyncing}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "48px",
+                  padding: "0 16px",
+                  borderRadius: "14px",
+                  background: noteText.trim() ? "#1F7A0D" : "#E0E0E0",
+                  color: noteText.trim() ? "#fff" : "#999",
+                  fontWeight: 900,
+                  fontSize: "15px",
+                  border: "none",
+                  cursor: noteText.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                Save quick note
+              </button>
+            </ActionFooter>
           </>
         )}
 

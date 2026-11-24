@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Button } from "../../design/Button";
+import { ActionFooter } from "../../design/sheet/ActionFooter";
 import { useUiPreferences } from "../../design/localization/Preferences";
 import type { MessageId } from "../../design/localization/messages";
 import type { Step, Value } from "../types";
@@ -504,7 +505,17 @@ export function StepWidget(props: WidgetProps) {
           {error}
         </p>
       )}
-      <div className="gc-actions" hidden={!actionsUsed}>
+      <ActionFooter className="gc-actions" hidden={!actionsUsed}>
+        {!chipWidget && props.onSkip && step.skippable && !editing && (
+          <Button variant="quiet" onClick={props.onSkip}>
+            {t("guided.skip")}
+          </Button>
+        )}
+        {editing && !destructive && props.onCancel && (
+          <Button variant="quiet" onClick={props.onCancel}>
+            {t("guided.cancel")}
+          </Button>
+        )}
         {destructive && props.onCancel && (
           <Button variant="secondary" data-autofocus onClick={props.onCancel}>
             {t("guided.cancel")}
@@ -531,17 +542,7 @@ export function StepWidget(props: WidgetProps) {
             disabled={disabled || blocked}
           />
         )}
-        {!chipWidget && props.onSkip && step.skippable && !editing && (
-          <Button variant="quiet" onClick={props.onSkip}>
-            {t("guided.skip")}
-          </Button>
-        )}
-        {editing && !destructive && props.onCancel && (
-          <Button variant="quiet" onClick={props.onCancel}>
-            {t("guided.cancel")}
-          </Button>
-        )}
-      </div>
+      </ActionFooter>
     </form>
   );
 }

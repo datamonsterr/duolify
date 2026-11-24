@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
@@ -218,7 +219,15 @@ function UpdateSheet({
             )}
           </div>
         )}
-        <div className="sharing-actions">
+        <ActionFooter className="sharing-actions">
+          <button
+            type="button"
+            className="duo-button quiet"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Stay on version {info.current_version}
+          </button>
           <button
             ref={first}
             type="button"
@@ -228,15 +237,7 @@ function UpdateSheet({
           >
             Update to version {info.latest_version}
           </button>
-          <button
-            type="button"
-            className="duo-button quiet"
-            disabled={busy}
-            onClick={onClose}
-          >
-            Stay on version {info.current_version}
-          </button>
-        </div>
+        </ActionFooter>
         {busy && (
           <p role="status">
             <span className="sharing-spinner" aria-hidden="true" />

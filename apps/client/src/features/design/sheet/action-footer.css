@@ -1,0 +1,21 @@
+/* Dialog action convention: bottom, right-aligned, primary right-most.
+   Phone (< 600px): full width, buttons share the row, primary last. */
+.action-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-block-start: auto;
+}
+.action-footer > .duo-button {
+  min-block-size: var(--size-target);
+}
+@media (max-width: 37.4375rem) {
+  .action-footer {
+    inline-size: 100%;
+  }
+  .action-footer > * {
+    flex: 1 1 auto;
+  }
+}

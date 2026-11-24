@@ -11,6 +11,7 @@ import {
 import { trackGuidedUi, type GuidedSheetId } from "../../../lib/analytics";
 import "../chat/guided-chat.css";
 import { CloseButton } from "./CloseButton";
+import { ActionFooter } from "./ActionFooter";
 
 export type SheetProps = {
   open: boolean;
@@ -18,6 +19,8 @@ export type SheetProps = {
   title: string;
   sheetId: GuidedSheetId;
   children: ReactNode;
+  /** Action buttons: rendered in the bottom, right-aligned footer. */
+  footer?: ReactNode;
   onPausePlayer?: () => void;
   modal?: boolean;
   returnFocusRef?: RefObject<HTMLButtonElement | null>;
@@ -31,6 +34,7 @@ export function Sheet({
   title,
   sheetId,
   children,
+  footer,
   onPausePlayer,
   modal = true,
   returnFocusRef,
@@ -133,6 +137,7 @@ export function Sheet({
         )}
       </header>
       {children}
+      {footer && <ActionFooter>{footer}</ActionFooter>}
     </dialog>
   );
 }

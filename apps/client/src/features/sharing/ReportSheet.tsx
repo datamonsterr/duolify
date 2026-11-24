@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import {
   Suspense,
@@ -139,14 +140,16 @@ export function ReportSheet({
                   : "A moderator will review it. The creator is never told who reported."}
               </p>
             </div>
-            <button
-              ref={done}
-              type="button"
-              className="duo-button"
-              onClick={onClose}
-            >
-              Done
-            </button>
+            <ActionFooter>
+              <button
+                ref={done}
+                type="button"
+                className="duo-button"
+                onClick={onClose}
+              >
+                Done
+              </button>
+            </ActionFooter>
           </div>
         ) : guided ? (
           <div className="report-form" aria-busy={busy}>
@@ -208,13 +211,15 @@ export function ReportSheet({
                 )}
               </div>
             )}
-            <button
-              type="submit"
-              className="duo-button report-send"
-              disabled={busy || !reason || chars > reportMaxChars}
-            >
-              {busy ? "Sending…" : "Send report"}
-            </button>
+            <ActionFooter>
+              <button
+                type="submit"
+                className="duo-button report-send"
+                disabled={busy || !reason || chars > reportMaxChars}
+              >
+                {busy ? "Sending…" : "Send report"}
+              </button>
+            </ActionFooter>
           </form>
         )}
       </div>

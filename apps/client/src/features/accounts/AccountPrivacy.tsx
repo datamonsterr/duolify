@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { Suspense, lazy, useState } from "react";
 import { trackPrivacyControl } from "../../lib/analytics";
 import { Button } from "../design/Button";
@@ -183,8 +184,12 @@ export function AccountPrivacy() {
                 onChange={(event) => setExportPassphrase(event.target.value)}
               />
             </label>
-            <div className="settings-actions">
-              <Button type="button" onClick={() => setExportOpen(false)}>
+            <ActionFooter className="settings-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setExportOpen(false)}
+              >
                 Cancel
               </Button>
               <Button
@@ -194,7 +199,7 @@ export function AccountPrivacy() {
               >
                 Download encrypted export
               </Button>
-            </div>
+            </ActionFooter>
           </section>
         </div>
       )}
@@ -232,9 +237,10 @@ export function AccountPrivacy() {
                 onChange={(event) => setConfirmation(event.target.value)}
               />
             </label>
-            <div className="settings-actions">
+            <ActionFooter className="settings-actions">
               <Button
                 type="button"
+                variant="secondary"
                 onClick={() => {
                   setDeletionOpen(false);
                   setConfirmation("");
@@ -250,7 +256,7 @@ export function AccountPrivacy() {
               >
                 Delete permanently
               </Button>
-            </div>
+            </ActionFooter>
           </section>
         </div>
       )}

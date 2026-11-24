@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import {
@@ -173,7 +174,7 @@ export function ReasonDialog(p: Props) {
               )}
             </div>
           )}
-          <div className="mod-buttons">
+          <ActionFooter className="mod-buttons">
             <button
               type="button"
               className="duo-button secondary"
@@ -188,7 +189,7 @@ export function ReasonDialog(p: Props) {
             >
               {busy ? "Sending…" : p.submitLabel}
             </button>
-          </div>
+          </ActionFooter>
         </form>
       </div>
     </div>

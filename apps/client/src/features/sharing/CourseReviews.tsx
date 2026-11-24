@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import {
   Suspense,
   lazy,
@@ -370,7 +371,7 @@ export function CourseReviews({
           <h2 id="review-delete-title">{t("review.confirm_title")}</h2>
           <p>{t("review.confirm_body")}</p>
           {error && <p role="alert">{error}</p>}
-          <div className="share-slide-nav">
+          <ActionFooter>
             <button
               type="button"
               className="duo-button secondary"
@@ -387,7 +388,7 @@ export function CourseReviews({
             >
               {t("review.confirm")}
             </button>
-          </div>
+          </ActionFooter>
         </dialog>
       )}
     </section>

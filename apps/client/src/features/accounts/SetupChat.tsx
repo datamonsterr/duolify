@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "../design/Button";
 import { LearnerContextEditor } from "./LearnerContextEditor";
@@ -685,6 +686,9 @@ export function SetupChat({
           <div className="mobile-summary-sheet-content">
             <header className="mobile-sheet-header">
               <h2>What I've understood</h2>
+            </header>
+            {renderSummaryContent()}
+            <ActionFooter>
               <Button
                 variant="secondary"
                 className="close-sheet-btn"
@@ -692,8 +696,7 @@ export function SetupChat({
               >
                 Close
               </Button>
-            </header>
-            {renderSummaryContent()}
+            </ActionFooter>
           </div>
         </dialog>
       )}

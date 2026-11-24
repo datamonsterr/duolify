@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../design/Button";
@@ -427,7 +428,7 @@ export function ReplanPanel({
               </li>
             ))}
           </ol>
-          <div className="steering-actions">
+          <ActionFooter className="steering-actions">
             <Button
               variant="secondary"
               onClick={() => void discard()}
@@ -442,7 +443,7 @@ export function ReplanPanel({
             >
               Apply changes
             </Button>
-          </div>
+          </ActionFooter>
         </>
       )}
       {!busy &&
@@ -493,7 +494,7 @@ export function ReplanPanel({
               Your remaining outline will be updated. Generated and unlocked
               lessons are never changed.
             </p>
-            <div className="steering-actions">
+            <ActionFooter className="steering-actions">
               <Button
                 variant="secondary"
                 onClick={() => setConfirmOpen(false)}
@@ -504,7 +505,7 @@ export function ReplanPanel({
               <Button onClick={() => void confirm()} disabled={busy}>
                 Apply changes
               </Button>
-            </div>
+            </ActionFooter>
           </div>
         </div>
       )}

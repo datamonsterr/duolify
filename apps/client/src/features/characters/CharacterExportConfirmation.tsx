@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useId, useState } from "react";
 
 /** The same informed consent step is used by initial publication and republishing. */
@@ -42,14 +43,16 @@ export function CharacterExportConfirmation({
         />
         I confirm these Characters can become Course content
       </label>
-      <button
-        type="button"
-        className="duo-button"
-        disabled={!confirmed || !online || busy}
-        onClick={onConfirm}
-      >
-        Confirm Character export
-      </button>
+      <ActionFooter>
+        <button
+          type="button"
+          className="duo-button"
+          disabled={!confirmed || !online || busy}
+          onClick={onConfirm}
+        >
+          Confirm Character export
+        </button>
+      </ActionFooter>
     </section>
   );
 }

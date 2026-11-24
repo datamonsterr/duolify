@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { ReservationPanel } from "../credits/ReservationPanel";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
@@ -218,28 +219,32 @@ export function QuotePanel({
               />
             </Suspense>
           ) : (
-            <Button disabled={busy || error} onClick={() => void accept()}>
-              Accept quote terms
-            </Button>
+            <ActionFooter>
+              <Button disabled={busy || error} onClick={() => void accept()}>
+                Accept quote terms
+              </Button>
+            </ActionFooter>
           )}
         </div>
       )}
-      <Button variant="quiet" disabled={busy} onClick={() => void create()}>
-        {quote || error ? "Renew quote" : "Get action quote"}
-      </Button>
-      {(quote || consent) && (
-        <Button
-          variant="quiet"
-          disabled={busy && !consent}
-          onClick={() => {
-            setQuote(undefined);
-            setError(false);
-            consent?.onCancel();
-          }}
-        >
-          Not now
+      <ActionFooter>
+        <Button variant="quiet" disabled={busy} onClick={() => void create()}>
+          {quote || error ? "Renew quote" : "Get action quote"}
         </Button>
-      )}
+        {(quote || consent) && (
+          <Button
+            variant="quiet"
+            disabled={busy && !consent}
+            onClick={() => {
+              setQuote(undefined);
+              setError(false);
+              consent?.onCancel();
+            }}
+          >
+            Not now
+          </Button>
+        )}
+      </ActionFooter>
     </section>
   );
 }
