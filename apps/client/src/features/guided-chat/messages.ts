@@ -2,6 +2,7 @@
 // The guide's display name is a working name and lives only in this catalogue.
 import type { Message } from "../design/localization/messages";
 
+import type { accountAr, accountEn } from "./messages.account";
 import type { briefAr, briefEn } from "./messages.brief";
 import type { signinAr, signinEn } from "./messages.signin";
 import type { courseAr, courseEn } from "./messages.course";
@@ -11,6 +12,7 @@ import type { landingAr, landingEn } from "../landing/messages.landing";
 export const guidedEn = {
   ...({} as typeof setupEn),
   ...({} as typeof briefEn),
+  ...({} as typeof accountEn),
   ...({} as typeof signinEn),
   ...({} as typeof landingEn),
   ...({} as typeof courseEn),
@@ -54,6 +56,7 @@ export const guidedEn = {
 export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   ...({} as typeof setupAr),
   ...({} as typeof briefAr),
+  ...({} as typeof accountAr),
   ...({} as typeof signinAr),
   ...({} as typeof landingAr),
   ...({} as typeof courseAr),

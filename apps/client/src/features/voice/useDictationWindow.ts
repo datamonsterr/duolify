@@ -17,8 +17,8 @@ export function useDictationWindow({
 }: {
   entryPoint: VoiceEntryPoint;
   draft: string;
-  /** The composer's own send; must read the current draft. */
-  send: () => void;
+  /** The composer's own send; must read the current draft. Return false when nothing was sent. */
+  send: () => boolean | void;
 }) {
   const [active, setActive] = useState<Active | null>(null);
   const activeRef = useRef<Active | null>(null);
@@ -74,7 +74,11 @@ export function useDictationWindow({
     if (!active?.counting) return;
     const id = setTimeout(() => {
       if (!activeRef.current?.counting) return;
-      sendRef.current();
+      if (sendRef.current() === false) {
+        // Consent, connection or a running turn blocked it: the text stays for a manual send.
+        setActive((a) => (a ? { ...a, counting: false } : a));
+        return;
+      }
       noteSent();
     }, EDIT_WINDOW_MS);
     return () => clearTimeout(id);

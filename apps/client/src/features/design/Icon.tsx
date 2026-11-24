@@ -43,6 +43,7 @@ const paths = {
   stop: "M6 6h12v12H6z",
   select: "M4 8V4h4 M16 4h4v4 M20 16v4h-4 M8 20H4v-4",
   ask: "M4 5h16v11H9l-5 4z M9 10h.01 M12 10h.01 M15 10h.01",
+  autoplay: "m5 6 6 6-6 6 M12 6l6 6-6 6",
 } as const;
 export type IconName = keyof typeof paths;
 

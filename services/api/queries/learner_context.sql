@@ -1,5 +1,5 @@
 -- name: GetLearnerContext :one
-SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out' - 'appearance' - 'motion' - 'narration' - 'narration_voice' - 'narration_speed' - 'captions' - 'text_size' - 'ui_sounds' - 'haptics' - 'fullscreen_on_rotate' - 'autoplay' - 'auto_send_after_dictation')::jsonb AS context
+SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out' - 'appearance' - 'motion' - 'narration' - 'narration_voice' - 'narration_speed' - 'captions' - 'text_size' - 'ui_sounds' - 'haptics' - 'fullscreen_on_rotate' - 'autoplay' - 'auto_send_after_dictation' - 'single_key_shortcuts')::jsonb AS context
 FROM learner_profiles p WHERE learner_id=sqlc.arg(learner_id)::uuid FOR UPDATE;
 
 -- name: GetLearnerSettings :one
@@ -41,5 +41,6 @@ UPDATE learner_profiles SET
  fullscreen_on_rotate=(sqlc.arg(context)::jsonb->>'fullscreen_on_rotate')::boolean,
  autoplay=(sqlc.arg(context)::jsonb->>'autoplay')::boolean,
  auto_send_after_dictation=(sqlc.arg(context)::jsonb->>'auto_send_after_dictation')::boolean,
+ single_key_shortcuts=(sqlc.arg(context)::jsonb->>'single_key_shortcuts')::boolean,
  mascot=COALESCE(sqlc.arg(context)::jsonb->'mascot', mascot)
 WHERE learner_id=sqlc.arg(learner_id)::uuid;

@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useId,
   useRef,
   useState,
   type PointerEvent,
@@ -10,13 +11,7 @@ import type { VoiceEntryPoint } from "../../lib/analytics";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { useVoiceInput, type Transcript } from "./useVoiceInput";
 import type { VoicePlatform } from "./platform";
-import {
-  blockText,
-  clock,
-  EXPLAINED,
-  noticeText,
-  wasExplained,
-} from "./voice-text";
+import { blockText, clock, EXPLAINED, wasExplained } from "./voice-text";
 import "./voice.css";
 
 /**
@@ -27,6 +22,9 @@ import "./voice.css";
 const VoiceBubble = lazy(() =>
   import("./VoiceBubble").then((m) => ({ default: m.VoiceBubble })),
 );
+
+// Only mounted when no toast host is on the page (tutor sheet, notes page).
+const VoiceToasts = lazy(() => import("./VoiceToasts"));
 
 function VoiceTextButton({
   purpose,
@@ -55,6 +53,12 @@ function VoiceTextButton({
   const button = useRef<HTMLButtonElement>(null);
   const recording = voice.phase === "recording";
   const transcribing = voice.phase === "transcribing";
+  const reasonId = useId();
+  const blockMessage =
+    voice.block && voice.block !== "loading" && voice.block !== "no_lesson"
+      ? blockText(t, voice.block, voice.capResets)
+      : "";
+  const reason = voice.block === "denied" ? "" : blockMessage;
   if (voice.block === "no_lesson") return null;
   const inactive =
     disabled || (voice.block !== undefined && voice.block !== "denied");
@@ -105,6 +109,7 @@ function VoiceTextButton({
             : t("voice.hold_label")
         }
         aria-pressed={recording}
+        aria-describedby={reason ? reasonId : undefined}
         aria-disabled={inactive || transcribing}
         onPointerDown={down}
         onPointerMove={move}
@@ -113,6 +118,7 @@ function VoiceTextButton({
         onContextMenu={(event) => event.preventDefault()}
         onKeyDown={(event) => key(event, true)}
         onKeyUp={(event) => key(event, false)}
+        onBlur={() => recording && !voice.toggled && voice.slideOff()}
       >
         <span aria-hidden="true">{recording ? "●" : "🎤"}</span>
         <span>
@@ -139,46 +145,13 @@ function VoiceTextButton({
           </span>
         </div>
       )}
-      {recording && (
-        <p className="voice-hint">
-          {voice.toggled ? t("voice.hint_toggled") : t("voice.hint_hold")}
-        </p>
-      )}
-      {transcribing && (
-        <p className="voice-hint" role="status">
-          {t("voice.hint_transcribing")}
-        </p>
-      )}
-      {!recording &&
-        voice.block &&
-        voice.block !== "denied" &&
-        voice.block !== "loading" && (
-          <p className="voice-note" role="status" data-testid="voice-blocked">
-            {blockText(t, voice.block, voice.capResets)}
-          </p>
-        )}
-      {!recording && !transcribing && voice.notice && (
-        <p className="voice-note" role="alert" data-testid="voice-notice">
-          {noticeText(t, voice.notice)}
-          {voice.notice.kind === "denied" && (
-            <button
-              type="button"
-              className="voice-retry"
-              onClick={() => void voice.requestPermission()}
-            >
-              {t("voice.try_again")}
-            </button>
-          )}
-          {((voice.notice.kind === "empty" && voice.notice.retry) ||
-            (voice.notice.kind === "error" && voice.notice.retry)) && (
-            <button type="button" className="voice-retry" onClick={voice.retry}>
-              {t("voice.try_again")}
-            </button>
-          )}
-          <button type="button" className="voice-retry" onClick={voice.dismiss}>
-            {t("voice.type_instead")}
-          </button>
-        </p>
+      <Suspense fallback={null}>
+        <VoiceToasts voice={voice} reason={reason} />
+      </Suspense>
+      {reason && (
+        <span id={reasonId} className="imm-sr">
+          {reason}
+        </span>
       )}
       {explaining && (
         <div

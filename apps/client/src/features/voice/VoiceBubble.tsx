@@ -87,7 +87,7 @@ export function VoiceBubble({
       tone: isError(n) ? "error" : "info",
       action: retryAction(n),
     });
-    voice.dismiss();
+    // The audio stays kept so the toast's Try again can upload it again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice.notice]);
   // A block that appears while the Learner is here (went offline, cap reached) is announced at once.
@@ -196,6 +196,7 @@ export function VoiceBubble({
         onContextMenu={(event) => event.preventDefault()}
         onKeyDown={(event) => key(event, true)}
         onKeyUp={(event) => key(event, false)}
+        onBlur={() => recording && !voice.toggled && voice.slideOff()}
       >
         <Icon name="microphone" />
         {recording && (

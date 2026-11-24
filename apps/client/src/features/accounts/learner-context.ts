@@ -46,6 +46,7 @@ export type SettingsFields = {
   fullscreen_on_rotate: boolean;
   autoplay: boolean;
   auto_send_after_dictation: boolean;
+  single_key_shortcuts: boolean;
   /** Guide preference (RigPartSpec v1); read-only here, patched through `saveSettings({ mascot })`. */
   mascot?: Record<string, unknown>;
 };
@@ -91,6 +92,7 @@ export const emptySettings = (): LearnerSettings => {
     fullscreen_on_rotate: true,
     autoplay: true,
     auto_send_after_dictation: true,
+    single_key_shortcuts: true,
   };
 };
 export function contextValues(profile: ContextFields): ContextFields {
