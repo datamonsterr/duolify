@@ -54,7 +54,24 @@ func AIInsights() []Insight {
 		{"Latency p50 and p95 by model", "SELECT properties.$ai_model AS model, quantile(0.5)(toFloat(properties.$ai_latency)) AS p50_seconds, quantile(0.95)(toFloat(properties.$ai_latency)) AS p95_seconds FROM events WHERE " + g + " GROUP BY model"},
 		{"Provider cost (USD) by model per day", "SELECT toStartOfDay(timestamp) AS day, properties.$ai_model AS model, sum(toFloat(properties.$ai_total_cost_usd)) AS cost_usd FROM events WHERE " + g + " GROUP BY day, model ORDER BY day"},
 		{"Tokens by model", "SELECT properties.$ai_model AS model, sum(toFloat(properties.$ai_input_tokens)) AS input_tokens, sum(toFloat(properties.$ai_output_tokens)) AS output_tokens FROM events WHERE " + g + " GROUP BY model"},
+		{"Router source share by feature (prompt_mode routed)", "SELECT properties.feature AS feature, properties.router_source AS router_source, count() AS generations FROM events WHERE " + g + " AND properties.prompt_mode = 'routed' GROUP BY feature, router_source ORDER BY feature"},
+		{"Default-set rate per day (alert above 20 percent)", "SELECT toStartOfDay(timestamp) AS day, countIf(properties.router_source IN ('default', 'breaker')) / count() AS default_set_rate, count() AS routed_generations FROM events WHERE " + g + " AND properties.prompt_mode = 'routed' AND properties.router_source != 'rules' GROUP BY day ORDER BY day"},
+		{"Cost per generation by feature and prompt_mode", "SELECT properties.feature AS feature, properties.prompt_mode AS prompt_mode, avg(toFloat(properties.$ai_total_cost_usd)) AS avg_cost_usd, count() AS generations FROM events WHERE " + g + " GROUP BY feature, prompt_mode ORDER BY feature"},
+		{"Cache read share by prompt_mode", "SELECT properties.prompt_mode AS prompt_mode, sum(toFloat(properties.cache_read_tokens)) / nullIf(sum(toFloat(properties.$ai_input_tokens)), 0) AS cache_read_share FROM events WHERE " + g + " GROUP BY prompt_mode"},
 		{"Prompt cache read share by feature", "SELECT properties.feature AS feature, sum(toFloat(properties.cache_read_tokens)) / nullIf(sum(toFloat(properties.$ai_input_tokens)), 0) AS cache_read_share FROM events WHERE " + g + " GROUP BY feature"},
+	}
+}
+
+// GuardInsights are the input guard views over `input_guard_decision` events (ADR 0025): block and
+// timeout rate per surface (alert when the failure source exceeds 5 percent of a surface's decisions),
+// and how often a fail-open verdict missed the 800 ms hold.
+func GuardInsights() []Insight {
+	const g = "event = 'input_guard_decision' AND timestamp >= now() - INTERVAL 30 DAY"
+	return []Insight{
+		{"Guard block rate by surface and reason", "SELECT properties.surface AS surface, properties.reason_code AS reason_code, count() AS blocked FROM events WHERE " + g + " AND properties.allowed = false GROUP BY surface, reason_code ORDER BY blocked DESC"},
+		{"Guard timeout or failure rate by surface (alert above 5 percent)", "SELECT properties.surface AS surface, countIf(properties.guard_source = 'failure') / count() AS failure_rate, count() AS decisions FROM events WHERE " + g + " GROUP BY surface ORDER BY failure_rate DESC"},
+		{"Guard verdict later than the hold, tutor chat and notes", "SELECT toStartOfDay(timestamp) AS day, properties.surface AS surface, countIf(properties.late = true) / count() AS late_rate FROM events WHERE " + g + " AND properties.surface IN ('tutor_chat', 'quick_note') GROUP BY day, surface ORDER BY day"},
+		{"Guard latency p50 and p95 by surface", "SELECT properties.surface AS surface, quantile(0.5)(toFloat(properties.latency_ms)) AS p50_ms, quantile(0.95)(toFloat(properties.latency_ms)) AS p95_ms FROM events WHERE " + g + " GROUP BY surface"},
 	}
 }
 
@@ -120,7 +137,7 @@ func (a *PostHogAPI) ApplyAIDashboard(ctx context.Context) error {
 	for _, i := range existing.Results {
 		byName[i.Name] = i.ID
 	}
-	for _, in := range AIInsights() {
+	for _, in := range append(AIInsights(), GuardInsights()...) {
 		name := "Duolify AI: " + in.Name
 		body := map[string]any{
 			"name": name, "saved": true, "tags": []string{managedTag}, "dashboards": []int{dashID},

@@ -55,3 +55,14 @@ cargo run -p engine-eval --bin duolify-eval -- parity ../evals/reports/parity-sc
 ```
 
 `parity` lists every row where the screens and the guard differ and exits non-zero unless there is parity: the same rows on both sides and no row the screens pass that the guard fails. Only then switch the four screens (task 5.3), one surface per PR.
+
+## Dashboards and alerts (task 8.2)
+
+Insights are code: `services/api/internal/analytics/posthogapi.go` (`AIInsights`, `GuardInsights`), applied with `mise run api:posthog-setup` (idempotent, needs `POSTHOG_*`). They cover router source share by feature, default-set rate per day, cost per generation by feature and `prompt_mode`, cache read share by `prompt_mode`, guard block rate by surface and reason, guard failure rate by surface, late verdict rate on tutor chat and notes, and guard latency p50 and p95.
+
+PostHog alerts are not managed by the setup command. Create these two in the PostHog UI on the matching insight (Insight, Alerts, New alert), with a daily check:
+
+| Insight | Condition | Why |
+|---|---|---|
+| Default-set rate per day | value above 0.2 for the latest day | the router is mostly failing, breaker open or slow; skills are not being chosen by the model |
+| Guard timeout or failure rate by surface | value above 0.05 for any surface | the guard classifier is down or too slow; fail-closed surfaces refuse learners |

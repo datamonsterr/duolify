@@ -94,8 +94,8 @@ func TestApplyDashboardIsIdempotent(t *testing.T) {
 	if len(f.dashboards) != 1 {
 		t.Fatalf("dashboards after two runs: %d", len(f.dashboards))
 	}
-	if len(f.insights) != len(AIInsights()) {
-		t.Fatalf("insights after two runs: %d want %d", len(f.insights), len(AIInsights()))
+	if want := len(AIInsights()) + len(GuardInsights()); len(f.insights) != want {
+		t.Fatalf("insights after two runs: %d want %d", len(f.insights), want)
 	}
 	for _, a := range f.auth {
 		if a != "Bearer personal-secret" {
@@ -149,5 +149,27 @@ func TestAPIErrorsDoNotLeakToken(t *testing.T) {
 	_, err := api.CountEvents(context.Background(), "duolify_integration_check")
 	if err == nil || strings.Contains(err.Error(), "personal-secret") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestGuardInsightsUseOnlyTheClosedGuardProperties(t *testing.T) {
+	for _, i := range GuardInsights() {
+		if !strings.Contains(i.Query, "input_guard_decision") {
+			t.Fatalf("insight %q must query input_guard_decision", i.Name)
+		}
+		for _, banned := range []string{"properties.text", "properties.message", "properties.note"} {
+			if strings.Contains(i.Query, banned) {
+				t.Fatalf("insight %q reads guarded text (%s)", i.Name, banned)
+			}
+		}
+	}
+	routed := ""
+	for _, i := range AIInsights() {
+		routed += i.Query
+	}
+	for _, p := range []string{"router_source", "prompt_mode", "cache_read_tokens"} {
+		if !strings.Contains(routed, p) {
+			t.Errorf("no AI insight uses %s", p)
+		}
 	}
 }

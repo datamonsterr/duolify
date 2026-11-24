@@ -27,7 +27,7 @@ func enableInputGuard(backend *engine.Client, events analytics.Events, logger *s
 		if err := events.Capture(learner, "input_guard_decision", map[string]any{
 			"source": "api", "platform": "web", "app_version": "0.1.0",
 			"surface": e.Surface, "allowed": e.Allowed, "reason_code": e.ReasonCode,
-			"guard_source": e.Source, "latency_ms": int(e.Latency.Milliseconds()),
+			"guard_source": e.Source, "late": e.Late, "latency_ms": int(e.Latency.Milliseconds()),
 		}); err != nil {
 			logger.WarnContext(ctx, "input guard analytics failed", "code", "capture_failed")
 		}
