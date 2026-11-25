@@ -1,5 +1,5 @@
 import { session } from "../accounts/session";
-import { sendGuidedTurn } from "../chat/chat-transport";
+import { withChatTransport } from "../chat/load-chat-transport";
 export const briefFields = [
   { id: "topic", label: "Topic" },
   { id: "goal", label: "Goal" },
@@ -59,10 +59,14 @@ export interface BriefService {
 }
 export const briefApi: BriefService = {
   config: () => session.request("/v1/course-brief/config"),
-  chat: (turn) =>
-    sendGuidedTurn("course_brief", turn, () =>
-      session.request("/v1/course-brief/chat", "POST", turn),
-    ),
+  chat(turn) {
+    const legacyChat = () =>
+      session.request<BriefTurnResult>("/v1/course-brief/chat", "POST", turn);
+    return withChatTransport(
+      ({ sendGuidedTurn }) => sendGuidedTurn("course_brief", turn, legacyChat),
+      legacyChat,
+    );
+  },
   confirm: (brief) =>
     session.request("/v1/course-brief/confirm", "POST", {
       brief,

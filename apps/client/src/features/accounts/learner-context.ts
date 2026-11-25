@@ -1,7 +1,8 @@
-import { authRequest, credentialStore, session } from "./session";
+import { authRequest } from "./session";
 import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
 import { applyServerMascot } from "./mascot-settings";
-import { sendGuidedTurn } from "../chat/chat-transport";
+import { withChatTransport } from "../chat/load-chat-transport";
+import { accessToken, readLearnerSettings } from "./learner-settings";
 
 export const contextFields = [
   { id: "goal", label: "Goal", kind: "text" },
@@ -146,12 +147,6 @@ export function validateContext(
   }
   return errors;
 }
-async function accessToken() {
-  await session.load();
-  const tokens = await credentialStore.read();
-  if (!tokens) throw new Error("Sign in again to edit your profile.");
-  return tokens.access_token;
-}
 export const profileApi = {
   async read() {
     return authRequest<LearnerContext>(
@@ -174,7 +169,7 @@ export const profileApi = {
     is_follow_up?: boolean;
     draft?: Partial<ContextFields>;
   }) {
-    return sendGuidedTurn("setup", turn, async () =>
+    const legacyChat = async () =>
       authRequest<{
         message: string;
         quick_replies: { id: string; label: string }[];
@@ -182,22 +177,13 @@ export const profileApi = {
         next_step: string;
         is_follow_up: boolean;
         is_complete: boolean;
-      }>("/v1/me/setup-chat", turn, await accessToken()),
+      }>("/v1/me/setup-chat", turn, await accessToken());
+    return withChatTransport(
+      ({ sendGuidedTurn }) => sendGuidedTurn("setup", turn, legacyChat),
+      legacyChat,
     );
   },
-  async readSettings() {
-    const settings = await authRequest<LearnerSettings>(
-      "/v1/me/settings",
-      undefined,
-      await accessToken(),
-    );
-    setFeedbackSettings({
-      ui_sounds: settings.ui_sounds,
-      haptics: settings.haptics,
-    });
-    applyServerMascot(settings.mascot);
-    return settings;
-  },
+  readSettings: readLearnerSettings,
   async saveSettings(fields: Partial<SettingsFields>) {
     const settings = await authRequest<LearnerSettings>(
       "/v1/me/settings",
