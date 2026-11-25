@@ -5,7 +5,7 @@ fn config_has_all_tasks() {
     const HY4: &str = "tencent/hy4-flash";
     const GLM: &str = "z-ai/glm-5.3-flash";
     let config: Models = toml::from_str(include_str!("../../../config/models.toml")).unwrap();
-    assert_eq!(config.tasks.len(), 16);
+    assert_eq!(config.tasks.len(), 17);
     let transcribe = &config.tasks["transcribe"];
     assert_eq!(transcribe.model, "qwen/qwen3-asr-0.6b");
     assert_eq!(
@@ -43,6 +43,7 @@ fn config_has_all_tasks() {
         ("character_screen", "none"),
         ("course_screen", "none"),
         ("steer_screen", "none"),
+        ("input_guard", "none"),
         ("screen_review", "none"),
     ] {
         let route = &config.tasks[task];

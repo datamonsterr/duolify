@@ -433,6 +433,8 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
         }
     }
 
+    // The router breaker compares its own spend with the day's main-model spend.
+    crate::router::note_engine_spend(spent).await;
     Ok(outcome)
 }
 

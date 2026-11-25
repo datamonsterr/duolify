@@ -21,8 +21,8 @@
 ## 4. Gesture layer (size L)
 - [ ] 4.1 E2E (touch emulation): swipe-close sidebar/answer panel/sheet in LTR and RTL, short drag cancel, flick, double-tap seek and accumulation, swipe Slide, long-press 2x, pull-down exit, edge margin ignored, second finger cancel, `swipe_navigation` off, lock
 - [ ] 4.2 Integration: gesture layer with scrolling sheet content, axis lock, pointercancel, orientation change
-- [ ] 4.3 Unit: thresholds module (56 px, 800 ms, 1.5 ratio, 40%, 0.5 px/ms, 400 ms, 96 px, 24 px margin) and the conflict priority table
-- [ ] 4.4 Code: shared `useGesture` layer migrating `immersive/gestures.ts`; swipe-close for sidebar, sheets, answer panel, toasts; double-tap seek change (MODIFIED requirement), long-press 2x, pull exit; visible seek buttons in the control layer
+- [x] 4.3 Unit: thresholds module (56 px, 800 ms, 1.5 ratio, 40%, 0.5 px/ms, 400 ms, 96 px, 24 px margin) and the conflict priority table (swipe-close thresholds done in `swipeClose.ts`; seek, long-press and pull-exit still open)
+- [ ] 4.4 Code (answer panel swipe-to-close, grab handle and tap-outside done in `useSwipeClose`; sheets, sidebar, toasts, double-tap seek, long-press, pull exit open): shared `useGesture` layer migrating `immersive/gestures.ts`; swipe-close for sidebar, sheets, answer panel, toasts; double-tap seek change (MODIFIED requirement), long-press 2x, pull exit; visible seek buttons in the control layer
 - [ ] 4.5 Haptics: verify the Tauri mobile haptics API in current docs, wire to the `haptics` setting, `navigator.vibrate` fallback
 - [ ] 4.6 Analytics: `gesture_used` including `undone_within_2s`; coach marks for the five gesture ids
 - [ ] 4.7 Reconcile with `immersive-overlay-polish` if it has landed (sidebar layout and toasts)

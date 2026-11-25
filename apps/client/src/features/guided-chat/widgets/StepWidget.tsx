@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { lazy, Suspense, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Button } from "../../design/Button";
 import { ActionFooter } from "../../design/sheet/ActionFooter";
@@ -22,6 +22,9 @@ export type WidgetProps = {
 };
 
 const t0 = (k: string) => k as MessageId;
+
+// The selector pulls in the rig and its part library, so it loads only when a script asks.
+const CharacterStep = lazy(() => import("./CharacterStepWidget"));
 
 const Svg = ({ d }: { d: string }) => (
   <svg
@@ -197,6 +200,19 @@ export function StepWidget(props: WidgetProps) {
             {skipChip}
           </Chips>
         </>
+      );
+      break;
+    case "character":
+      control = (
+        <Suspense fallback={<p role="status">{t("guided.loading")}</p>}>
+          <CharacterStep
+            step={step}
+            promptId={promptId}
+            disabled={disabled}
+            value={typeof value === "string" ? value : ""}
+            onChange={setValue}
+          />
+        </Suspense>
       );
       break;
     case "toggle":
@@ -454,7 +470,9 @@ export function StepWidget(props: WidgetProps) {
   const showSend =
     step.widget === "confirm"
       ? !destructive
-      : quiet || hasValue || step.widget === "longtext";
+      : step.widget === "character"
+        ? false
+        : quiet || hasValue || step.widget === "longtext";
   const inline = [
     "text",
     "longtext",

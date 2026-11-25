@@ -1,5 +1,6 @@
 import { accountDelete, accountExport } from "./account.scripts";
 import { courseBrief } from "./brief.script";
+import { characterCast, characterCreate } from "./character.scripts";
 import { authSignin } from "./signin.script";
 import { courseLevel, courseSteer } from "./course.scripts";
 import { shareScripts } from "./share.scripts";
@@ -185,4 +186,6 @@ export const allScripts: GuidedScript[] = [
   profileGoal,
   socialUsername,
   socialAddFriend,
+  characterCreate,
+  characterCast,
 ];

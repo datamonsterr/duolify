@@ -81,6 +81,7 @@ html[data-imm-rotated] body {
   background: transparent;
 }
 .imm-ui {
+  container-type: inline-size;
   position: fixed;
   inset: 0;
   z-index: 6;
@@ -111,6 +112,13 @@ html[data-imm-rotated] body {
 }
 .imm-ui > * {
   pointer-events: auto;
+}
+/* Toasts sit below the top bar (button height + its padding), never over the title. */
+.player.immersive {
+  --toast-top: calc(
+    var(--sa-t, env(safe-area-inset-top, 0px)) + var(--space-3) +
+      var(--size-target) + var(--space-2)
+  );
 }
 .imm-controls {
   position: absolute;
@@ -144,7 +152,7 @@ html[data-imm-rotated] body {
   gap: var(--space-3);
 }
 .imm-top {
-  justify-content: space-between;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
 }
 .imm-title {
   flex: 1;
@@ -154,7 +162,9 @@ html[data-imm-rotated] body {
   white-space: nowrap;
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
-  background: var(--surface);
+  background: transparent;
+  color: white;
+  text-shadow: 0 1px 4px black;
   font-weight: var(--weight-strong);
   text-align: center;
 }
@@ -167,12 +177,86 @@ html[data-imm-rotated] body {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  color: white;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
 }
-.imm-row {
-  justify-content: space-between;
-  flex-wrap: wrap;
+.imm-row,
+.imm-playback,
+.imm-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.imm-playback,
+.imm-tools {
+  flex: none;
+}
+.imm-tools {
+  margin-inline-start: auto;
+  position: relative;
+}
+.imm-overflow {
+  display: contents;
+}
+.imm-more {
+  display: none !important;
+}
+.imm-bottom .imm-btn,
+.imm-top .imm-btn {
+  color: white;
+  background: transparent;
+  border-color: transparent;
+  padding-inline: 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.imm-bottom .imm-btn[aria-pressed="true"],
+.imm-top .imm-btn[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: transparent;
+}
+.imm-bottom .imm-btn:hover,
+.imm-bottom .imm-btn:focus-visible,
+.imm-top .imm-btn:hover,
+.imm-top .imm-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+}
+.imm-bottom .imm-btn > span,
+.imm-top .imm-btn > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+.imm-time {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.imm-bottom .imm-btn:disabled {
+  opacity: 0.7;
+}
+@container (max-width: 700px) {
+  .imm-more {
+    display: inline-flex !important;
+  }
+  .imm-overflow {
+    display: none;
+    position: absolute;
+    inset-block-end: 100%;
+    inset-inline-end: 0;
+    padding: 8px;
+    background: #222;
+    border-radius: 8px;
+    gap: 8px;
+  }
+  .imm-overflow[data-open] {
+    display: flex;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .imm-bottom,
+  .imm-top {
+    background: #222;
+  }
 }
 .imm-btn {
   display: inline-flex;
@@ -220,13 +304,13 @@ html[data-imm-rotated] body {
   block-size: var(--space-2);
   min-inline-size: var(--space-3);
   border-radius: var(--radius-pill);
-  background: var(--raised);
+  background: #aaa;
   overflow: hidden;
 }
 .imm-seg > span {
   display: block;
   block-size: 100%;
-  background: var(--primary);
+  background: white;
 }
 .imm-time {
   margin-inline-start: var(--space-2);
@@ -358,6 +442,9 @@ html[data-imm-rotated] body {
 .imm-unlock[data-holding] {
   border-color: var(--primary);
   background: var(--raised);
+}
+:root[data-motion="reduce"] .imm-controls {
+  transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .imm-controls {
@@ -576,10 +663,28 @@ html[data-imm-rotated] body {
     resize: none;
   }
 }
-.imm-answer-handle {
+/* Thin grab pill on the panel's leading edge: the swipe-to-close affordance. */
+.imm-answer-grab {
   position: absolute;
-  inset-inline-end: var(--pr);
-  inset-block-end: calc(var(--pb) + var(--space-3));
+  inset-inline-start: 4px;
+  inset-block-start: 50%;
+  inline-size: 4px;
+  block-size: 40px;
+  translate: 0 -50%;
+  border-radius: 2px;
+  background: var(--line);
+  touch-action: none;
+}
+.imm-answer-head {
+  touch-action: pan-y;
+  min-block-size: 16px;
+}
+.imm-sr-close:focus-visible {
+  position: static;
+  clip: auto;
+  inline-size: auto;
+  block-size: auto;
+  padding: var(--space-2);
 }
 /* The stage moves left to keep the selected region clear of the panel. */
 .player.immersive .stage-frame iframe,
@@ -627,4 +732,11 @@ html[data-imm-rotated="true"][data-imm-panel] .imm-caption {
 /* The Talk and Note bubbles float; they never cover captions or the outlined region. */
 .imm-answer-compose .voice-bubble-wrap {
   justify-self: start;
+}
+/* The rail's Voice note is the shared round voice bubble, sized like its neighbours. */
+.imm-voice-note {
+  display: inline-flex;
+  justify-content: center;
+  min-inline-size: var(--size-target);
+  min-block-size: var(--size-target);
 }

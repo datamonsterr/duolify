@@ -120,7 +120,7 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
       isMobile: vp.width < 1000,
     });
 
-    test("select an area, ask by text, answer streams in the panel, save as note, collapse, close resumes", async ({
+    test("select an area, ask by text, answer streams in the panel, save as note, swipe to close, close resumes", async ({
       page,
       request,
     }, info) => {
@@ -233,20 +233,27 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
         selected[0].properties.area_bucket,
       );
 
-      // Collapse keeps the area outlined and hands the stage back.
-      await panel.getByTestId("answer-collapse").click();
-      await expect(page.getByTestId("answer-expand")).toBeVisible();
-      await expect(page.getByTestId("region-outline")).toBeVisible();
-      await page.getByTestId("answer-expand").click();
+      // Swiping the panel toward its edge closes it; the sidebar has no close or collapse buttons.
+      await expect(panel.getByTestId("answer-collapse")).toHaveCount(0);
+      const grab = await panel.locator(".imm-answer-grab").boundingBox();
+      if (!grab) throw new Error("grab handle missing");
+      await page.mouse.move(grab.x + 2, grab.y + 20);
+      await page.mouse.down();
+      await page.mouse.move(grab.x + 120, grab.y + 22, { steps: 6 });
+      await snap(page, info, vp, "3b-mid-swipe");
+      await page.mouse.move(grab.x + 320, grab.y + 22, { steps: 6 });
+      await page.mouse.up();
+      await expect(page.getByTestId("answer-panel")).toHaveCount(0);
+      await page.getByTestId("immersive-ask").click();
       await expect(page.getByTestId("answer-panel")).toBeVisible();
 
       // Close resumes playback.
-      await page.getByTestId("answer-close").click();
+      await page.getByTestId("answer-close").dispatchEvent("click");
       await expect(page.getByTestId("answer-panel")).toHaveCount(0);
       const closed = (await log()).filter(
         (e) => e.event === "lesson_answer_panel_closed",
       );
-      expect(closed).toHaveLength(1);
+      expect(closed).toHaveLength(2);
       expect(closed[0].properties).toMatchObject({
         outcome: "completed",
         saved_note: true,

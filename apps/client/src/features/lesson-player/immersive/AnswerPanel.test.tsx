@@ -51,8 +51,6 @@ const panel = () => (
     slideIndex={0}
     slideTitle="Sky"
     atMs={0}
-    collapsed={false}
-    onCollapse={vi.fn()}
     onRestore={vi.fn()}
     onClose={vi.fn()}
   />

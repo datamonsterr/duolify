@@ -2,42 +2,25 @@ import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useEffect, useRef, useState } from "react";
 import { ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { trackGuidedUi, trackVoice } from "../../lib/analytics";
-import {
-  anchorToWire,
-  noteQueue,
-  type NoteAnchor,
-  type NoteSource,
-  type QueuedNote,
-} from "./note-queue";
+import { anchorToWire, noteQueue, type QueuedNote } from "./note-queue";
 import { session } from "../accounts/session";
+import {
+  saveNote,
+  undoSavedNote,
+  type NoteContext,
+  type NoteSyncFn,
+} from "./save-note";
 import { AppLink } from "../../lib/navigation";
 import { VoiceButton } from "../voice/VoiceButton";
 import { useUiPreferences } from "../design/localization/Preferences";
 
-export type QuickNoteContext = {
-  source: NoteSource;
-  courseId?: string;
-  lessonId?: string;
-  slideId?: number;
-  slideTitle?: string;
-  /** Pins the note to a moment (and region) of the Lesson. A synced anchored note is not reopened. */
-  anchor?: NoteAnchor;
-};
+export type QuickNoteContext = NoteContext;
 
 export type QuickNotePanelProps = {
   open: boolean;
   onClose: () => void;
   context: QuickNoteContext;
-  onSync?: (note: {
-    actionKey: string;
-    courseId?: string;
-    lessonId?: string;
-    slideId?: number;
-    slideTitle?: string;
-    source: NoteSource;
-    anchor?: NoteAnchor;
-    rawText: string;
-  }) => Promise<{ id: string; status: string }>;
+  onSync?: NoteSyncFn;
   isOffline?: boolean;
   /** "bubble": a round mic icon; the dictated-note confirmation is a toast with Undo. */
   voiceVariant?: "default" | "bubble";
@@ -149,82 +132,39 @@ export function QuickNotePanel({
   };
   const save = async (body: string, dictation?: string) => {
     quickNoteDrafts.delete(draftKey);
-    const anchor: NoteAnchor | undefined =
-      dictation !== undefined && context.anchor
-        ? { ...context.anchor, input: "voice" }
-        : context.anchor;
-
-    // Save to local device queue with stable action key
-    const queued = noteQueue.enqueue({
-      courseId: context.courseId,
-      lessonId: context.lessonId,
-      slideId: context.slideId,
-      slideTitle: context.slideTitle,
-      source: context.source,
-      anchor,
-      rawText: body,
-      status: "device_saved",
-    });
-    setActiveNote(queued);
-    if (dictation !== undefined) setDictated({ actionKey: queued.actionKey });
-
-    // If marked offline or browser navigator is offline, keep as offline_saved
     const online =
       !isOffline && (typeof navigator === "undefined" || navigator.onLine);
-    if (!online) {
-      setStatus("offline_saved");
-      return;
-    }
-
-    // Attempt online sync
-    setIsSyncing(true);
+    let syncing = false;
     try {
-      if (onSync) {
-        const res = await onSync({
-          actionKey: queued.actionKey,
-          courseId: context.courseId,
-          lessonId: context.lessonId,
-          slideId: context.slideId,
-          slideTitle: context.slideTitle,
-          source: context.source,
-          anchor,
-          rawText: body,
-        });
-        noteQueue.markSynced(queued.actionKey, res.id);
+      const res = await saveNote({
+        context,
+        body,
+        voice: dictation !== undefined,
+        online,
+        onSync,
+        onQueued: (queued) => {
+          setActiveNote(queued);
+          if (dictation !== undefined)
+            setDictated({ actionKey: queued.actionKey });
+          if (online) {
+            syncing = true;
+            setIsSyncing(true);
+          } else setStatus("offline_saved");
+        },
+      });
+      if (res.synced) {
         if (dictation !== undefined)
-          setDictated({ actionKey: queued.actionKey, id: res.id });
+          setDictated({ actionKey: res.actionKey, id: res.id });
         setStatus("synced");
-      } else {
-        const res = await session.request<{ id: string; status: string }>(
-          "/v1/notes",
-          "POST",
-          {
-            action_key: queued.actionKey,
-            course_id: context.courseId,
-            lesson_id: context.lessonId,
-            slide_id: context.slideId,
-            slide_title: context.slideTitle,
-            source: context.source,
-            anchor: anchorToWire(anchor),
-            raw_text: body,
-          },
-        );
-        noteQueue.markSynced(queued.actionKey, res.id);
-        if (dictation !== undefined)
-          setDictated({ actionKey: queued.actionKey, id: res.id });
-        setStatus("synced");
-      }
-    } catch {
-      setStatus("offline_saved");
+      } else setStatus("offline_saved");
     } finally {
-      setIsSyncing(false);
+      if (syncing) setIsSyncing(false);
     }
   };
 
   const undoDictation = async () => {
     if (!dictated) return;
-    const { actionKey, id } = dictated;
-    noteQueue.remove(actionKey);
+    const saved = dictated;
     setDictated(null);
     setActiveNote(null);
     setNoteTextState("");
@@ -235,13 +175,7 @@ export function QuickNotePanel({
       entry_point: "quick_note",
       edited: false,
     });
-    if (id) {
-      try {
-        await session.request(`/v1/notes/${id}`, "DELETE");
-      } catch {
-        /* The note stays in Notes and can be deleted there. */
-      }
-    }
+    await undoSavedNote(saved);
   };
 
   const undoRef = useRef(undoDictation);

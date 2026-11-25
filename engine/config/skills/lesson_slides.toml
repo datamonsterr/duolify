@@ -7,8 +7,8 @@ task = "lesson_slides"
 prompt_mode = "monolithic"
 
 [routing]
-max_skills = 4
-budget_tokens = 400
+max_skills = 6
+budget_tokens = 600
 
 [[skill]]
 id = "diagram_layout"
@@ -89,3 +89,13 @@ order = 70
 tokens = 69
 default = false
 body = """Skill character_cast: each slide may list segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate. Keep the speakers in turn and each persona's voice recognisable."""
+
+[[skill]]
+id = "age_band_tone"
+description = "The learner has a stated level."
+tasks = ["lesson_slides"]
+version = 1
+order = 65
+tokens = 63
+default = false
+body = """Skill age_band_tone: pitch vocabulary, example choice and pace to learner.level. Beginner: plain words, everyday examples, one idea per slide, define each term once. Advanced: precise terms, skip basics, use realistic cases. Never mention the level."""

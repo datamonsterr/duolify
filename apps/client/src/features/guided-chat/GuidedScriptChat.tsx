@@ -57,6 +57,8 @@ export type GuidedScriptChatProps = {
     stepId: string,
     answers: Record<string, Value>,
   ) => Promise<string | null>;
+  /** Names an answer that holds an id (e.g. a Character) in the transcript and summary. */
+  describe?: (step: Step, value: Value) => string | null;
   /** Extra controls under the active widget (e.g. Resend code). */
   stepActions?: (step: Step) => ReactNode;
   /** Focus the first control on mount (a screen whose only job is the chat, e.g. sign-in). */
@@ -79,6 +81,7 @@ export function GuidedScriptChat({
   onDone,
   onCancel,
   onStepCommit,
+  describe,
   stepActions,
   focusOnMount = false,
 }: GuidedScriptChatProps) {
@@ -206,7 +209,7 @@ export function GuidedScriptChat({
 
   // Final submit once, after the confirm card is answered.
   useEffect(() => {
-    if (!complete || submitted.current || status === "done") return;
+    if (!complete || submitted.current || status !== "idle") return;
     if (needsNetwork && !online) return;
     submitted.current = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -353,7 +356,10 @@ export function GuidedScriptChat({
   const display = (s: Step, a: Answer) => {
     if (a.skipped) return label("guided.skipped");
     const v = a.value;
+    const named = describe?.(s, v);
+    if (named) return named;
     if (s.widget === "password" || s.widget === "code") return "••••••••";
+    if (s.widget === "character") return label(s.actionKey ?? "guided.confirm");
     if (s.widget === "toggle") return label(v ? "guided.yes" : "guided.no");
     if (s.widget === "rating") return t("guided.stars", { count: Number(v) });
     if (s.widget === "single" || s.widget === "chips+text") {

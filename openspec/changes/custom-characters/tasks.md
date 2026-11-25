@@ -96,8 +96,8 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 ## 10. Selector UI and live preview (L; unblocked with placeholder art, ship flag off until 8.3)
 
-- [ ] 10.1 E2E first: build a human, an animal, a robot and a fantasy creature from selectors only with zero Credits; prompt path then tweak; both paths produce one document shape; avatar and full-body previews update live; keyboard and screen reader complete the flow.
-- [ ] 10.2 Component tests for each selector widget (kind and base, age band, skin and colour pickers, face, hair and head covering, eyes and eyebrows, facial hair, glasses, body type, clothes, accessories, name, pronouns, voice, personality); reduced motion; mobile and desktop layout; draft preserved on error.
+- [x] 10.1 _Done (selector half): e2e/characters-v2-kinds.spec.ts builds all four kinds with zero Credit requests, both previews recompile on each change, keyboard path; the prompt-then-tweak path waits for group 9._ E2E first: build a human, an animal, a robot and a fantasy creature from selectors only with zero Credits; prompt path then tweak; both paths produce one document shape; avatar and full-body previews update live; keyboard and screen reader complete the flow.
+- [x] 10.2 _Done: CharacterSelector.test.tsx (widgets, previews, reduced motion, draft kept on a failed save); pronouns are now a tile selector with a custom entry, no race or ethnicity field._ Component tests for each selector widget (kind and base, age band, skin and colour pickers, face, hair and head covering, eyes and eyebrows, facial hair, glasses, body type, clothes, accessories, name, pronouns, voice, personality); reduced motion; mobile and desktop layout; draft preserved on error.
 - [x] 10.3 Export `CharacterSelector` and `CharacterPreview` for reuse by the guided chat in `conversational-flows-and-mascot`; document the draft-patch contract (see design, Mascot contract).
 
 ## 11. Safety extensions (M; guardrail wiring depends on the parallel change landing)

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { VoiceBubble, type VoiceBubbleControls } from "../../voice/VoiceBubble";
+import { useVoiceQuickNote } from "../../notes/useVoiceQuickNote";
 import { ToastHost } from "../../../components/toast";
 import { Icon } from "../../design/Icon";
 import { useUiPreferences } from "../../design/localization/Preferences";
@@ -45,7 +47,7 @@ export default function ImmersiveNotes({
   children,
 }: Props) {
   const layout = useLayout();
-  const latest = useLatest({ view, actions });
+  const latest = useLatest({ view, actions, slideTitle });
   // Playback this component paused, so closing resumes only what it stopped.
   const pausedByUs = useRef(false);
   const [announce, setAnnounce] = useState("");
@@ -60,7 +62,6 @@ export default function ImmersiveNotes({
     atMs: number;
     slideIndex: number;
   } | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const uiWidth = layout.rotated ? layout.vh : layout.vw;
   const docked = canDock(uiWidth);
   const panel = panelWidth(uiWidth);
@@ -89,6 +90,29 @@ export default function ImmersiveNotes({
     onDiscard: discard,
   });
   const { selection, selectArea, adjust, clear } = sel;
+  const selected = useLatest(selection);
+  const voiceControls = useRef<VoiceBubbleControls>(null);
+  const voiceNote = useVoiceQuickNote({
+    surface: "immersive",
+    controls: voiceControls,
+    getPlayer: () => {
+      const { view: v, actions: a } = latest.current;
+      return {
+        courseId: v.courseId,
+        lessonId: v.lessonId,
+        slideIndex: v.index,
+        slideTitle: latest.current.slideTitle,
+        timeMs: v.timeMs,
+        playing: v.playing,
+        region:
+          selected.current.phase === "selected"
+            ? selected.current.rect
+            : undefined,
+        pause: a.pause,
+        play: a.toggle,
+      };
+    },
+  });
 
   // A Slide change drops the selection: a region belongs to one Slide.
   const slideIndex = view.index;
@@ -120,7 +144,7 @@ export default function ImmersiveNotes({
 
   // Keep the selected region clear of the panel by moving the stage left.
   const shiftRect = answer?.rect;
-  const shifting = answer !== null && docked && !collapsed;
+  const shifting = answer !== null && docked;
   useEffect(() => {
     const root = document.documentElement;
     let shift = 0;
@@ -161,7 +185,6 @@ export default function ImmersiveNotes({
         method: selection.method,
         area: rect.w * rect.h,
       });
-    setCollapsed(false);
     setAnswer({
       rect,
       atMs: Math.round(latest.current.view.timeMs),
@@ -220,26 +243,32 @@ export default function ImmersiveNotes({
       >
         <Icon name="ask" />
       </button>
-      <button
-        type="button"
-        className="imm-btn imm-icon-btn"
-        data-testid="immersive-quick-note"
-        aria-label={t("imm.note")}
-        title={t("imm.note")}
-        onClick={() =>
-          openComposer(
-            selection.phase === "selected" ? selection.rect : undefined,
-          )
-        }
-        disabled={composer !== null}
+      <div
+        className="imm-voice-note"
+        data-testid="immersive-voice-note"
+        title={t("imm.voice_note")}
       >
-        <Icon name="note" />
-      </button>
+        <VoiceBubble
+          purpose="note"
+          entryPoint="quick_note"
+          lessonId={view.lessonId}
+          icon="voicenote"
+          testId="voice-note-mic"
+          controls={voiceControls}
+          disabled={composer !== null || answer !== null}
+          {...voiceNote}
+        />
+      </div>
     </>
   );
 
   const extensions: ImmersiveExtensions = {
     sideRail: rail,
+    onStageTap: () => {
+      if (!answer) return false;
+      closeAnswer({ outcome: "completed", savedNote: false, followUps: 0 });
+      return true;
+    },
     busy: composer !== null || answer !== null || selection.phase !== "none",
     ...sel.gestureExtensions,
   };
@@ -332,8 +361,7 @@ export default function ImmersiveNotes({
             slideTitle={slideTitle}
             region={answer.rect}
             atMs={answer.atMs}
-            collapsed={collapsed}
-            onCollapse={setCollapsed}
+            rotated={layout.rotated}
             onRestore={(rect) => setAnswer((a) => (a ? { ...a, rect } : a))}
             onClose={closeAnswer}
           />

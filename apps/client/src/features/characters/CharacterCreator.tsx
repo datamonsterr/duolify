@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "../design/Button";
 import { useCharacterT } from "./useCharacterT";
-import { CharacterPreview } from "./CharacterPreview";
+import { CharacterStage } from "./CharacterStage";
 import {
   CharacterSelector,
   CharacterTabs,
@@ -9,7 +9,7 @@ import {
 } from "./CharacterSelector";
 import { applyDraftPatch, defaultDraft } from "./draft";
 import { characterLibrary, type CharacterRecord } from "./library";
-import { POSES, type RigView } from "./rig-v2";
+import { POSES } from "./rig-v2";
 import { validateSpecV2 } from "./schema-v2";
 import {
   EXPRESSIONS_V2,
@@ -33,7 +33,6 @@ export function CharacterCreator({
     () => record?.document ?? defaultDraft("human"),
   );
   const [tab, setTab] = useState<Tab>("kind");
-  const [view, setView] = useState<RigView>("avatar");
   const [pose, setPose] = useState<Pose>("idle");
   const [expression, setExpression] = useState<ExpressionV2>("idle");
   const [rejected, setRejected] = useState(false);
@@ -64,45 +63,22 @@ export function CharacterCreator({
   return (
     <section className="cv2-creator" aria-label={t("characters.v2.title")}>
       <header className="cv2-head">
-        <div className="cv2-bar">
-          <button
-            type="button"
-            className="cv2-icon"
-            aria-label={t("characters.v2.close")}
-            onClick={onClose}
-          >
-            <Icon d="M15 5l-7 7 7 7" />
-          </button>
-          <h1>{t("characters.v2.short")}</h1>
-          <Button
-            className="cv2-save"
-            onClick={() => void submit()}
-            pending={pending}
-            disabled={!valid}
-          >
-            <Icon d="M5 12l5 5 9-10" />
-            {t(record ? "characters.v2.save" : "characters.v2.use")}
-          </Button>
-        </div>
+        <button
+          type="button"
+          className="cv2-icon"
+          aria-label={t("characters.v2.close")}
+          onClick={onClose}
+        >
+          <Icon d="M15 5l-7 7 7 7" />
+        </button>
+        <h1>{t("characters.v2.short")}</h1>
         <div className="cv2-stage">
-          <button
-            type="button"
-            className="cv2-avatar"
-            aria-pressed={view === "body"}
-            aria-label={t(
-              view === "avatar"
-                ? "characters.v2.view.body"
-                : "characters.v2.view.avatar",
-            )}
-            onClick={() => setView(view === "avatar" ? "body" : "avatar")}
-          >
-            <CharacterPreview
-              spec={spec}
-              view={view}
-              pose={pose}
-              expression={expression}
-            />
-          </button>
+          <CharacterStage
+            spec={spec}
+            pose={pose}
+            expression={expression}
+            tall
+          />
           <button
             type="button"
             className="cv2-icon"
@@ -113,6 +89,15 @@ export function CharacterCreator({
           </button>
         </div>
         <CharacterTabs tab={tab} onTab={setTab} />
+        <Button
+          className="cv2-save"
+          onClick={() => void submit()}
+          pending={pending}
+          disabled={!valid}
+        >
+          <Icon d="M5 12l5 5 9-10" />
+          {t(record ? "characters.v2.save" : "characters.v2.use")}
+        </Button>
       </header>
       <div className="cv2-side">
         <CharacterSelector
