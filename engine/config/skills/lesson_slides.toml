@@ -3,8 +3,13 @@
 # until the task's rollout PR. Rule skills (language_practice, character_cast) are chosen from
 # request fields; model-routed ones (diagram, code, math, table, timeline) wait for the router
 # (group 4) and are not loaded until then. `default` skills load for every routed lesson.
+#
+# `exclusive`: groups of overlapping model-routed skills of which at most one loads. The router
+# asks each skill yes/no on its own, so overlapping ones can all say yes; when more than one of a
+# group does, one extra `choice` call picks the winner, and on any failure the first listed wins.
 task = "lesson_slides"
 prompt_mode = "monolithic"
+exclusive = [["diagram_layout", "timeline"]]
 
 [routing]
 max_skills = 6

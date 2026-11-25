@@ -70,6 +70,16 @@ pub trait SkillRouter: Send + Sync {
         input: &RouterInput,
         candidates: &[Candidate],
     ) -> anyhow::Result<BTreeMap<String, f64>>;
+
+    /// Picks ONE of `options` (an exclusive group the per-skill pass said yes to): probability per
+    /// option id, the highest wins. Default: unsupported, so the caller keeps the first-listed.
+    async fn resolve(
+        &self,
+        _input: &RouterInput,
+        _options: &[Candidate],
+    ) -> anyhow::Result<BTreeMap<String, f64>> {
+        anyhow::bail!("choice not supported")
+    }
 }
 
 /// Disposable decision cache keyed by `cache_key`; the production backend is Redis.
@@ -147,8 +157,12 @@ pub fn cache_key(
         .iter()
         .map(|c| format!("{}={}", c.id, c.threshold))
         .collect();
+    let groups = lib
+        .task(task)
+        .map(|t| format!("{:?}", t.exclusive))
+        .unwrap_or_default();
     let raw = format!(
-        "{task}|{}|{ROUTER_VERSION}|{}|{}",
+        "{task}|{}|{ROUTER_VERSION}|{}|{groups}|{}",
         versions.join(","),
         thresholds.join(","),
         serde_json::to_string(input).unwrap_or_default()
@@ -254,7 +268,36 @@ pub async fn select(
         .collect();
     // Most likely first, so the cap in `Library::assemble` drops the least likely.
     picked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.id.cmp(&b.0.id)));
-    let ids: Vec<String> = picked.into_iter().map(|(c, _)| c.id.clone()).collect();
+    let mut ids: Vec<String> = picked.into_iter().map(|(c, _)| c.id.clone()).collect();
+    // The per-skill questions are independent, so overlapping skills can all say yes. Per
+    // exclusive group with more than one yes: one extra choice call, else the first listed.
+    for group in &ts.exclusive {
+        let hits: Vec<&Candidate> = group
+            .iter()
+            .filter(|g| ids.contains(g))
+            .filter_map(|g| candidates.iter().find(|c| &c.id == g))
+            .collect();
+        if hits.len() < 2 {
+            continue;
+        }
+        breaker.record_router(ROUTER_CALL_NANOS).await;
+        let options: Vec<Candidate> = hits.iter().map(|c| (*c).clone()).collect();
+        let won = match tokio::time::timeout(timeout, router.resolve(&input, &options)).await {
+            Ok(Ok(p)) => options
+                .iter()
+                .filter_map(|c| Some((&c.id, *p.get(&c.id)?)))
+                .filter(|(_, p)| p.is_finite())
+                // Ties and ordering keep the earlier listed option.
+                .fold(None::<(&String, f64)>, |b, x| match b {
+                    Some(b) if b.1 >= x.1 => Some(b),
+                    _ => Some(x),
+                })
+                .map(|(id, _)| id.clone()),
+            _ => None,
+        }
+        .unwrap_or_else(|| hits[0].id.clone());
+        ids.retain(|i| !group.contains(i) || *i == won);
+    }
     cache.put(key, ids.clone()).await;
     Selection {
         ids: with(ids),
