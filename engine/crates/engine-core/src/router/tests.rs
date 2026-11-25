@@ -226,3 +226,25 @@ async fn each_model_call_is_counted_and_a_cache_hit_is_free() {
     assert_eq!(r.1.load(Ordering::SeqCst), 1);
     assert_eq!(b.router.load(Ordering::Relaxed), ROUTER_CALL_NANOS);
 }
+
+/// The decision model sees only these descriptions, so overlapping ones make it over-pick
+/// (CI live A/B: `timeline` fired on every process and cycle, `diagram_layout` on comparisons).
+#[test]
+fn model_routed_descriptions_are_disjoint_in_scope() {
+    let lib = lib();
+    let ts = lib.task("lesson_slides").unwrap();
+    let d = |id: &str| ts.skills[id].description.to_lowercase();
+    let (diagram, timeline, table) = (d("diagram_layout"), d("timeline"), d("comparison_table"));
+    for cue in ["cycle", "steps", "flow", "how something works"] {
+        assert!(diagram.contains(cue), "diagram_layout should name {cue}");
+    }
+    assert!(
+        timeline.contains("dated") && timeline.contains("not"),
+        "timeline must require dated, chronological events and exclude processes"
+    );
+    assert!(
+        !timeline.contains("stages"),
+        "stages/sequence wording pulls processes into timeline"
+    );
+    assert!(diagram.contains("not") && table.contains("not"));
+}

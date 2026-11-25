@@ -12,9 +12,9 @@ budget_tokens = 600
 
 [[skill]]
 id = "diagram_layout"
-description = "The lesson explains a process, structure, flow or labelled figure that is best drawn."
+description = "The lesson explains how something works or is built and the learner needs to see it drawn: a process, cycle, flow, exchange between parts, steps of a mechanism or a labelled structure. Not for a plain comparison of items."
 tasks = ["lesson_slides"]
-version = 1
+version = 2
 order = 40
 tokens = 93
 default = true
@@ -42,9 +42,9 @@ body = """Skill math_notation: write formulas with Unicode (x², √, ≤, π, �
 
 [[skill]]
 id = "comparison_table"
-description = "The lesson contrasts two or more things (differences, pros and cons, A versus B)."
+description = "The lesson contrasts two or more things (differences, pros and cons, A versus B). Not for a single subject explained on its own."
 tasks = ["lesson_slides"]
-version = 1
+version = 2
 order = 43
 tokens = 58
 default = false
@@ -52,9 +52,9 @@ body = """Skill comparison_table: use one <table> in the body slot with a header
 
 [[skill]]
 id = "timeline"
-description = "The lesson is about ordered events, history, stages or a sequence over time."
+description = "The lesson is about dated or chronological events, history, eras or milestones laid out along a time axis. Not for how a process, cycle or mechanism works, which is drawn instead."
 tasks = ["lesson_slides"]
-version = 1
+version = 2
 order = 44
 tokens = 56
 default = false
