@@ -262,6 +262,7 @@ Net: tutor chat becomes about 15 to 20 percent cheaper after guard, lessons are 
 ## Owner questions
 
 1. Self-harm response: which support resources and wording per supported locale (English, Vietnamese, Spanish), and who reviews them. The engine returns a code; the API shows owner-approved copy.
+   OWNER APPROVED 2026-11-25 (issue #423): the en/vi/es wording ships as written; no hotline resources yet (copy points to local emergency services and a trusted person); the owner reviews wording changes.
 2. The Decisions API is alpha. Is a dependency on it acceptable as the first router source (with fallback to Hy4 and default sets)? The default decision, if there is no answer, is yes behind the trait, because failure cost is bounded.
 
 ## 15. Caching layout (checked 2026-11-24 against OpenRouter and Anthropic docs)
