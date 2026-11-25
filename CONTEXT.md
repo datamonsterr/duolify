@@ -7,6 +7,10 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Learner** | A signed-in person who takes courses. |
 | **Course** | A long-term learning track on one topic (like one language in Duolingo). A learner can enroll in many courses. |
 | **Course outline** | The generated structure of a course: units and lesson titles with goals. Generated first, before any lesson content. |
+| **Lesson plan** | Per-lesson teaching plan made once by the Course planner: objective, key points, prerequisites, misconceptions, example idea, review targets. Immutable. |
+| **Course planner** | The paid outline step: keeps the confirmed Course outline unchanged and adds one Lesson plan per lesson. |
+| **Lesson length** | Per-course setting `short`, `medium` or `long` that sets slides and test questions per generated lesson. |
+| **Review question** | A stored question from an earlier lesson added to a lesson test. Non-gating: it never blocks a pass. |
 | **Unit** | An ordered group of lessons inside a course. |
 | **Lesson** | One short learning session. Content is a deck of slides plus a lesson test. Generated only when the learner reaches it (see *Gated generation*). |
 | **Slide** | One small, self-contained Motion HTML document that plays an animation of a few seconds and can pause, replay and step. A lesson has many slides. |

@@ -332,6 +332,7 @@ fn outline(c: &Completion) -> Result<pb::CourseOutline, Status> {
                         lesson_id: lesson["lesson_id"].as_str().unwrap_or_default().into(),
                         title: lesson["title"].as_str().unwrap_or_default().into(),
                         goal: lesson["goal"].as_str().unwrap_or_default().into(),
+                        plan: None,
                     })
                     .collect(),
             })
@@ -956,6 +957,7 @@ impl EngineService for Service {
                             lesson_id: l.id,
                             title: l.title,
                             goal: l.goal,
+                            plan: None,
                         })
                         .collect(),
                 })
@@ -1301,6 +1303,8 @@ impl EngineService for Service {
         &self,
         request: Request<pb::GenerateCourseOutlineRequest>,
     ) -> Result<Response<pb::GenerateCourseOutlineResponse>, Status> {
+        use engine_core::courses::outline::{self, PLAN_ROUTE};
+
         let req = request.into_inner();
         self.live_model("GenerateCourseOutline", "course_outline")?;
         if req.outline_revision < 1 || req.draft_id.is_empty() {
@@ -1314,7 +1318,7 @@ impl EngineService for Service {
             .router
             .models
             .tasks
-            .get("outline")
+            .get(PLAN_ROUTE)
             .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
         if bounds.model != model.model
             || bounds.fallback_model != model.fallback_model
@@ -1342,19 +1346,26 @@ impl EngineService for Service {
             .edited_outline
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("edited outline required"))?;
-        if !base.course_id.is_empty() || base.title.trim().is_empty() {
+        if !base.course_id.is_empty()
+            || base.title.trim().is_empty()
+            || base
+                .units
+                .iter()
+                .flat_map(|u| &u.lessons)
+                .any(|l| l.plan.is_some())
+        {
             return Err(Status::invalid_argument("invalid outline"));
         }
-        let units: Vec<engine_core::courses::outline::Unit> = base
+        let units: Vec<outline::Unit> = base
             .units
             .iter()
-            .map(|u| engine_core::courses::outline::Unit {
+            .map(|u| outline::Unit {
                 id: u.unit_id.clone(),
                 title: u.title.clone(),
                 lessons: u
                     .lessons
                     .iter()
-                    .map(|l| engine_core::courses::outline::Lesson {
+                    .map(|l| outline::Lesson {
                         id: l.lesson_id.clone(),
                         title: l.title.clone(),
                         goal: l.goal.clone(),
@@ -1364,19 +1375,51 @@ impl EngineService for Service {
             .collect();
         let b = req.brief.unwrap_or_default();
         let p = req.learner.unwrap_or_default();
-        let prompt=engine_core::courses::outline::creation_prompt(&units,serde_json::json!({"topic":b.topic,"goal":b.goal,"include_topics":b.include_topics,"skip_topics":b.skip_topics,"level":b.level,"maths":b.maths,"viewing_conditions":b.viewing_conditions,"lesson_length":b.lesson_length,"language":b.language}),serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level})).map_err(|_|Status::invalid_argument("invalid outline"))?;
+        let brief = serde_json::json!({"topic":b.topic,"goal":b.goal,"include_topics":b.include_topics,"skip_topics":b.skip_topics,"level":b.level,"maths":b.maths,"viewing_conditions":b.viewing_conditions,"lesson_length":b.lesson_length,"language":b.language});
+        let profile = serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level});
+        let language = outline::course_language(&brief, &profile);
+        let prompt = outline::creation_prompt(
+            &units,
+            &brief,
+            &profile,
+            serde_json::json!(req.clarifications),
+        )
+        .map_err(|_| Status::invalid_argument("invalid outline"))?;
         let outcome = engine_core::credits::run_validated(
             &self.router,
-            "outline",
+            PLAN_ROUTE,
             &prompt,
             &limits,
-            |text| engine_core::courses::outline::validate_created(&units, text),
+            |text| outline::validate_created(&units, language, text),
         )
         .await
         .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
+        let planned_outline = outcome
+            .completion
+            .as_ref()
+            .map(|completion| {
+                let mut plans = outline::parse_created(&units, language, &completion.text)?;
+                let mut planned = base.clone();
+                for lesson in planned.units.iter_mut().flat_map(|unit| &mut unit.lessons) {
+                    let plan = plans
+                        .remove(&lesson.lesson_id)
+                        .ok_or_else(|| anyhow::anyhow!("validated lesson plan missing"))?;
+                    lesson.plan = Some(pb::LessonPlan {
+                        objective: plan.objective,
+                        key_points: plan.key_points,
+                        prerequisite_lesson_ids: plan.prerequisite_lesson_ids,
+                        misconceptions: plan.misconceptions,
+                        example_hint: plan.example_hint,
+                        review_lesson_ids: plan.review_lesson_ids,
+                    });
+                }
+                Ok::<_, anyhow::Error>(planned)
+            })
+            .transpose()
+            .map_err(|_| Status::internal("invalid validated course plan"))?;
         let attempts = outcome.attempts.iter().map(attempt_usage).collect();
         Ok(Response::new(pb::GenerateCourseOutlineResponse {
-            outline: outcome.completion.as_ref().map(|_| base.clone()),
+            outline: planned_outline,
             usage: outcome.completion.as_ref().and_then(usage),
             attempts,
             unavailable: outcome.completion.is_none(),

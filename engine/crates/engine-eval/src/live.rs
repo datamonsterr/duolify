@@ -189,22 +189,31 @@ pub async fn evaluate(
         "course_outline" => {
             use engine_core::courses::outline;
             let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
-            let prompt =
-                outline::creation_prompt(&base, input["brief"].clone(), input["profile"].clone())?;
+            let brief = &input["brief"];
+            let profile = &input["profile"];
+            let language = outline::course_language(brief, profile);
+            let prompt = outline::creation_prompt(
+                &base,
+                brief,
+                profile,
+                input
+                    .get("clarifications")
+                    .cloned()
+                    .unwrap_or_else(|| json!([])),
+            )?;
             let outcome = engine_core::credits::run_validated(
                 router,
-                "outline",
+                outline::PLAN_ROUTE,
                 &prompt,
                 &limits(input, 12000, 4000, 60000),
-                |text| outline::validate_created(&base, text),
+                |text| outline::validate_created(&base, language, text),
             )
             .await?;
-            let units = parsed(&outcome.completion)["units"].clone();
-            let adhered = serde_json::from_value::<Vec<outline::Unit>>(units.clone())
-                .is_ok_and(|u| u == base);
+            let plan = parsed(&outcome.completion);
+            let adhered = outcome.completion.is_some();
             Ok(bounded(
                 outcome,
-                json!({"adhered": adhered, "units": units}),
+                json!({"adhered": adhered, "units": adhered.then_some(base), "plans": plan["plans"]}),
             ))
         }
         "lesson_slides" => {
@@ -216,6 +225,7 @@ pub async fn evaluate(
                     lesson_id: input["lesson"]["id"].as_str().unwrap_or_default().into(),
                     title: input["lesson"]["title"].as_str().unwrap_or_default().into(),
                     goal: input["lesson"]["goal"].as_str().unwrap_or_default().into(),
+                    plan: None,
                 }),
                 learner: Some(pb::LearnerProfile {
                     locale: input["learner"]["locale"]
@@ -839,6 +849,7 @@ impl From<Outline> for engine_proto::CourseOutline {
                             lesson_id: l.id,
                             title: l.title,
                             goal: l.goal,
+                            plan: None,
                         })
                         .collect(),
                 })

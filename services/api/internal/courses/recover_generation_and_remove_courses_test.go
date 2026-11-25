@@ -34,6 +34,7 @@ func TestValidateCreatedOutlineRecoveryCases(t *testing.T) {
 		OutlineRevision: 4,
 		Attempts:        []*enginev1.Usage{{Delivered: true, Component: "content"}},
 	}
+	valid.Outline.Units[0].Lessons[0].Plan = validTestPlan()
 	if err := ValidateCreatedOutline(request, valid); err != nil {
 		t.Fatalf("expected valid outline, got: %v", err)
 	}

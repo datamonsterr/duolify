@@ -372,7 +372,28 @@ impl LlmProvider for MockProvider {
             )
             .to_string()
         } else if data.as_ref().is_some_and(|v| v["task"] == "course_outline") {
-            serde_json::json!({"units":data.unwrap()["outline"]}).to_string()
+            let units = &data.as_ref().unwrap()["outline"];
+            let mut plans = Vec::new();
+            let mut previous = None;
+            for lesson in units
+                .as_array()
+                .into_iter()
+                .flatten()
+                .flat_map(|unit| unit["lessons"].as_array().into_iter().flatten())
+            {
+                let id = &lesson["id"];
+                let earlier: Vec<_> = previous.into_iter().collect();
+                plans.push(serde_json::json!({"lesson_id":id,"plan":{
+                    "objective":"Explain the lesson goal in your own words",
+                    "key_points":["Identify the core idea","Connect the idea to a concrete case"],
+                    "prerequisite_lesson_ids":earlier,
+                    "misconceptions":["The same rule applies in every situation"],
+                    "example_hint":"Work through one representative example",
+                    "review_lesson_ids":earlier
+                }}));
+                previous = Some(id);
+            }
+            serde_json::json!({"plans":plans}).to_string()
         } else if serde_json::from_str::<serde_json::Value>(input)
             .ok()
             .is_some_and(|v| v["task"] == "outline_chat_change")

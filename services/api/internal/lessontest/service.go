@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // LessonEngine executes lesson generation via engine gRPC.
@@ -507,9 +508,17 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 
 		var authoredID, title, goal string
 		var pos int
-		err = s.opts.Pool.QueryRow(ctx, `SELECT authored_id, title, goal, position FROM course_lesson_stubs WHERE id=$1::uuid`, lessonID).Scan(&authoredID, &title, &goal, &pos)
+		var planJSON []byte
+		err = s.opts.Pool.QueryRow(ctx, `SELECT authored_id, title, goal, position, plan FROM course_lesson_stubs WHERE id=$1::uuid`, lessonID).Scan(&authoredID, &title, &goal, &pos, &planJSON)
 		if err != nil {
 			return fail("lesson_not_found", fmt.Errorf("lesson not found: %w", err))
+		}
+		var plan *enginev1.LessonPlan
+		if planJSON != nil {
+			plan = new(enginev1.LessonPlan)
+			if err := protojson.Unmarshal(planJSON, plan); err != nil {
+				return fail("invalid_lesson_plan", errors.New("invalid stored lesson plan"))
+			}
 		}
 
 		// Build CourseOutline
@@ -625,6 +634,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 				LessonId: authoredID,
 				Title:    title,
 				Goal:     goal,
+				Plan:     plan,
 			},
 			Learner: learner,
 			History: history,

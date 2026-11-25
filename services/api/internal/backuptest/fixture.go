@@ -553,7 +553,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('f2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','fixture-unit',0,'Moon')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','f2222222-2222-4222-8222-222222222222','fixture-lesson',0,'Phases','Recognize phases','ready_to_generate')`); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status,plan)
+		VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','f2222222-2222-4222-8222-222222222222','fixture-lesson',0,'Phases','Recognize phases','ready_to_generate',
+		'{"objective":"Explain the Moon phases","key_points":["Sunlight","Orbit"],"misconceptions":["Earth shadow causes phases"],"example_hint":"Use a lamp and ball","prerequisite_lesson_ids":[],"review_lesson_ids":[]}')`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id,level_override) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','intermediate')`); err != nil {

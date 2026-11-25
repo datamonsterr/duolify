@@ -26,7 +26,7 @@ fn task_alias_routing_canonicalizes_and_maps_routes() {
 
     // Canonical tasks map to models.toml route names
     assert_eq!(model_route_for_task("course_preview"), "preview");
-    assert_eq!(model_route_for_task("course_outline"), "outline");
+    assert_eq!(model_route_for_task("course_outline"), "course_plan");
     assert_eq!(model_route_for_task("lesson_slides"), "lesson");
     assert_eq!(model_route_for_task("lesson_test"), "lesson");
     assert_eq!(model_route_for_task("tutor_chat"), "chat");

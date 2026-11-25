@@ -5,7 +5,7 @@ fn config_has_all_tasks() {
     const HY4: &str = "tencent/hy4-flash";
     const GLM: &str = "z-ai/glm-5.3-flash";
     let config: Models = toml::from_str(include_str!("../../../config/models.toml")).unwrap();
-    assert_eq!(config.tasks.len(), 17);
+    assert_eq!(config.tasks.len(), 18);
     let transcribe = &config.tasks["transcribe"];
     assert_eq!(transcribe.model, "qwen/qwen3-asr-0.6b");
     assert_eq!(
@@ -36,6 +36,7 @@ fn config_has_all_tasks() {
         ("chat", "none"),
         ("preview", "low"),
         ("outline", "low"),
+        (crate::courses::outline::PLAN_ROUTE, "low"),
         ("outline_replan", "low"),
         ("character_create", "low"),
         // ADR 0018: screens answer a two-field schema under a 200-300 token cap, and Hy4 reasoning

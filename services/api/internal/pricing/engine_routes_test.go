@@ -18,7 +18,7 @@ import (
 // quotedActionTasks maps quoted pricing actions to the engine task whose route checks them.
 var quotedActionTasks = map[string]string{
 	"preview":             "preview",
-	"outline":             "outline",
+	"outline":             "course_plan",
 	"lesson_content":      "lesson",
 	"outline_replan":      "outline_replan",
 	"outline_chat_change": "outline_chat_change",
