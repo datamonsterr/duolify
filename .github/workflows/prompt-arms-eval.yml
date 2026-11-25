@@ -22,12 +22,13 @@ permissions:
 
 jobs:
   arms:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-tools
       - name: mise run ci:require-secrets
         id: credentials
         run: mise run ci:require-secrets -- 'prompt arms live eval'
@@ -68,7 +69,7 @@ jobs:
           RUNS: ${{ inputs.runs }}
         working-directory: engine
         run: |
-          set -uo pipefail
+          set +e -uo pipefail  # Actions runs bash -e; keep going after a failed arm
           D=../evals/datasets/duolify-golden/pending-prompt-skills.jsonl
           mkdir -p ../evals/reports
           : > ../evals/reports/exit-codes.txt
@@ -94,7 +95,7 @@ jobs:
         env:
           RUNS: ${{ inputs.runs }}
         run: |
-          set -uo pipefail
+          set +e -uo pipefail  # Actions runs bash -e; keep going after a failed arm
           R=evals/reports
           {
             echo "## Prompt arms live comparison"
@@ -111,7 +112,7 @@ jobs:
               echo "Missing report (monolithic=${base:-none} routed=${cand:-none})." >> "$GITHUB_STEP_SUMMARY"
               continue
             fi
-            { echo '```'; mise run engine:compare -- "../$base" "../$cand" 2>&1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo '```'; mise run engine:compare -- "../$base" "../$cand" 2>&1 || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           done
           for md in "$R"/*/*.md; do
             [ -f "$md" ] || continue
