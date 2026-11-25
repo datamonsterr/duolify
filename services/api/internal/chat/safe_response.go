@@ -2,13 +2,13 @@ package chat
 
 import "strings"
 
-// Placeholder self-harm copy (ADR 0025). The owner approves the real wording and the support
-// resources per locale in issue #423; until then this is a short, non-clinical message that names
-// no organisation and no phone number. Replace the strings, not the code path.
+// Owner-approved self-harm copy (ADR 0025), wording approved 2026-11-25 (issue #423). No hotline
+// numbers or organisations yet: the copy points to local emergency services and a trusted person.
+// The owner reviews any wording change. Replace the strings, not the code path.
 var safeResponseCopy = map[string]string{
-	"en": "It sounds like things are really hard right now. You are not alone, and talking to someone you trust, or to a local emergency or support line, can help. Your lessons are here whenever you are ready.",
-	"vi": "Có vẻ như bạn đang trải qua một giai đoạn rất khó khăn. Bạn không đơn độc, và nói chuyện với người bạn tin tưởng hoặc gọi đường dây hỗ trợ khẩn cấp tại địa phương có thể giúp ích. Bài học vẫn ở đây khi bạn sẵn sàng.",
-	"es": "Parece que ahora mismo las cosas son muy difíciles. No estás solo o sola, y hablar con alguien de confianza o con una línea local de emergencia o apoyo puede ayudar. Tus lecciones estarán aquí cuando quieras.",
+	"en": "I'm really sorry you're going through this. You deserve support from a real person. If you might be in danger, please contact your local emergency services now. You can also reach out to someone you trust, like a friend, family member or a doctor. I'm here to keep helping with your learning whenever you want.",
+	"vi": "Mình rất tiếc khi bạn đang trải qua điều này. Bạn xứng đáng được một người thật hỗ trợ. Nếu bạn có thể đang gặp nguy hiểm, hãy liên hệ ngay với dịch vụ cấp cứu tại địa phương. Bạn cũng có thể nói chuyện với một người bạn tin tưởng, như bạn bè, người thân hoặc bác sĩ. Mình vẫn ở đây để giúp việc học của bạn bất cứ khi nào bạn muốn.",
+	"es": "Lamento mucho que estés pasando por esto. Mereces el apoyo de una persona real. Si podrías estar en peligro, contacta ahora con los servicios de emergencia de tu zona. También puedes hablar con alguien de confianza, como un amigo, un familiar o un médico. Sigo aquí para ayudarte con tu aprendizaje cuando quieras.",
 }
 
 // SafeResponseCopy picks the copy for an Accept-Language header or locale tag; English is the default.

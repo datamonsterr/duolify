@@ -206,7 +206,7 @@ func TestBlockUnsafeTutorMessagesIntegration(t *testing.T) {
 		before := balance()
 		code, raw := turn("selfharm I do not want to be here", "k-sh", "vi-VN")
 		body := asMap(raw)
-		if code != 422 || body["error"] != "input_blocked" || body["reason_code"] != "self_harm" || !strings.Contains(body["safe_response"].(string), "Bạn không đơn độc") {
+		if code != 422 || body["error"] != "input_blocked" || body["reason_code"] != "self_harm" || !strings.Contains(body["safe_response"].(string), "Bạn xứng đáng được một người thật hỗ trợ") {
 			t.Fatalf("%d %s", code, raw)
 		}
 		if fixture.chats.Load() != 0 || balance() != before {
@@ -232,7 +232,7 @@ func TestBlockUnsafeTutorMessagesIntegration(t *testing.T) {
 
 	t.Run("a verdict later than the hold fails open and a late self harm appends the safe response", func(t *testing.T) {
 		code, raw := turn("selfharm-late I feel hopeless", "k-late", "")
-		if code != 200 || !strings.Contains(raw, "Planets") || !strings.Contains(raw, "event: safe_response") || !strings.Contains(raw, "You are not alone") {
+		if code != 200 || !strings.Contains(raw, "Planets") || !strings.Contains(raw, "event: safe_response") || !strings.Contains(raw, "You deserve support from a real person") {
 			t.Fatalf("%d %s", code, raw)
 		}
 		if fixture.chats.Load() != 2 {

@@ -6,7 +6,7 @@ import (
 )
 
 func TestSafeResponseCopyFollowsTheLocaleAndDefaultsToEnglish(t *testing.T) {
-	for header, want := range map[string]string{"vi-VN,vi;q=0.9": "Bạn không đơn độc", "es": "No estás solo", "en-US": "You are not alone", "": "You are not alone", "fr": "You are not alone"} {
+	for header, want := range map[string]string{"vi-VN,vi;q=0.9": "Bạn xứng đáng được một người thật hỗ trợ", "es": "Mereces el apoyo de una persona real", "en-US": "You deserve support from a real person", "": "You deserve support from a real person", "fr": "You deserve support from a real person"} {
 		if got := SafeResponseCopy(header); !strings.Contains(got, want) {
 			t.Fatalf("%q: %q", header, got)
 		}
