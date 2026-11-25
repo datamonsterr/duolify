@@ -103,8 +103,9 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           for run in $(seq 1 "$RUNS"); do
-            base="$R/arm-monolithic-$run/latest.json"; [ -f "$base" ] || base=
-            cand="$R/arm-routed-$run/latest.json"; [ -f "$cand" ] || cand=
+            # A custom --reports dir gets only <stamp>.json (no latest.json); take the newest.
+            base=$(find "$R/arm-monolithic-$run" -maxdepth 1 -name '*.json' 2>/dev/null | sort | tail -n 1)
+            cand=$(find "$R/arm-routed-$run" -maxdepth 1 -name '*.json' 2>/dev/null | sort | tail -n 1)
             echo "### Run $run: monolithic vs routed" >> "$GITHUB_STEP_SUMMARY"
             if [ -z "$base" ] || [ -z "$cand" ]; then
               echo "Missing report (monolithic=${base:-none} routed=${cand:-none})." >> "$GITHUB_STEP_SUMMARY"
