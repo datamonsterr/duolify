@@ -74,6 +74,21 @@ func enforceRouteBudget(p QuotePolicy, action string, input, output, credits int
 // character and retains its separately costed protected standard envelope.
 var standardActions = []string{"preview", "outline", "outline_replan", "lesson_content", "narration", "tutor_short", "tutor_long", "quick_note"}
 
+// routedPrefixTokens is the most input tokens a routed prompt adds to a quote's input bound. The
+// quote already covers a monolithic prompt, which holds the task's instructions, so a routed one
+// adds at most the skill budget (`budget_tokens` in engine/config/skills/<task>.toml) minus the
+// instruction text that moved into skills (tutor chat: the region and persona paragraphs, 175
+// tokens). course_outline has no skills, so it adds nothing. A test keeps the table in step with
+// the skills files.
+var routedPrefixTokens = map[string]int64{
+	"preview":        360,
+	"outline":        0,
+	"outline_replan": 200,
+	"lesson_content": 600,
+	"tutor_short":    225,
+	"tutor_long":     225,
+}
+
 const standardNarrationProtectedCostUSD = 0.06336
 
 // ProviderRateConfig defines the payment provider processing fees and refund reserve
@@ -262,6 +277,9 @@ func validateEconomics(ctx context.Context, raw []byte, verifier ExternalVerifie
 			if attempts, ok := number(bounds["max_attempts"]); ok {
 				p.MaxAttempts = int64(attempts)
 			}
+			// A task that runs routed prepends its core and skills to the quoted input; price
+			// the worst case so flipping prompt_mode never needs a pricing change.
+			in += float64(routedPrefixTokens[actionName])
 			if err := enforceRouteBudget(p, actionName, int64(in), int64(out), int64(credits), ceiling); err != nil {
 				return err
 			}

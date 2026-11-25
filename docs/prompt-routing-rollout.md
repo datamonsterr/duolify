@@ -26,3 +26,43 @@ Run each arm twice and compare the paired cost difference with its standard erro
 2. Cached router decisions are ignored in monolithic mode: the router is only consulted by the routed path. They expire by TTL (30 days); to drop them at once, bump `ROUTER_VERSION` in `engine-core/src/router/mod.rs` (part of the cache key).
 3. To stop only the model router, the daily breaker closes it automatically past 1 percent of engine spend; a routed task whose router gives no answer uses its default skill set. There is no separate kill switch: flip the task to `monolithic`.
 4. Input guard: unset `INPUT_GUARD_ENABLED` on the API and restart. Nothing else changes; the four existing screens keep running.
+
+## Router and guard evidence (task 7.2)
+
+Rows live in `evals/datasets/duolify-golden/pending-prompt-skills.jsonl` (not yet published to the Hugging Face dataset). Run by the controller with `OPENROUTER_API_KEY` in the environment, from `engine/`:
+
+```sh
+D=../evals/datasets/duolify-golden
+# Router accuracy (40 rows, exact skill set, threshold 0.9) and the four router fallback rows; the model rows
+# call the Decisions API only (no chat spend); the fallback rows are scripted and cost nothing.
+cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/pending-prompt-skills.jsonl --limit 0 --budget 0.1 --reports ../evals/reports/router
+# Fast guard (decision model) on the tutor and note rows; the default run uses the chat classifier.
+GUARD_CLASSIFIER=fast cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/pending-prompt-skills.jsonl --limit 0 --budget 0.1 --reports ../evals/reports/guard-fast
+```
+
+Compare the two guard models per run with `EVAL_GUARD_MODEL=liquid/d1.2` and `EVAL_GUARD_MODEL=microsoft/microsoft-decision-1.1` (no branch; the report is stamped `model_override` and cannot promote). Reports list per-case latency. Router thresholds are data: tune `--threshold` per skill on these rows, never on the 12 spike cases.
+
+## Guard parity with the four screens (task 5.3)
+
+The API keeps calling the four screens until the consolidated guard agrees with them on the same rows. From `engine/`, run by the controller (live, `OPENROUTER_API_KEY` set; roughly 9 screen calls and 9 guard calls, a few thousandths of a dollar):
+
+```sh
+D=../evals/datasets/duolify-golden
+cargo run -p engine-eval --bin duolify-eval -- parity-rows $D/golden.jsonl /tmp/parity-rows.jsonl   # any scratch path
+cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/golden.jsonl --limit 0 --budget 0.5 --reports ../evals/reports/parity-screens      # screens: use the report's steer, character, course and review rows
+cargo run -p engine-eval --bin duolify-eval -- --provider live --data /tmp/parity-rows.jsonl --limit 0 --budget 0.5 --reports ../evals/reports/parity-guard
+cargo run -p engine-eval --bin duolify-eval -- parity ../evals/reports/parity-screens/<report>.json ../evals/reports/parity-guard/<report>.json
+```
+
+`parity` lists every row where the screens and the guard differ and exits non-zero unless there is parity: the same rows on both sides and no row the screens pass that the guard fails. Only then switch the four screens (task 5.3), one surface per PR.
+
+## Dashboards and alerts (task 8.2)
+
+Insights are code: `services/api/internal/analytics/posthogapi.go` (`AIInsights`, `GuardInsights`), applied with `mise run api:posthog-setup` (idempotent, needs `POSTHOG_*`). They cover router source share by feature, default-set rate per day, cost per generation by feature and `prompt_mode`, cache read share by `prompt_mode`, guard block rate by surface and reason, guard failure rate by surface, late verdict rate on tutor chat and notes, and guard latency p50 and p95.
+
+PostHog alerts are not managed by the setup command. Create these two in the PostHog UI on the matching insight (Insight, Alerts, New alert), with a daily check:
+
+| Insight | Condition | Why |
+|---|---|---|
+| Default-set rate per day | value above 0.2 for the latest day | the router is mostly failing, breaker open or slow; skills are not being chosen by the model |
+| Guard timeout or failure rate by surface | value above 0.05 for any surface | the guard classifier is down or too slow; fail-closed surfaces refuse learners |

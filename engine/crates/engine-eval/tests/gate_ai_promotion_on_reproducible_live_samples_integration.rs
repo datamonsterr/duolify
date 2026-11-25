@@ -124,6 +124,7 @@ fn artifact_report_contracts_record_case_revision_provider_usage_budget_threshol
         critical_failure: false,
         dataset_cases: 1,
         preview_output_limit: None,
+        retried_cases: 0,
         task_reports,
         results: vec![],
     };
@@ -223,6 +224,7 @@ fn feature_promotion_verification_disallows_missing_secrets_and_fixture_passes()
         critical_failure: false,
         dataset_cases: 1,
         preview_output_limit: None,
+        retried_cases: 0,
         task_reports: task_reports.clone(),
         results: vec![],
     };
@@ -251,6 +253,7 @@ fn feature_promotion_verification_disallows_missing_secrets_and_fixture_passes()
         critical_failure: false,
         dataset_cases: 1,
         preview_output_limit: None,
+        retried_cases: 0,
         task_reports: task_reports.clone(),
         results: vec![],
     };
@@ -297,6 +300,7 @@ fn feature_promotion_verification_disallows_missing_secrets_and_fixture_passes()
         critical_failure: false,
         dataset_cases: 1,
         preview_output_limit: None,
+        retried_cases: 0,
         task_reports,
         results: vec![],
     };
@@ -566,6 +570,7 @@ fn test_promotion_gate_enforces_all_canonical_tasks_and_minimum_coverage() {
         critical_failure: false,
         dataset_cases: 1,
         preview_output_limit: None,
+        retried_cases: 0,
         task_reports: task_reports.clone(),
         results: vec![],
     };

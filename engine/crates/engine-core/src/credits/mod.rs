@@ -67,6 +67,9 @@ pub struct Attempt {
     pub fallback_used: bool,
     pub delivered: bool,
     pub usage_unavailable: bool,
+    /// Worst-case price of this attempt inside its envelope (0 when the caller has no envelope).
+    /// An attempt whose usage is unknown is priced at this figure.
+    pub worst_case_nanos: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
 }
@@ -108,6 +111,23 @@ pub async fn run_validated_checked<F: Fn(&str) -> std::result::Result<(), String
     validate: F,
 ) -> Result<Outcome> {
     crate::eval::run_bounded_checked(router, task, &[input], l, validate, true).await
+}
+
+/// A routed prompt (ADR 0025): `system` is the byte-stable prefix, `input` the data; the
+/// validator explains a rejection for the one repair. `None` is today's single user message.
+pub async fn run_validated_routed<F: Fn(&str) -> std::result::Result<(), String>>(
+    router: &ProviderRouter,
+    task: &str,
+    system: Option<String>,
+    input: &str,
+    l: &Limits,
+    validate: F,
+) -> Result<Outcome> {
+    let shape = crate::eval::Shape {
+        system,
+        ..Default::default()
+    };
+    crate::eval::run_bounded_formatted(router, task, &[input], l, shape, validate, true).await
 }
 
 /// Attempt 1 uses `inputs[0]`; the evaluated fallback attempt uses `inputs[1]`.

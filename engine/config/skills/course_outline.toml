@@ -1,0 +1,10 @@
+# Prompt skills for course_outline (ADR 0025, group 3b). No skills: the answer must echo the
+# confirmed outline exactly (validated), so extra guidance cannot improve it. The routed arm only
+# splits the byte-stable instructions (system) from the learner data (user).
+# `prompt_mode` stays "monolithic" until the task's rollout PR.
+task = "course_outline"
+prompt_mode = "monolithic"
+
+[routing]
+max_skills = 1
+budget_tokens = 150

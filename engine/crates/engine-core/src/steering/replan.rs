@@ -57,6 +57,28 @@ pub async fn propose(
     instructions: &[Instruction],
     limits: &Limits,
 ) -> Result<Outcome> {
+    Ok(propose_in(
+        crate::skills::bundled(),
+        router,
+        base,
+        protected,
+        instructions,
+        limits,
+    )
+    .await?
+    .0)
+}
+
+/// `propose` against an explicit skill library; also returns the prompt mode and skill count
+/// for usage analytics. While `outline_replan` is monolithic this is today's single prompt.
+pub async fn propose_in(
+    lib: &crate::skills::Library,
+    router: &ProviderRouter,
+    base: &[Unit],
+    protected: &[String],
+    instructions: &[Instruction],
+    limits: &Limits,
+) -> Result<(Outcome, &'static str, u32)> {
     // Unknown protected IDs fail before provider work, rather than weakening protection.
     ensure!(
         protected
@@ -64,9 +86,25 @@ pub async fn propose(
             .all(|id| base.iter().any(|u| u.lessons.iter().any(|l| &l.id == id))),
         "unknown protected lesson"
     );
-    let input = prompt(base, protected, instructions)?;
-    crate::credits::run_validated(router, "outline_replan", &input, limits, |raw| {
-        parse(base, protected, raw).is_ok() && !leaks_prompt(raw, instructions)
-    })
-    .await
+    let plan = crate::courses::routed::plan_replan_in(lib, base, protected)?;
+    let (system, input) = match plan.system {
+        None => (None, prompt(base, protected, instructions)?),
+        Some(system) => (Some(system), hardened_prompt(&plan.user, instructions)?),
+    };
+    let outcome = crate::credits::run_validated_routed(
+        router,
+        "outline_replan",
+        system,
+        &input,
+        limits,
+        |raw| {
+            if parse(base, protected, raw).is_ok() && !leaks_prompt(raw, instructions) {
+                Ok(())
+            } else {
+                Err(crate::eval::SCHEMA_MISMATCH.to_owned())
+            }
+        },
+    )
+    .await?;
+    Ok((outcome, plan.mode, plan.skills))
 }

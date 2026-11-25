@@ -47,3 +47,7 @@ Enabled categories: backend, backend/go, backend/rust, frontend/tauri, frontend/
 | UserPromptSubmit, SessionStart, PostToolUse, Stop, SessionEnd | `tkm-hook` (tokenimum facts, loop guard, spend) | Working (`tkm doctor`: all Claude events observed) |
 | PreToolUse (Bash) | `rtk` rewrite (compact command output) | Working |
 | SessionStart, UserPromptSubmit, PostToolUse | Chisle plugin hooks | Installed; active from the next session |
+
+## Prompt skills (product, not agent skills)
+
+The AI engine's own prompt skills (ADR 0025) are a different thing from the agent skills above: `engine/config/skills/<task>.toml`, one file per task, fingerprinted by `promotion::SOURCES`. Rollout, rollback and the live evidence commands are in `docs/prompt-routing-rollout.md`; the switch is `prompt_mode` per file.

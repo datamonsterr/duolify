@@ -103,6 +103,7 @@ fn score(
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            worst_case_nanos: 0,
             error_code: None,
         })
         .into_iter()

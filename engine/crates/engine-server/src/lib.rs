@@ -510,6 +510,23 @@ fn internal(e: anyhow::Error) -> Status {
     }
 }
 
+/// Usage rows of a bounded run, tagged with the prompt mode and skill count of its prompt.
+fn tagged_usage(
+    attempts: &[engine_core::credits::Attempt],
+    mode: &str,
+    skills: u32,
+) -> Vec<pb::Usage> {
+    attempts
+        .iter()
+        .map(|a| {
+            let mut u = attempt_usage(a);
+            u.prompt_mode = mode.into();
+            u.skill_count = skills;
+            u
+        })
+        .collect()
+}
+
 fn attempt_usage(a: &engine_core::credits::Attempt) -> pb::Usage {
     pb::Usage {
         provider: a.provider.clone(),
@@ -587,7 +604,15 @@ impl EngineService for Service {
         // A live route classifies only with passing live `input_guard` evidence; without it the
         // surface's failure rule decides, as for an outage.
         let mut attempts = vec![];
-        let verdict = if self.live_model("GuardInput", "input_guard").is_ok() {
+        // Tutor chat and quick notes use the fast decision model (design.md section 14); it has no
+        // chat-model usage to report and is platform-paid like the router.
+        let fast = guard::fast().filter(|_| surface.is_fast());
+        let verdict = if let Some(model) = fast {
+            tokio::time::timeout(surface.budget(), model.classify(surface, &req.text))
+                .await
+                .ok()
+                .and_then(Result::ok)
+        } else if self.live_model("GuardInput", "input_guard").is_ok() {
             match guard::classifier::run(&self.router, surface, &req.text, &req.course_topic).await
             {
                 Ok(o) => {
@@ -930,7 +955,8 @@ impl EngineService for Service {
                 version: i.version,
             })
             .collect();
-        let result = replan::propose(
+        let (result, prompt_mode, skill_count) = replan::propose_in(
+            engine_core::skills::bundled(),
             &self.router,
             &base,
             &req.protected_lesson_ids,
@@ -963,7 +989,7 @@ impl EngineService for Service {
         }
         Ok(Response::new(pb::ReplanOutlineResponse {
             outline: result.completion.as_ref().map(|_| outline),
-            attempts: result.attempts.iter().map(attempt_usage).collect(),
+            attempts: tagged_usage(&result.attempts, prompt_mode, skill_count),
             unavailable: result.completion.is_none(),
         }))
     }
@@ -1025,14 +1051,19 @@ impl EngineService for Service {
                     .collect(),
             })
             .collect();
-        let prompt = engine_core::courses::outline::prompt(&base, &req.request)
+        let plan = engine_core::courses::routed::plan_change(&base, &req.request)
             .map_err(|_| Status::invalid_argument("invalid edited draft"))?;
-        let outcome = engine_core::credits::run_validated(
+        let outcome = engine_core::credits::run_validated_routed(
             &self.router,
             "outline_chat_change",
-            &prompt,
+            plan.system.clone(),
+            &plan.user,
             &limits,
-            |text| engine_core::courses::outline::parse(&base, text).is_ok(),
+            |text| {
+                engine_core::courses::outline::parse(&base, text)
+                    .map(|_| ())
+                    .map_err(|_| engine_core::eval::SCHEMA_MISMATCH.to_owned())
+            },
         )
         .await
         .map_err(|_| Status::invalid_argument("invalid quote envelope"))?;
@@ -1051,7 +1082,7 @@ impl EngineService for Service {
                 goal: o.goal,
             })
             .collect();
-        let attempts = outcome.attempts.iter().map(attempt_usage).collect();
+        let attempts = tagged_usage(&outcome.attempts, plan.mode, plan.skills);
         Ok(Response::new(pb::OutlineChatChangeResponse {
             operations,
             attempts,
@@ -1262,14 +1293,16 @@ impl EngineService for Service {
             language: b.language,
         };
         let p = req.learner.unwrap_or_default();
-        let prompt = engine_core::courses::preview_prompt(
+        let plan = engine_core::courses::routed::plan_preview(
             &brief,
             serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level,"topic":p.topic,"daily_minutes":p.daily_minutes,"daily_xp":p.daily_xp,"time_zone":p.time_zone,"reminder_enabled":p.reminder_enabled,"reminder_time":p.reminder_time}),
-        );
-        let mut outcome = engine_core::credits::run_validated_checked(
+        )
+        .map_err(|e| Status::internal(e.to_string()))?;
+        let mut outcome = engine_core::credits::run_validated_routed(
             &self.router,
             "preview",
-            &prompt,
+            plan.system.clone(),
+            &plan.user,
             &limits,
             engine_core::courses::check_preview,
         )
@@ -1284,7 +1317,7 @@ impl EngineService for Service {
                 attempt.delivered = false
             }
         }
-        let attempts = outcome.attempts.iter().map(attempt_usage).collect();
+        let attempts = tagged_usage(&outcome.attempts, plan.mode, plan.skills);
         let (sample_outline, example_slides) =
             parsed.map(|(o, s)| (Some(o), s)).unwrap_or_default();
         Ok(Response::new(pb::PreviewCourseResponse {
@@ -1364,17 +1397,22 @@ impl EngineService for Service {
             .collect();
         let b = req.brief.unwrap_or_default();
         let p = req.learner.unwrap_or_default();
-        let prompt=engine_core::courses::outline::creation_prompt(&units,serde_json::json!({"topic":b.topic,"goal":b.goal,"include_topics":b.include_topics,"skip_topics":b.skip_topics,"level":b.level,"maths":b.maths,"viewing_conditions":b.viewing_conditions,"lesson_length":b.lesson_length,"language":b.language}),serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level})).map_err(|_|Status::invalid_argument("invalid outline"))?;
-        let outcome = engine_core::credits::run_validated(
+        let plan=engine_core::courses::routed::plan_creation(&units,serde_json::json!({"topic":b.topic,"goal":b.goal,"include_topics":b.include_topics,"skip_topics":b.skip_topics,"level":b.level,"maths":b.maths,"viewing_conditions":b.viewing_conditions,"lesson_length":b.lesson_length,"language":b.language}),serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level})).map_err(|_|Status::invalid_argument("invalid outline"))?;
+        let outcome = engine_core::credits::run_validated_routed(
             &self.router,
             "outline",
-            &prompt,
+            plan.system.clone(),
+            &plan.user,
             &limits,
-            |text| engine_core::courses::outline::validate_created(&units, text),
+            |text| {
+                engine_core::courses::outline::validate_created(&units, text)
+                    .then_some(())
+                    .ok_or_else(|| engine_core::eval::SCHEMA_MISMATCH.to_owned())
+            },
         )
         .await
         .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
-        let attempts = outcome.attempts.iter().map(attempt_usage).collect();
+        let attempts = tagged_usage(&outcome.attempts, plan.mode, plan.skills);
         Ok(Response::new(pb::GenerateCourseOutlineResponse {
             outline: outcome.completion.as_ref().map(|_| base.clone()),
             usage: outcome.completion.as_ref().and_then(usage),
@@ -1706,11 +1744,14 @@ impl EngineService for Service {
                 "quote route differs from evaluated route",
             ));
         }
-        let input = engine_core::chat::prompt(&tutor_context(&req));
+        let plan = engine_core::chat::plan(&tutor_context(&req));
+        let input = plan.user.clone();
+        let sent_len = input.len() + plan.system.as_ref().map_or(0, String::len);
         let span = tracing::Span::current();
-        let (stream, route) = engine_core::eval::stream_bounded_routed(
+        let (stream, route) = engine_core::eval::stream_bounded_system(
             &self.router,
             "chat",
+            plan.system.clone(),
             &input,
             limits.as_ref(),
             first_to,
@@ -1722,7 +1763,7 @@ impl EngineService for Service {
             input_tokens: l.input_tokens,
             output_tokens: l.output_tokens,
         });
-        let parts = engine_core::chat::stream::reconcile(stream, route, input.len(), bounds);
+        let parts = engine_core::chat::stream::reconcile(stream, route, sent_len, bounds);
         // Enter the request span while polling the provider as well as mapping
         // its output; a map closure alone runs after provider work has finished.
         let map_span = span.clone();

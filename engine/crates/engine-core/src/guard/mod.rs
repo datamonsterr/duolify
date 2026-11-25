@@ -18,6 +18,22 @@ pub enum Reason {
     TooLong,
 }
 
+/// How long the API holds a fail-open turn (tutor chat, quick note) for the verdict before it
+/// proceeds; a late verdict still completes and a late `self_harm` appends the safe response.
+pub const HOLD: Duration = Duration::from_millis(800);
+
+static FAST: OnceLock<std::sync::Arc<dyn GuardModel>> = OnceLock::new();
+
+/// Installs the fast decision-model classifier for the fail-open surfaces (live mode only);
+/// without one those surfaces use the chat classifier like every other surface.
+pub fn install_fast(model: std::sync::Arc<dyn GuardModel>) {
+    let _ = FAST.set(model);
+}
+
+pub fn fast() -> Option<&'static dyn GuardModel> {
+    FAST.get().map(|m| m.as_ref())
+}
+
 /// Guard contract version returned on the wire.
 pub const VERSION: &str = "guard-v1";
 
@@ -98,14 +114,15 @@ impl Surface {
             _ => OnFailure::Closed,
         }
     }
-    /// How long the caller waits for the classifier (spec: 4 s before generation, 1 s hold on
-    /// tutor chat).
+    /// How long the classifier may run. Creation surfaces wait for it (4 s before generation).
+    /// Tutor chat and quick notes only hold the turn for `HOLD` (the API's rule); the verdict
+    /// completes inside this budget in the background (design.md section 14).
     pub fn budget(self) -> Duration {
-        match self {
-            Surface::TutorChat => Duration::from_millis(1000),
-            Surface::QuickNote => Duration::from_secs(4),
-            _ => Duration::from_secs(4),
-        }
+        Duration::from_secs(4)
+    }
+    /// True for the surfaces classified by the fast decision model (`install_fast`).
+    pub fn is_fast(self) -> bool {
+        matches!(self, Surface::TutorChat | Surface::QuickNote)
     }
     pub fn max_chars(self) -> usize {
         match self {

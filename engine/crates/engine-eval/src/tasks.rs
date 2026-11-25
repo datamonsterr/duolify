@@ -70,6 +70,7 @@ impl Default for TaskRegistry {
         registered_extensions.insert("screen_review".to_string());
         registered_extensions.insert("published_copy_lesson".to_string());
         registered_extensions.insert("input_guard".to_string());
+        registered_extensions.insert("skill_router".to_string());
         for task in [
             "steer_screen",
             "steer_lesson",

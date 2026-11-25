@@ -98,7 +98,15 @@ impl HttpProvider {
                 (None, _) => engine_core::steering::POLICY.to_string(),
             };
             if self.anthropic {
-                body["system"] = json!(system);
+                // A routed prefix is the cacheable part: mark it as one explicit breakpoint (the
+                // Messages API takes `cache_control` on a system text block, so the system is an
+                // array of blocks then). OpenRouter's Hy4 and GLM routes cache the prefix
+                // automatically and need no marker.
+                body["system"] = if route.system.is_some() {
+                    json!([{"type":"text","text":system,"cache_control":{"type":"ephemeral"}}])
+                } else {
+                    json!(system)
+                };
                 body["messages"] = json!([{"role":"user","content":user}]);
             } else {
                 body["messages"] =
@@ -639,6 +647,16 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
         openrouter.clone(),
         decisions::ENDPOINT.into(),
         decisions::ROUTER_MODEL.into(),
+    )));
+    engine_core::guard::install_fast(Arc::new(decisions::DecisionsGuard::new(
+        openrouter.clone(),
+        decisions::ENDPOINT.into(),
+        // `EVAL_GUARD_MODEL` swaps the fast guard model for one comparison run (engine-eval
+        // stamps such a report as `model_override`, never promotable).
+        std::env::var("EVAL_GUARD_MODEL")
+            .ok()
+            .filter(|m| !m.trim().is_empty())
+            .unwrap_or_else(|| decisions::GUARD_MODEL.into()),
     )));
     engine_core::ProviderRouter::new(
         Arc::new(HttpProvider::openrouter(openrouter.clone(), url.into())),

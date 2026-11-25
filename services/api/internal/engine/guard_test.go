@@ -3,7 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"google.golang.org/grpc"
@@ -94,5 +96,89 @@ func TestOutageFollowsTheSurfaceFailureRule(t *testing.T) {
 	}
 	if len(*seen) != 2 || (*seen)[0].Allowed || !(*seen)[1].Allowed {
 		t.Fatalf("events: %+v", *seen)
+	}
+}
+
+type slowGuard struct {
+	guardRPC
+	delay time.Duration
+}
+
+func (s *slowGuard) GuardInput(ctx context.Context, in *enginev1.GuardInputRequest, o ...grpc.CallOption) (*enginev1.GuardInputResponse, error) {
+	time.Sleep(s.delay)
+	return s.guardRPC.GuardInput(ctx, in, o...)
+}
+
+func heldClient(g enginev1.EngineServiceClient) (*Client, func() []GuardEvent) {
+	var mu sync.Mutex
+	var seen []GuardEvent
+	c := &Client{rpc: g, guard: &guardState{}}
+	c.EnableGuard(func(_ context.Context, e GuardEvent) { mu.Lock(); seen = append(seen, e); mu.Unlock() })
+	return c, func() []GuardEvent { mu.Lock(); defer mu.Unlock(); return append([]GuardEvent(nil), seen...) }
+}
+
+func TestAFastVerdictOnTutorChatBlocksAsBefore(t *testing.T) {
+	g := &slowGuard{guardRPC: guardRPC{verdict: &enginev1.GuardInputResponse{ReasonCode: "self_harm", Source: "model"}}}
+	c, _ := heldClient(g)
+	err := c.check(context.Background(), SurfaceTutorChat, "i want to end it", "")
+	if b, ok := Blocked(err); !ok || !b.SafeResponse() {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestALateVerdictFailsOpenThenReportsALateSelfHarmBlock(t *testing.T) {
+	g := &slowGuard{guardRPC: guardRPC{verdict: &enginev1.GuardInputResponse{ReasonCode: "self_harm", Source: "model"}}, delay: GuardHold + 150*time.Millisecond}
+	c, seen := heldClient(g)
+	ctx, late := WithLateVerdict(context.Background())
+	started := time.Now()
+	if err := c.check(ctx, SurfaceTutorChat, "i want to end it", ""); err != nil {
+		t.Fatalf("a late verdict must fail open: %v", err)
+	}
+	if held := time.Since(started); held > GuardHold+100*time.Millisecond {
+		t.Fatalf("held %v, want about %v", held, GuardHold)
+	}
+	if !late.Pending() {
+		t.Fatal("verdict must be pending after the hold")
+	}
+	select {
+	case b := <-late.C():
+		if b == nil || !b.SafeResponse() {
+			t.Fatalf("late block = %v", b)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the late verdict never completed")
+	}
+	time.Sleep(20 * time.Millisecond)
+	ev := seen()
+	if len(ev) != 1 || !ev[0].Late || ev[0].Allowed || ev[0].ReasonCode != "self_harm" {
+		t.Fatalf("events: %+v", ev)
+	}
+	if late.Pending() {
+		t.Fatal("no longer pending")
+	}
+}
+
+func TestALateAllowedVerdictClosesTheHandleWithoutABlock(t *testing.T) {
+	g := &slowGuard{guardRPC: guardRPC{verdict: &enginev1.GuardInputResponse{Allowed: true, Source: "model"}}, delay: GuardHold + 100*time.Millisecond}
+	c, _ := heldClient(g)
+	ctx, late := WithLateVerdict(context.Background())
+	if err := c.check(ctx, SurfaceQuickNote, "my note", ""); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case b, ok := <-late.C():
+		if ok || b != nil {
+			t.Fatalf("expected a closed channel, got %v", b)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("never completed")
+	}
+}
+
+func TestClosedSurfacesStillWaitForTheVerdict(t *testing.T) {
+	g := &slowGuard{guardRPC: guardRPC{verdict: &enginev1.GuardInputResponse{ReasonCode: "prompt_injection", Source: "model"}}, delay: GuardHold + 100*time.Millisecond}
+	c, _ := heldClient(g)
+	if _, ok := Blocked(c.check(context.Background(), SurfaceCourseTopic, "x", "")); !ok {
+		t.Fatal("a creation surface must wait and block")
 	}
 }

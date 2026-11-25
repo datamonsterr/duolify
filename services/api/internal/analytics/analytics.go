@@ -670,7 +670,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		closed("surface", "course_topic", "steer", "outline_chat", "character", "course_publish", "review", "quick_note", "tutor_chat")
 		closed("reason_code", "", "prompt_injection", "unsafe_content", "self_harm", "pii", "off_topic_for_course", "too_long")
 		closed("guard_source", "pre_filter", "model", "failure", "disabled")
-		boolean("allowed")
+		boolean("allowed", "late")
 		numeric("latency_ms")
 	case "lesson_anchored_note_created":
 		// Identifiers, a closed enum and a flag; never the note text or the region contents.

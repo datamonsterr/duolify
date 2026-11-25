@@ -341,7 +341,8 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	started := time.Now()
 	streamCtx, cancelDeadline := context.WithDeadline(streamCtx, job.DeadlineAt)
 	defer cancelDeadline()
-	stream, err := s.opts.Engine.Chat(streamCtx, req)
+	guardCtx, late := engine.WithLateVerdict(streamCtx)
+	stream, err := s.opts.Engine.Chat(guardCtx, req)
 	if blocked, ok := engine.Blocked(err); ok {
 		// ADR 0025: the input guard refused the message before any main-model call. Release the
 		// hold (no Credits), leave no message behind and keep the thread usable.
@@ -356,6 +357,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		return
 	}
 	var reply strings.Builder
+	appendLateSafeResponse := func(*engine.BlockedError) {}
 	var reported *enginev1.Usage
 	var streamErr, typedErr error
 	streaming := false
@@ -398,11 +400,28 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		}
 		beat := time.NewTicker(sse.Interval())
 		defer beat.Stop()
+		// ADR 0025 / design.md section 14: a guard verdict that missed the hold still completes. A late
+		// self_harm appends the safe response to this reply; any other late block is only counted.
+		lateC := late.C()
+		appendLateSafeResponse = func(b *engine.BlockedError) {
+			if b == nil || !b.SafeResponse() {
+				return
+			}
+			begin()
+			msg := "\n\n" + SafeResponseCopy(r.Header.Get("Accept-Language"))
+			reply.WriteString(msg)
+			writeEvent(w, "delta", map[string]any{"text": msg})
+			writeEvent(w, "safe_response", map[string]any{"reason_code": b.ReasonCode})
+		}
 	recv:
 		for {
 			var m received
 			select {
 			case m = <-msgs:
+			case b := <-lateC:
+				lateC = nil
+				appendLateSafeResponse(b)
+				continue
 			case <-beat.C:
 				begin()
 				if herr := sse.Heartbeat(w); herr != nil {
@@ -436,6 +455,15 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 				// Keep reading: the Engine sends its bounded usage estimate right after the typed error.
 				typedErr = failureOf(e.StreamError)
 			}
+		}
+	}
+	if reply.Len() > 0 && late.Pending() {
+		// The reply finished before the guard: wait briefly so a late self_harm still reaches the learner.
+		select {
+		case b := <-late.C():
+			appendLateSafeResponse(b)
+		case <-time.After(lateGuardGrace):
+		case <-ctx.Done():
 		}
 	}
 	if typedErr != nil {
@@ -588,6 +616,9 @@ func (s *Service) emitPersona(ctx context.Context, owner string, p characters.Tu
 		s.emit(ctx, owner, "tutor_character_fallback", map[string]any{"reason_code": p.Fallback, "phase": "before_stream"})
 	}
 }
+
+// lateGuardGrace bounds the wait for a guard verdict that is still pending when the reply ends.
+const lateGuardGrace = 2 * time.Second
 
 func tutorEvent(p characters.TutorPersona) map[string]any {
 	return map[string]any{"speaker_key": p.SpeakerKey, "name": p.Name, "character_version": p.CharacterVersion, "cast_source": p.CastSource, "fallback": p.Fallback}

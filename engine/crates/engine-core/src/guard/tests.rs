@@ -140,8 +140,11 @@ async fn failures_follow_the_surface_rule() {
 }
 
 #[test]
-fn tutor_chat_holds_at_most_one_second() {
-    assert_eq!(Surface::TutorChat.budget(), Duration::from_millis(1000));
+fn tutor_chat_holds_for_800_ms_but_the_classifier_may_finish_in_the_background() {
+    assert_eq!(HOLD, Duration::from_millis(800));
+    assert!(Surface::TutorChat.budget() > HOLD);
+    assert!(Surface::TutorChat.is_fast() && Surface::QuickNote.is_fast());
+    assert!(!Surface::CourseTopic.is_fast() && !Surface::Steer.is_fast());
 }
 
 /// The deterministic rows of `evals/datasets/duolify-golden/pending-prompt-skills.jsonl` that need no

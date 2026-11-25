@@ -1,7 +1,8 @@
 use crate::{
     judge::parse_judge_verdict,
     scoring::{
-        Case, CaseResult, EvalReport, Thresholds, aggregate_task_reports, check_promotion_gate,
+        AttemptRecord, Case, CaseResult, EvalReport, Thresholds, aggregate_task_reports,
+        check_promotion_gate,
     },
     tasks::{canonical_task_name, model_route_for_task},
 };
@@ -1729,8 +1730,23 @@ impl PriceTable {
         })
     }
 
+    /// Cost of one attempt. An attempt whose usage is unknown is priced at its envelope's worst
+    /// case (the learner quote does the same); estimating from tokens would invent a number the
+    /// provider never reported. Without a recorded envelope the default eval envelope is used.
     pub fn attempt_cost_usd(&self, a: &engine_core::credits::Attempt) -> f64 {
         let p = self.price_for(&a.model);
+        if a.usage_unavailable {
+            let nanos = if a.worst_case_nanos > 0 {
+                a.worst_case_nanos
+            } else {
+                16_000
+                    * p.input_nanos
+                        .max(p.cache_write_nanos)
+                        .max(p.cache_read_nanos)
+                    + 4_000 * p.output_nanos
+            };
+            return nanos as f64 / 1_000_000_000.0;
+        }
         let nanos = (a.input_tokens as u64 * p.input_nanos)
             + (a.output_tokens as u64 * p.output_nanos)
             + (a.cache_write_tokens as u64 * p.cache_write_nanos)
@@ -1766,6 +1782,8 @@ pub struct Runner {
     pub custom_router: Option<engine_core::ProviderRouter>,
     /// Fixed cap for an injected fixture router. Live runs read active pricing.
     pub fixture_preview_limit: Option<u32>,
+    /// Gate retry: re-run each failed live case once. Off for offline runs and by default.
+    pub retry_failed: bool,
 }
 
 impl Runner {
@@ -1786,6 +1804,7 @@ impl Runner {
             budget_exceeded: false,
             custom_router: None,
             fixture_preview_limit: None,
+            retry_failed: false,
         }
     }
 
@@ -1810,6 +1829,7 @@ impl Runner {
             budget_exceeded: false,
             custom_router: Some(router),
             fixture_preview_limit: Some(6000),
+            retry_failed: false,
         }
     }
 
@@ -1822,9 +1842,15 @@ impl Runner {
     }
 
     pub async fn run_cases(&self, cases: Vec<Case>, thresholds: &Thresholds) -> Result<EvalReport> {
-        let router = match &self.custom_router {
+        let mut router = match &self.custom_router {
             Some(r) => r.clone(),
             None => engine_providers::router(&self.provider_name)?,
+        };
+        // Comparison runs only: overrides stamp the report so it cannot promote.
+        let override_label = if self.provider_name != "mock" || self.custom_router.is_some() {
+            crate::overrides::apply_env(&mut router)?
+        } else {
+            None
         };
         let price_table = PriceTable::load();
         let needs_preview = cases.iter().any(|case| case.task == "course_preview");
@@ -1849,14 +1875,143 @@ impl Runner {
         } else {
             None
         };
-        let mut results = Vec::new();
-        let mut steering = crate::scoring::SteeringTally::default();
-        let mut models = HashMap::new();
-        let mut total_cost_usd = 0.0;
-        let mut budget_exceeded = false;
-        let mut any_critical_failed = false;
+        let live = self.provider_name != "mock" || self.custom_router.is_some();
+        let first = self
+            .run_pass(&cases, &router, &price_table, preview_limit, 0.0)
+            .await?;
+        let mut results = first.results;
+        let mut texts = first.texts;
+        let mut models = first.models;
+        let mut total_cost_usd = first.total_cost_usd;
+        let mut budget_exceeded = first.budget_exceeded;
 
-        for case in &cases {
+        // Gate retry (owner decision 2026-11-24, design.md section 14): live runs re-run each
+        // failed case once. Both attempts are recorded; the final outcome per case decides; the
+        // budget cap covers both attempts. Offline runs never retry.
+        if self.retry_failed && live && !budget_exceeded {
+            let failed: Vec<usize> = results
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| !r.passed)
+                .map(|(i, _)| i)
+                .collect();
+            if !failed.is_empty() {
+                let retry_cases: Vec<Case> = failed.iter().map(|&i| cases[i].clone()).collect();
+                let second = self
+                    .run_pass(
+                        &retry_cases,
+                        &router,
+                        &price_table,
+                        preview_limit,
+                        total_cost_usd,
+                    )
+                    .await?;
+                total_cost_usd = second.total_cost_usd;
+                budget_exceeded = second.budget_exceeded;
+                models.extend(second.models);
+                for ((k, r2), t2) in second.results.into_iter().enumerate().zip(second.texts) {
+                    let i = failed[k];
+                    results[i] = merge_retry(&results[i], r2);
+                    texts[i] = t2;
+                }
+            }
+        }
+
+        let mut steering = crate::scoring::SteeringTally::default();
+        for (i, text) in texts.iter().enumerate() {
+            steering.record(&cases[i].task, text);
+        }
+        let any_critical_failed = results.iter().any(|r| r.critical_failed);
+
+        // E16-03 starting gates: a metric below its bound fails the run with a visible case.
+        let gate_errors = steering.gate_errors();
+        if !gate_errors.is_empty() {
+            results.push(CaseResult {
+                id: "steering-gates".into(),
+                task: "lesson".into(),
+                passed: false,
+                critical_failed: true,
+                deterministic_passed: false,
+                judge_passed: None,
+                errors: gate_errors,
+                cost_usd: 0.0,
+                input_tokens: 0,
+                output_tokens: 0,
+                ..Default::default()
+            });
+        }
+        let (task_reports, overall_passed, critical_failure) =
+            aggregate_task_reports(&results, thresholds, &models);
+
+        let final_critical = critical_failure || any_critical_failed;
+        let final_passed = overall_passed && !budget_exceeded && !final_critical;
+
+        let status = if budget_exceeded {
+            "budget_exceeded".to_string()
+        } else if final_critical {
+            "critical_failure".to_string()
+        } else if final_passed {
+            "passed".to_string()
+        } else {
+            "failed".to_string()
+        };
+
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+
+        let mut report = EvalReport {
+            timestamp_millis: stamp,
+            dataset: self.dataset_name.clone(),
+            dataset_revision: self.dataset_revision.clone(),
+            dataset_source: self.dataset_source.clone(),
+            dataset_verified: self.dataset_verified,
+            dataset_sha256: self.dataset_sha256.clone(),
+            fingerprint: engine_core::promotion::fingerprint(),
+            prompt_revision: self.prompt_revision.clone(),
+            provider: self.provider_name.clone(),
+            budget_usd: self.budget_usd,
+            total_cost_usd,
+            budget_exceeded,
+            status,
+            live_promoted: false,
+            passed: final_passed,
+            critical_failure: final_critical,
+            dataset_cases: self.dataset_cases.unwrap_or(cases.len()),
+            preview_output_limit: preview_limit,
+            retried_cases: results.iter().filter(|r| r.retried).count(),
+            task_reports,
+            results,
+        };
+
+        if let Some(label) = override_label {
+            report.status = "model_override".into();
+            report.prompt_revision = format!("{}+override[{label}]", report.prompt_revision);
+        }
+        report.live_promoted = check_promotion_gate(&report).is_ok();
+
+        Ok(report)
+    }
+}
+
+impl Runner {
+    #[allow(clippy::too_many_arguments)]
+    async fn run_pass(
+        &self,
+        cases: &[Case],
+        router: &engine_core::ProviderRouter,
+        price_table: &PriceTable,
+        preview_limit: Option<u32>,
+        start_cost: f64,
+    ) -> Result<Pass> {
+        let mut results = Vec::new();
+        let mut texts = Vec::new();
+        let mut models = HashMap::new();
+        let mut total_cost_usd = start_cost;
+        let mut budget_exceeded = false;
+
+        for case in cases {
             if budget_exceeded {
                 break;
             }
@@ -1876,7 +2031,7 @@ impl Runner {
                 let scored = if live {
                     crate::transcribe::live(
                         &case.input,
-                        &router,
+                        router,
                         &self.dataset_name,
                         &self.dataset_revision,
                     )
@@ -1893,14 +2048,14 @@ impl Runner {
                     "steer_screen" | "character_screen" | "course_screen" | "screen_review"
                 )
             {
-                let (text, outcome) = evaluate_live_screen(&case.task, &case.input, &router).await;
+                let (text, outcome) = evaluate_live_screen(&case.task, &case.input, router).await;
                 _attempts = outcome.attempts;
                 primary_completion = outcome.completion;
                 text
             } else if live && crate::live::TASKS.contains(&case.task.as_str()) {
                 // Production prompt builders and validators, not the dataset text verbatim.
                 let run =
-                    crate::live::evaluate(&case.task, &case.input, &router, preview_limit).await?;
+                    crate::live::evaluate(&case.task, &case.input, router, preview_limit).await?;
                 _attempts = run.attempts;
                 primary_completion = run.completion;
                 run.text
@@ -1981,7 +2136,7 @@ impl Runner {
                             deadline_unix_ms: 0,
                         });
                     let outcome = engine_core::eval::run_bounded(
-                        &router,
+                        router,
                         &route,
                         &case.input.to_string(),
                         &limits,
@@ -2022,7 +2177,7 @@ impl Runner {
                         deadline_unix_ms: 0,
                     });
                 let outcome = engine_core::eval::run_bounded(
-                    &router,
+                    router,
                     &route,
                     &case.input.to_string(),
                     &limits,
@@ -2039,6 +2194,7 @@ impl Runner {
             };
 
             let mut errors = Vec::new();
+            let mut warnings: Vec<String> = Vec::new();
             let mut critical_failed = false;
 
             let (mut input_tokens, mut output_tokens, mut case_cost_usd) = if self.provider_name
@@ -2053,11 +2209,12 @@ impl Runner {
                     }
                     // A failed or timed-out attempt with unknown usage cannot be priced: it
                     // would count as $0 and let the run look inside budget.
+                    // The case is critical only when the delivered completion's own usage is unknown;
+                    // an earlier unknown attempt is priced at its worst case and reported.
                     if !c.usage_unavailable && _attempts.iter().any(|a| a.usage_unavailable) {
-                        errors.push(
-                                "usage_unavailable: an earlier attempt's usage is unknown, so the case cost is unmeasured".into(),
+                        warnings.push(
+                                "usage_unavailable: an earlier attempt's usage is unknown; priced at its envelope's worst case".into(),
                             );
-                        critical_failed = true;
                     }
                     // Failed attempts are billed too, so price every attempt when known.
                     let cost = if _attempts.is_empty() {
@@ -2071,10 +2228,9 @@ impl Runner {
                     (c.input_tokens, c.output_tokens, cost)
                 } else {
                     if _attempts.iter().any(|a| a.usage_unavailable) {
-                        errors.push(
-                                "usage_unavailable: an undelivered attempt's usage is unknown, so the case cost is unmeasured".into(),
+                        warnings.push(
+                                "usage_unavailable: an undelivered attempt's usage is unknown; priced at its envelope's worst case".into(),
                             );
-                        critical_failed = true;
                     }
                     // Undelivered attempts are billed too.
                     let cost = _attempts
@@ -2224,7 +2380,7 @@ impl Runner {
                         deadline_unix_ms: 0,
                     };
                     let outcome = engine_core::eval::run_bounded(
-                        &router,
+                        router,
                         "chat",
                         &judge_prompt,
                         &judge_limits,
@@ -2256,7 +2412,7 @@ impl Runner {
             };
 
             total_cost_usd += case_cost_usd;
-            steering.record(&case.task, &response_text);
+            texts.push(response_text.clone());
 
             let mut case_budget_exceeded = false;
             if let Some(budget) = self.budget_usd
@@ -2265,10 +2421,6 @@ impl Runner {
                 budget_exceeded = true;
                 case_budget_exceeded = true;
                 errors.push("eval budget exceeded".into());
-            }
-
-            if critical_failed {
-                any_critical_failed = true;
             }
 
             let deterministic_passed = errors.is_empty();
@@ -2285,6 +2437,7 @@ impl Runner {
                 deterministic_passed,
                 judge_passed,
                 errors,
+                warnings,
                 cost_usd: case_cost_usd,
                 input_tokens,
                 output_tokens,
@@ -2296,6 +2449,8 @@ impl Runner {
                 latency_ms: _attempts.iter().map(|a| u64::from(a.latency_ms)).sum(),
                 fallback_used: _attempts.iter().any(|a| a.fallback_used),
                 // A failing or retried live case keeps a short excerpt of what was scored, for diagnosis.
+                attempts: Vec::new(),
+                retried: false,
                 output: if live && (!passed || _attempts.len() > 1 || case.task == "transcribe") {
                     response_text.chars().take(1200).collect()
                 } else {
@@ -2308,70 +2463,59 @@ impl Runner {
             }
         }
 
-        // E16-03 starting gates: a metric below its bound fails the run with a visible case.
-        let gate_errors = steering.gate_errors();
-        if !gate_errors.is_empty() {
-            results.push(CaseResult {
-                id: "steering-gates".into(),
-                task: "lesson".into(),
-                passed: false,
-                critical_failed: true,
-                deterministic_passed: false,
-                judge_passed: None,
-                errors: gate_errors,
-                cost_usd: 0.0,
-                input_tokens: 0,
-                output_tokens: 0,
-                ..Default::default()
-            });
-        }
-        let (task_reports, overall_passed, critical_failure) =
-            aggregate_task_reports(&results, thresholds, &models);
-
-        let final_critical = critical_failure || any_critical_failed;
-        let final_passed = overall_passed && !budget_exceeded && !final_critical;
-
-        let status = if budget_exceeded {
-            "budget_exceeded".to_string()
-        } else if final_critical {
-            "critical_failure".to_string()
-        } else if final_passed {
-            "passed".to_string()
-        } else {
-            "failed".to_string()
-        };
-
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-
-        let mut report = EvalReport {
-            timestamp_millis: stamp,
-            dataset: self.dataset_name.clone(),
-            dataset_revision: self.dataset_revision.clone(),
-            dataset_source: self.dataset_source.clone(),
-            dataset_verified: self.dataset_verified,
-            dataset_sha256: self.dataset_sha256.clone(),
-            fingerprint: engine_core::promotion::fingerprint(),
-            prompt_revision: self.prompt_revision.clone(),
-            provider: self.provider_name.clone(),
-            budget_usd: self.budget_usd,
+        Ok(Pass {
+            results,
+            texts,
+            models,
             total_cost_usd,
             budget_exceeded,
-            status,
-            live_promoted: false,
-            passed: final_passed,
-            critical_failure: final_critical,
-            dataset_cases: self.dataset_cases.unwrap_or(cases.len()),
-            preview_output_limit: preview_limit,
-            task_reports,
-            results,
-        };
+        })
+    }
+}
 
-        report.live_promoted = check_promotion_gate(&report).is_ok();
+struct Pass {
+    results: Vec<CaseResult>,
+    /// Scored output per result, in the same order (steering gates read the final text).
+    texts: Vec<String>,
+    models: HashMap<String, String>,
+    total_cost_usd: f64,
+    budget_exceeded: bool,
+}
 
-        Ok(report)
+fn attempt_record(index: u32, r: &CaseResult) -> AttemptRecord {
+    AttemptRecord {
+        attempt: index,
+        outcome: if r.passed {
+            "passed"
+        } else if r.critical_failed {
+            "critical_failed"
+        } else {
+            "failed"
+        }
+        .into(),
+        cost_usd: r.cost_usd,
+        errors: r.errors.clone(),
+    }
+}
+
+/// Final result of a retried case: the second attempt's outcome, with both attempts recorded and
+/// their cost, tokens, models and latency summed.
+fn merge_retry(first: &CaseResult, second: CaseResult) -> CaseResult {
+    let mut served_models = first.served_models.clone();
+    served_models.extend(second.served_models.iter().cloned());
+    let mut warnings = first.warnings.clone();
+    warnings.extend(second.warnings.iter().cloned());
+    CaseResult {
+        attempts: vec![attempt_record(1, first), attempt_record(2, &second)],
+        retried: second.passed,
+        cost_usd: first.cost_usd + second.cost_usd,
+        input_tokens: first.input_tokens + second.input_tokens,
+        output_tokens: first.output_tokens + second.output_tokens,
+        latency_ms: first.latency_ms + second.latency_ms,
+        fallback_used: first.fallback_used || second.fallback_used,
+        served_models,
+        warnings,
+        ..second
     }
 }
 

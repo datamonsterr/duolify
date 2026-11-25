@@ -249,3 +249,21 @@ To enable live evals on ready PRs, add the `HF_TOKEN` (read access to the privat
 `PROMPT_ARM=routed` makes the live `lesson_slides` case use the skills prompt (rules, then the decision model, then the default set); any other value is today's monolithic prompt. The result records `arm`, `skills` and `router_source`, and skill-fit probes (`has_svg`, `has_table`, `has_ordered_list`, `has_code_block`, `has_math_symbols`). Run the same cases on both arms and compare pass rate, cost and latency; the routed arm is promoted only when it is at least as good and not more than 3 percent costlier (spec "Economics gate").
 
 `evals/datasets/duolify-golden/pending-prompt-skills.jsonl` holds five lesson rows (one per model-routed lesson skill) waiting for the next dataset revision; they are not part of the pinned `golden.jsonl` and are not run by `engine:eval-golden` until merged into it.
+
+## Gate retry and unknown usage
+
+Live runs (any provider other than `mock`) re-run each failed case once, inside the same run. `results[].attempts` lists both attempts (index, `passed`/`failed`/`critical_failed`, cost, errors); the final outcome decides pass or fail. A case that failed first and passed on the retry carries `retried: true`, and the report counts them in `retried_cases` and prints a `retry:` summary line (also in the Markdown report) so a flaky case stays visible. `EVAL_BUDGET_USD` covers both attempts; a run that hits the cap stops and fails. Offline and mock evals never retry (owner decision 2026-11-24, `design.md` section 14).
+
+An earlier attempt whose provider usage is unknown (timeout, error) is priced at its envelope's worst case (`attempt.worst_case_nanos`, or the default eval envelope when none is recorded) and reported under `results[].warnings`. A case is critical (`usage_unavailable`) only when the delivered completion's own usage is unknown.
+
+
+## Comparison runs without a branch per model
+
+`EVAL_MODEL_OVERRIDE="task=vendor/model@effort>fallback-a>fallback-b,..."` replaces the primary (and optionally the fallback chain; `>none` clears it) of the named `engine/config/models.toml` tasks for one live run. Without `@effort` no `reasoning` field is sent, so name the effort of the model you compare against. `EVAL_GUARD_MODEL=<decision model>` swaps the fast guard model (`GUARD_CLASSIFIER=fast` runs). Either one stamps the report `status = "model_override"` and appends `+override[...]` to `prompt_revision`, so it can never satisfy the promotion gate. Compare two such reports with `mise run engine:compare` (pairs by case id: pass rate, cost, latency p50 and p95). Example, `lesson_slides` primary candidates (route name `lesson`):
+
+```sh
+cd engine; D=../evals/datasets/duolify-golden
+EVAL_MODEL_OVERRIDE='lesson=tencent/hy4-flash@none>z-ai/glm-5.3-flash' cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/golden.jsonl --limit 0 --budget 1 --reports ../evals/reports/model-base
+EVAL_MODEL_OVERRIDE='lesson=<candidate>@low>z-ai/glm-5.3-flash'        cargo run -p engine-eval --bin duolify-eval -- --provider live --data $D/golden.jsonl --limit 0 --budget 1 --reports ../evals/reports/model-cand
+mise run engine:compare -- ../evals/reports/model-base/<r>.json ../evals/reports/model-cand/<r>.json
+```

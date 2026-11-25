@@ -17,7 +17,7 @@ Future implementation checklist; this change delivers specification and a measur
 ## 2. Provider system/user split and dynamic max_tokens (M)
 
 - [x] 2.1 Integration: `request_model` sends `system` (prefix) and `user` (data) for routed prompts and the single `user` message for monolithic prompts; steering policy envelope unchanged.
-- [ ] 2.2 Integration: `max_tokens` = min(task cap, ceiling-derived output) with task minimum; usage records `cached_input_tokens` and bills the cache-read rate.
+- [x] 2.2 (built: `eval::routed_max_tokens` for routed calls only, lesson cap 6,000, minimum 1,200, quote ceiling and USD room bound it; cache-read billing was already in `credits::check_usage` and the API settlement, and `Attempt` carries `cache_read_tokens`) Integration: `max_tokens` = min(task cap, ceiling-derived output) with task minimum; usage records `cached_input_tokens` and bills the cache-read rate.
 - [x] 2.3 Unit: layout has no volatile value before the first user byte; same prefix across two requests is byte-identical.
 - [x] 2.4 Implement; replace Rust `Debug` rendering of the lesson request (`format!("{context:?}")` in `engine-server`) with compact JSON behind the same switch and measure the token delta on the golden fixtures.
 
@@ -27,8 +27,8 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 
 - [ ] 3.0 Deterministic duration clamp in `prepare_lesson` (spike: the 400 ms per word rule fails in 17 of 24 first attempts); drop the rule's prose once the clamp is proven by golden cases (S, ships with 3a).
 - [ ] 3.1 (3a, L) `lesson_slides`: core plus skills `diagram_layout`, `code_slide`, `math_notation`, `comparison_table`, `timeline`, `narration_pacing`, `language_practice`, `age_band_tone`, `character_cast`, `steering_focus`. Golden pair per skill; rule skills (`character_cast`, `steering_focus`, `age_band_tone`, `language_practice`) wired to existing request fields.
-- [ ] 3.2 (3b, M) `course_preview`, `outline_replan`, `course_outline`, `outline_chat_change`: core plus `depth_and_scope`, `language_course`, `maths_course`, `code_course`, `merge_vs_replace` (replan).
-- [ ] 3.3 (3c, M) `tutor_chat`: core plus `region_grounding` (rule), `socratic_mode`, `worked_example`, `language_learning`, `source_citation`, `persona_style` (rule); `note_enrich`, `setup_chat`, `course_brief_chat`, `lesson_test`, `character_create` stay core-only unless the A/B shows a gain.
+- [x] 3.2 (3b, M; built: rule skills `depth_and_scope`, `maths_course`, `code_course`, `language_course` on `course_preview`, `merge_vs_replace` on `outline_replan`; `course_outline` and `outline_chat_change` are split-only because their answers are validated as an exact echo or an operations list; all stay monolithic until the A/B) `course_preview`, `outline_replan`, `course_outline`, `outline_chat_change`: core plus `depth_and_scope`, `language_course`, `maths_course`, `code_course`, `merge_vs_replace` (replan).
+- [x] 3.3 (3c, M; built: rule skills `region_grounding`, `persona_style`, `source_citation`, `language_learning`; `socratic_mode` and `worked_example` are not built because the router never sees message text and no learner setting exists; routed arm is `PROMPT_ARM=routed`) `tutor_chat`: core plus `region_grounding` (rule), `socratic_mode`, `worked_example`, `language_learning`, `source_citation`, `persona_style` (rule); `note_enrich`, `setup_chat`, `course_brief_chat`, `lesson_test`, `character_create` stay core-only unless the A/B shows a gain.
 - [ ] 3.4 Each split: E2E golden suite green on both arms; skill bodies at most 150 tokens with one example; no body embeds learner text.
 
 ## 4. Router: rules, cache, model (L)
@@ -41,31 +41,33 @@ Order from the baseline: `lesson_slides` (largest per-call cost, 81 percent outp
 ## 5. Input guardrail consolidation (L)
 
 - [ ] 5.1 E2E: attack set blocked on every surface; self-harm text returns the safe response without a main call or charge; benign look-alikes pass.
-- [ ] 5.2 (done: core, classifier task, `GuardInput` RPC, API client wiring behind `INPUT_GUARD_ENABLED`, analytics; open: surface skills for steer, character, course_publish, review used by the four screens, per-surface HTTP messages beyond tutor chat) Integration: `input_guard` core plus surface skills `steer`, `character`, `course_publish`, `review`; existing screen RPCs keep contracts and thresholds; fail-closed on creation surfaces, fail-open with 1000 ms hold on tutor chat, notes and transcripts; deterministic pre-filter; PII placeholders.
-- [ ] 5.3 (done: tutor-chat safe response with placeholder copy; open: approved copy #423, parity run, switching the four screens) Integration (API): safe-response path for `self_harm` with approved localised resources, no Credits, thread stays usable; API stops calling four screen tasks separately only after parity is proven on the golden set.
+- [ ] 5.2 (done: core, classifier task, `GuardInput` RPC, API client wiring behind `INPUT_GUARD_ENABLED`, analytics; open: surface skills for steer, character, course_publish, review used by the four screens, per-surface HTTP messages beyond tutor chat) Integration: `input_guard` core plus surface skills `steer`, `character`, `course_publish`, `review`; existing screen RPCs keep contracts and thresholds; fail-closed on creation surfaces, fail-open with 800 ms hold on tutor chat and notes (late verdict completes in the background, design.md section 16); deterministic pre-filter; PII placeholders.
+- [ ] 5.3 (done: tutor-chat safe response with placeholder copy, parity harness `duolify-eval parity-rows` and `parity`; open: approved copy #423, the live parity run, switching the four screens) Integration (API): safe-response path for `self_harm` with approved localised resources, no Credits, thread stays usable; API stops calling four screen tasks separately only after parity is proven on the golden set.
 - [x] 5.4 Unit: pre-filter patterns, verdict parser, reason-code enum, per-surface failure table, cost ceiling.
 - [ ] 5.5 (model chosen for parity, measured cost from the existing screens, own measurement pending the first live run) Choose the guard model with the guard golden set (candidates in `design.md`); record it in `models.toml` `[guard]`.
 
 ## 6. Caching layout and cost gate (S)
 
 - [ ] 6.1 Integration: two lessons with the same skills report cached input tokens against recorded usage; cache-read billing matches `prices.toml`.
-- [ ] 6.2 Unit: `services/api/internal/pricing/economics.go` protected-cost check uses the routed worst-case input bound; fixture for each routed task.
+- [x] 6.2 (routed worst case = quote input plus the skill budget, `routedPrefixTokens`; no routed fixture per task because the prefix table is checked against the skills files) Unit: `services/api/internal/pricing/economics.go` protected-cost check uses the routed worst-case input bound; fixture for each routed task.
 - [ ] 6.3 Implement the bound in `engine_route_check.go` and the quote path; no pricing version change.
 
 ## 7. Eval harness and golden cases (L)
 
 - [ ] 7.1 E2E: `duolify-eval --arm both` on recorded fixtures emits per arm tokens, cost, latency p50 and p95, pass rate, paired difference and noise margin.
-- [ ] 7.2 Integration: router accuracy case kind, guard case kind (false-positive ceiling), fallback cases (router timeout, refusal, unknown key, breaker open; guard malformed and outage).
+- [x] 7.2 (built: `skill_router` case kind and live handler with scripted fault rows, guard outage and malformed rows, 40 accuracy rows plus 3 adversarial, golden rows for the course_preview, outline_replan and tutor_chat skills; rows are in `pending-prompt-skills.jsonl`, not yet published; no live run yet) Integration: router accuracy case kind, guard case kind (false-positive ceiling), fallback cases (router timeout, refusal, unknown key, breaker open; guard malformed and outage).
 - [ ] 7.3 Unit: scoring, ceilings, adversarial router inputs; add cases to the Hugging Face dataset and bump `pinned-datasets.toml`.
 - [ ] 7.4 Update `evals/README.md` and `thresholds.toml`.
 
 ## 8. Analytics and dashboards (S)
 
 - [ ] 8.1 Integration: `$ai_generation` carries the new properties, no text, honours opt-out.
-- [ ] 8.2 PostHog dashboard: router source share, default-set rate, guard block and timeout rates by surface, cache-hit share, cost per task by `prompt_mode`; alerts on default-set rate above 20 percent and guard timeout above 5 percent.
+- [x] 8.2 (insights are code in `analytics.AIInsights` and `GuardInsights`, applied by `mise run api:posthog-setup`; the two alert thresholds are documented in the rollout runbook because the setup command does not manage alerts) PostHog dashboard: router source share, default-set rate, guard block and timeout rates by surface, cache-hit share, cost per task by `prompt_mode`; alerts on default-set rate above 20 percent and guard timeout above 5 percent.
 
 ## 9. Rollout behind a per-task switch with promotion evidence (M)
 
 - [ ] 9.1 For each task in spend order: run the A/B live, commit the routed live report, flip `prompt_mode = "routed"` in its own PR when the economics gate passes; otherwise leave monolithic and record the numbers.
 - [ ] 9.2 Roll back procedure documented in `docs/` and tested: flipping the switch restores the previous prompt and ignores cached decisions.
-- [ ] 9.3 Update `docs/agents/skills.md` pointers, `.env.example` (no new variable expected; the Decisions API uses `OPENROUTER_API_KEY`).
+- [x] 9.3 Update `docs/agents/skills.md` pointers, `.env.example` (no new variable expected; the Decisions API uses `OPENROUTER_API_KEY`).
+- [x] 10.1 Gate retry (OWNER APPROVED 2026-11-24, "Allow one retry"): live eval re-runs each failed case once, records both attempts, flags `retried: true`, counts them in a summary line, keeps the budget cap across attempts; offline unchanged.
+- [x] 10.2 `usage_unavailable` (controller decision 2026-11-24): an earlier failed attempt with unknown usage is priced at its envelope's worst case and reported as a warning; the case is critical only when the delivered completion's own usage is unknown.
