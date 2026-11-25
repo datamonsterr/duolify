@@ -12,9 +12,9 @@ budget_tokens = 600
 
 [[skill]]
 id = "diagram_layout"
-description = "The lesson explains how something works or is built and the learner needs to see it drawn: a process, cycle, flow, exchange between parts, steps of a mechanism or a labelled structure. Not for a plain comparison of items."
+description = "The lesson's point is the spatial or causal relations: parts and how they connect or interact, a mechanism, a loop of causes and effects, or a labelled structure, best shown as a picture. Not for a plain ordered list of stages, which goes on a timeline."
 tasks = ["lesson_slides"]
-version = 2
+version = 3
 order = 40
 tokens = 93
 default = true
@@ -52,9 +52,9 @@ body = """Skill comparison_table: use one <table> in the body slot with a header
 
 [[skill]]
 id = "timeline"
-description = "The lesson is about dated or chronological events, history, eras or milestones laid out along a time axis. Not for how a process, cycle or mechanism works, which is drawn instead."
+description = "The lesson's point is the order: a sequence of phases, stages, steps or events the learner should recall in order, dated or not, laid out along a line."
 tasks = ["lesson_slides"]
-version = 2
+version = 3
 order = 44
 tokens = 56
 default = false

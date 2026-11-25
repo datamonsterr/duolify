@@ -235,16 +235,15 @@ fn model_routed_descriptions_are_disjoint_in_scope() {
     let ts = lib.task("lesson_slides").unwrap();
     let d = |id: &str| ts.skills[id].description.to_lowercase();
     let (diagram, timeline, table) = (d("diagram_layout"), d("timeline"), d("comparison_table"));
-    for cue in ["cycle", "steps", "flow", "how something works"] {
+    for cue in ["parts", "connect", "cause", "not for a plain ordered list"] {
         assert!(diagram.contains(cue), "diagram_layout should name {cue}");
     }
+    for cue in ["order", "sequence", "dated or not"] {
+        assert!(timeline.contains(cue), "timeline should name {cue}");
+    }
     assert!(
-        timeline.contains("dated") && timeline.contains("not"),
-        "timeline must require dated, chronological events and exclude processes"
+        !timeline.contains("not for"),
+        "timeline must not exclude processes or cycles"
     );
-    assert!(
-        !timeline.contains("stages"),
-        "stages/sequence wording pulls processes into timeline"
-    );
-    assert!(diagram.contains("not") && table.contains("not"));
+    assert!(table.contains("not"));
 }
