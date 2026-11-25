@@ -155,6 +155,10 @@
   .market .duo-button {
     width: 100%;
   }
+  /* Dialog footers share one row on phones (action-footer.css). */
+  .market .action-footer .duo-button {
+    width: auto;
+  }
 }
 
 .course-reviews,

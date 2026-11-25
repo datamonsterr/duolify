@@ -503,6 +503,8 @@
 .sharing-sheet[open] {
   display: flex;
   flex-direction: column;
+  /* Focused or scrolled-to content stays clear of the pinned footer. */
+  scroll-padding-block-end: 6rem;
 }
 .sharing-sheet > .sharing-body {
   flex: none;
@@ -512,6 +514,11 @@
   inset-block-end: calc(-1 * var(--space-5, 20px));
   margin-block: auto calc(-1 * var(--space-5, 20px));
   padding-block: var(--space-3, 12px) var(--space-5, 20px);
+  z-index: 2;
   border-block-start: 1px solid var(--line);
   background: var(--surface);
+}
+/* Chats inside the sheet scroll with it; only the footer stays pinned. */
+.sharing-sheet .gc-dock {
+  position: static;
 }
