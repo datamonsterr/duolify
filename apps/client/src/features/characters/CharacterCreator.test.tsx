@@ -23,7 +23,8 @@ describe("CharacterCreator", () => {
     const kinds = screen.getByRole("group", { name: "Kind" });
     expect(within(kinds).getAllByRole("radio")).toHaveLength(4);
     expect(kinds.querySelectorAll("svg").length).toBe(4);
-    expect(screen.getByRole("img")).toHaveAccessibleName();
+    for (const img of screen.getAllByRole("img"))
+      expect(img).toHaveAccessibleName();
   });
 
   it("kind switch resets the body and species switch resets species attributes", () => {

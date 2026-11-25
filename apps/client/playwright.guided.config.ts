@@ -16,6 +16,8 @@ export default defineConfig({
     "shell-layout.spec.ts",
     "keyboard-shortcuts.spec.ts",
     "characters-v2-creator.spec.ts",
+    "characters-v2-kinds.spec.ts",
+    "characters-guided-chat.spec.ts",
   ],
   // The authored fixture shares the built web server and needs no API process.
   webServer: Array.isArray(config.webServer)

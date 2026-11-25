@@ -23,7 +23,8 @@ export type WidgetKind =
   | "confirm"
   | "email"
   | "code"
-  | "password";
+  | "password"
+  | "character";
 
 /** Widgets whose value is a secret or credential: never drafted, never routed from free text. */
 export const secureWidgets: readonly WidgetKind[] = [
@@ -74,6 +75,10 @@ export type Step = {
   checks?: string[];
   /** Message id for the primary button when the default label does not fit. */
   actionKey?: string;
+  /** `character` widget: a selector tab (kind, look, outfit, about) or a Cast pick (guide, support). */
+  character?:
+    | { tab: "kind" | "look" | "outfit" | "about" }
+    | { pick: "guide" | "support" };
   /** Secure inputs: native attributes so autofill and password managers work. */
   input?: {
     name: string;

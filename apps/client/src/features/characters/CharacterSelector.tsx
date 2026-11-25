@@ -24,6 +24,7 @@ type Field =
   | { id: string; path: string[]; kind: "skin" }
   | { id: string; path: string[]; kind: "text"; multiline?: boolean }
   | { id: string; path: string[]; kind: "voice" }
+  | { id: string; path: string[]; kind: "pronouns" }
   | { id: string; path: string[]; kind: "accessories" };
 
 const f = (path: string[], kind: Field["kind"] = "tiles"): Field =>
@@ -112,7 +113,7 @@ export function fieldsFor(spec: CharacterSpecV2, tab: Tab): Field[] {
     ];
   return [
     f(["info", "name"], "text"),
-    f(["identity", "pronouns"], "text"),
+    f(["identity", "pronouns"], "pronouns"),
     f(["identity", "label"], "text"),
     f(["personality", "traits"], "text"),
     f(["personality", "speaking_style"], "text"),
@@ -434,6 +435,16 @@ function FieldView({
         onPick={set}
       />
     );
+  if (field.kind === "pronouns")
+    return (
+      <Pronouns
+        legend={legend}
+        name={name}
+        value={String(current)}
+        t={t}
+        onPick={set}
+      />
+    );
   if (field.kind === "accessories")
     return (
       <Accessories
@@ -472,6 +483,69 @@ function FieldView({
         />
       )}
     </label>
+  );
+}
+
+export const PRONOUN_PRESETS = {
+  she: "she/her",
+  he: "he/him",
+  they: "they/them",
+} as const;
+
+/** Preset pronouns as radios; "Other" reveals a free entry. The value stays one string in the draft. */
+function Pronouns({
+  legend,
+  name,
+  value,
+  t,
+  onPick,
+}: {
+  legend: string;
+  name: string;
+  value: string;
+  t: (id: string) => string;
+  onPick: (v: string) => void;
+}) {
+  const preset = Object.entries(PRONOUN_PRESETS).find(
+    ([, v]) => v === value,
+  )?.[0];
+  const [other, setOther] = useState(!preset && value !== "");
+  const current = other ? "other" : value === "" ? "none" : (preset ?? "other");
+  const choices = ["she", "he", "they", "other", "none"] as const;
+  const pick = (id: (typeof choices)[number]) => {
+    setOther(id === "other");
+    if (id === "other") return;
+    onPick(id === "none" ? "" : PRONOUN_PRESETS[id]);
+  };
+  return (
+    <fieldset className="cv2-field">
+      <legend>{legend}</legend>
+      <div className="cv2-tiles cv2-chips">
+        {choices.map((id) => (
+          <label key={id} className="cv2-tile cv2-chip">
+            <input
+              type="radio"
+              name={name}
+              value={id}
+              checked={current === id}
+              onChange={() => pick(id)}
+            />
+            <span>{t(`characters.v2.pronoun.${id}`)}</span>
+          </label>
+        ))}
+      </div>
+      {current === "other" && (
+        <label className="cv2-text cv2-pronoun-other">
+          <span>{t("characters.v2.pronoun.other_label")}</span>
+          <input
+            type="text"
+            maxLength={24}
+            value={preset ? "" : value}
+            onChange={(e) => onPick(e.target.value)}
+          />
+        </label>
+      )}
+    </fieldset>
   );
 }
 
