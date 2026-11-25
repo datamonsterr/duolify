@@ -422,8 +422,8 @@ pub fn routed_lesson_prompt(
     routed_lesson_prompt_in(crate::skills::bundled(), context, ids)
 }
 
-/// The bundled skills with `lesson_slides` forced to `routed`, for the evals' routed arm (the
-/// shipped switch stays `monolithic` until the rollout PR).
+/// The bundled skills with `lesson_slides` forced to `routed`, for the evals' routed arm (kept
+/// so the evals' routed arm does not depend on the shipped mode).
 pub fn routed_eval_library() -> crate::skills::Library {
     let sources: Vec<(&str, String)> = crate::skills::BUNDLED
         .iter()
@@ -485,7 +485,14 @@ pub fn compact_context(request: &serde_json::Value) -> String {
 /// The lesson request as prompt data: today's `Debug` rendering while `lesson_slides` is
 /// monolithic (byte-identical prompts), compact JSON once the task is routed.
 pub fn render_context<T: std::fmt::Debug + serde::Serialize>(context: &T) -> String {
-    if crate::skills::bundled().mode("lesson_slides") == crate::skills::PromptMode::Routed
+    render_context_in(crate::skills::bundled(), context)
+}
+
+fn render_context_in<T: std::fmt::Debug + serde::Serialize>(
+    lib: &crate::skills::Library,
+    context: &T,
+) -> String {
+    if lib.mode("lesson_slides") == crate::skills::PromptMode::Routed
         && let Ok(v) = serde_json::to_value(context)
     {
         return compact_context(&v);

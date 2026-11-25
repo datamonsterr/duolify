@@ -1,10 +1,10 @@
 # Prompt skills for lesson_slides (ADR 0025, group 3a). Bodies start from the spike
-# (`evals/spikes/prompt-routing/run.py`). `prompt_mode` stays "monolithic" (today's single prompt)
-# until the task's rollout PR. Rule skills (language_practice, character_cast) are chosen from
+# (`evals/spikes/prompt-routing/run.py`). `prompt_mode` was flipped to "routed" on 2026-11-25 after
+# the live A/B (docs/prompt-routing-rollout.md); set it back to "monolithic" to roll back. Rule skills (language_practice, character_cast) are chosen from
 # request fields; model-routed ones (diagram, code, math, table, timeline) wait for the router
 # (group 4) and are not loaded until then. `default` skills load for every routed lesson.
 task = "lesson_slides"
-prompt_mode = "monolithic"
+prompt_mode = "routed"
 
 [routing]
 max_skills = 6

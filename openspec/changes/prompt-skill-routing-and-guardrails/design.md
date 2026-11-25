@@ -277,3 +277,17 @@ Net: tutor chat becomes about 15 to 20 percent cheaper after guard, lessons are 
 - Engine: tutor chat and quick note use the fast decision model (`engine-providers::decisions::DecisionsGuard`, default `liquid/d1.2`, installed in live mode), one noul per reason code (`self_harm`, `unsafe_content`, `prompt_injection`), a code blocks at probability 0.9 (most severe first), a reply that answers none of the questions is an outage. `GuardInput` runs the pre-filter first, then this model, with the 4 s classifier budget (`Surface::budget`); other surfaces keep the chat classifier. The model choice (`liquid/d1.2` versus `microsoft/microsoft-decision-1.1`) and the threshold still need the guard golden rows run live; until then the default is a starting point, not evidence.
 - API: `engine.GuardHold` is 800 ms. `Client.check` on a fail-open surface waits that long. A verdict in time decides as before. A late one fails open: the turn proceeds, the verdict completes in the background (analytics event `input_guard_decision` with `late` set via `GuardEvent.Late`, source unchanged), and a late block goes to the `LateVerdict` in the context. Tutor chat appends the safe-response copy to the streamed reply (a `delta` plus a `safe_response` event) when that block is `self_harm`, waiting at most 2 s after the reply ends; a late non-self-harm block is only counted. Quick notes get the hold and the fail-open rule; a late block there is only counted, because there is no reply to append to.
 - Everything stays behind `INPUT_GUARD_ENABLED` (off by default) and the copy is still the placeholder pending #423. Integration test: `internal/chat/block_unsafe_tutor_messages_integration_test.go` (self_harm refused with safe response, no main call, no charge; injection refused; thread usable; late self_harm appended).
+
+## 17. Live A/B and rollout of lesson_slides (2026-11-25)
+
+CI run 45549743552 (`pending-prompt-skills.jsonl`, 2 runs per arm, numbers only):
+
+| Metric | Monolithic | Routed |
+|---|---|---|
+| `lesson_slides` rows passed | 1/5 | 5/5 |
+| `course_preview` rows passed | 2/4 | 4/4 |
+| Other tasks | equal | equal |
+| Overall pass rate | 0.823 | 0.899 |
+| Cost | baseline | -52% (run 1), -21% (run 2) |
+
+`engine:compare` verdict: PROMOTE in both runs. `lesson_slides.toml` flipped to `prompt_mode = "routed"` on 2026-11-25. Rollback: set it back to `monolithic`.

@@ -13,17 +13,23 @@ fn skill(id: &str, order: u32, extra: &str) -> String {
 }
 
 #[test]
-fn bundled_library_boots_and_every_task_stays_monolithic() {
+fn bundled_library_boots_and_only_rolled_out_tasks_are_routed() {
     let l = Library::bundled().expect("bundled skills boot");
-    for task in ["lesson_slides", "tutor_chat"] {
-        assert_eq!(l.mode(task), PromptMode::Monolithic, "{task}");
-    }
+    assert_eq!(l.mode("lesson_slides"), PromptMode::Routed);
+    assert_eq!(l.mode("tutor_chat"), PromptMode::Monolithic);
     assert_eq!(l.mode("course_outline"), PromptMode::Monolithic);
 }
 
 #[test]
 fn monolithic_assembly_returns_the_legacy_prompt_unchanged() {
-    let l = Library::bundled().unwrap();
+    // Pin monolithic explicitly: the shipped mode of lesson_slides is routed.
+    let src = crate::skills::BUNDLED
+        .iter()
+        .find(|(f, _)| f.ends_with("lesson_slides.toml"))
+        .unwrap()
+        .1
+        .replace("prompt_mode = \"routed\"", "prompt_mode = \"monolithic\"");
+    let l = Library::from_sources(&[("lesson_slides.toml", &src)]).unwrap();
     let p = l
         .assemble("lesson_slides", "LEGACY PROMPT", &["x".into()], "data")
         .unwrap();
