@@ -102,6 +102,8 @@ pub struct Route {
     /// Byte-stable system prefix of a routed prompt (core, then skills); the call's `input` is
     /// then the user message. `None` keeps the single user message of a monolithic prompt.
     pub system: Option<String>,
+    /// Output cap for a quoted stream. Unset preserves the provider's stream default.
+    pub stream_output_tokens: Option<u32>,
 }
 /// A rejected answer and the corrective user message sent after it on the repair attempt.
 #[derive(Debug, Clone, Default)]
@@ -121,6 +123,7 @@ impl Model {
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
             system: None,
+            stream_output_tokens: None,
         }
     }
     /// One bounded attempt: exactly one model request, no provider-side chain, so the bounded
@@ -145,6 +148,7 @@ impl Model {
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
             system: None,
+            stream_output_tokens: None,
         }
     }
 }
@@ -289,7 +293,9 @@ impl LlmProvider for MockProvider {
         let steering_data = steering::provider_data(input);
         let input = steering_data.as_deref().unwrap_or(input);
         let data = serde_json::from_str::<serde_json::Value>(input).ok();
-        let text = if data.as_ref().is_some_and(|v| v["task"] == "steer_screen") {
+        let text = if let Some(answer) = chat::teach_back::mock_answer(input) {
+            answer
+        } else if data.as_ref().is_some_and(|v| v["task"] == "steer_screen") {
             let value = data.as_ref().unwrap();
             let text = value["text"].as_str().unwrap_or_default().to_lowercase();
             let reason = if steering::deterministic(&text).is_some()

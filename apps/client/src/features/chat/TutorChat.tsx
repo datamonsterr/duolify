@@ -424,6 +424,7 @@ export function TutorChat({
   onReadTranscript?: () => void;
 }) {
   const { t, number } = useUiPreferences();
+  const assessing = Boolean(lesson?.question_id);
   const [launched, setOpen] = useState(false);
   const open = embedded || launched;
   const recover = (
@@ -663,7 +664,13 @@ export function TutorChat({
             <div className="tutor-ctx">
               <b>{t("tutor.context_title")}</b>
               <span>
-                {t(lesson ? "tutor.lesson_context" : "tutor.context_body")}
+                {t(
+                  assessing
+                    ? "tutor.question_context"
+                    : lesson
+                      ? "tutor.lesson_context"
+                      : "tutor.context_body",
+                )}
               </span>
               <span>{t("tutor.context_not")}</span>
             </div>
@@ -705,9 +712,16 @@ export function TutorChat({
                       appearance={mascotAppearance}
                     />
                   )}
-                  <b>{t("tutor.empty_title")}</b>
+                  <b>
+                    {t(
+                      assessing ? "tutor.question_title" : "tutor.empty_title",
+                    )}
+                  </b>
                   <div className="tutor-starters">
-                    {starters.map((id) => (
+                    {(assessing
+                      ? (["tutor.question_starter"] as const)
+                      : starters
+                    ).map((id) => (
                       <button
                         type="button"
                         key={id}

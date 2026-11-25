@@ -15,11 +15,12 @@ const maxSlideIndex = 9999
 type lessonInput struct {
 	LessonID   string `json:"lesson_id"`
 	SlideIndex int    `json:"slide_index"`
+	QuestionID string `json:"question_id,omitempty"`
 }
 
 // valid reports whether the reference is well formed; an absent lesson is valid (Course-level question).
 func (l *lessonInput) valid() bool {
-	return l == nil || (validUUID(l.LessonID) && l.SlideIndex >= 0 && l.SlideIndex <= maxSlideIndex)
+	return l == nil || (validUUID(l.LessonID) && l.SlideIndex >= 0 && l.SlideIndex <= maxSlideIndex && (l.QuestionID == "" || validUUID(l.QuestionID)))
 }
 
 var errLessonNotFound = errors.New("lesson not found")

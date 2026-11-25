@@ -782,6 +782,19 @@ struct ScriptedStream {
     dropped: Arc<std::sync::atomic::AtomicBool>,
 }
 
+impl ScriptedStream {
+    fn new(name: &'static str, deltas: Vec<String>, then: &str) -> Self {
+        use std::sync::atomic::AtomicBool;
+        Self {
+            name,
+            deltas,
+            then: then.into(),
+            touched: Arc::new(AtomicBool::new(false)),
+            dropped: Arc::new(AtomicBool::new(false)),
+        }
+    }
+}
+
 struct DropFlag(Arc<std::sync::atomic::AtomicBool>);
 impl Drop for DropFlag {
     fn drop(&mut self) {
@@ -828,22 +841,20 @@ impl engine_core::LlmProvider for ScriptedStream {
 async fn evaluate_tutor_stream(input: &serde_json::Value) -> Result<String> {
     use engine_core::chat::stream::{Bounds, Part, reconcile};
     use futures::StreamExt;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::Ordering;
     let spec = &input["stream"];
     let side = |key: &str, name: &'static str| {
         let s = &spec[key];
-        ScriptedStream {
+        ScriptedStream::new(
             name,
-            deltas: s["deltas"]
+            s["deltas"]
                 .as_array()
                 .into_iter()
                 .flatten()
                 .filter_map(|v| v.as_str().map(str::to_owned))
                 .collect(),
-            then: s["then"].as_str().unwrap_or("end").into(),
-            touched: Arc::new(AtomicBool::new(false)),
-            dropped: Arc::new(AtomicBool::new(false)),
-        }
+            s["then"].as_str().unwrap_or("end"),
+        )
     };
     let (primary, fallback) = (side("primary", "primary"), side("fallback", "fallback"));
     let (primary_dropped, fallback_touched) = (primary.dropped.clone(), fallback.touched.clone());
@@ -881,6 +892,7 @@ async fn evaluate_tutor_stream(input: &serde_json::Value) -> Result<String> {
                 estimated,
             } => usages.push((completion, estimated)),
             Part::Error(f) => error = Some(f),
+            _ => bail!("ordinary tutor stream emitted a guarded event"),
         }
     }
     drop(parts);
@@ -902,6 +914,134 @@ async fn evaluate_tutor_stream(input: &serde_json::Value) -> Result<String> {
         "usage_estimated": usages.iter().any(|(_, e)| *e),
         "usage_within_bounds": within,
         "provider_dropped": primary_dropped.load(Ordering::SeqCst),
+    })
+    .to_string())
+}
+
+fn retention_fixture_limits() -> engine_core::credits::Limits {
+    engine_core::credits::Limits {
+        input_tokens: 8000,
+        output_tokens: 200,
+        timeout_ms: 5000,
+        max_attempts: 2,
+        max_cost_nanos: 1_000_000,
+        input_nanos: 1,
+        output_nanos: 1,
+        cache_write_nanos: 1,
+        cache_read_nanos: 1,
+        deadline_unix_ms: 0,
+    }
+}
+
+async fn evaluate_tutor_answer_guard(input: &serde_json::Value) -> Result<String> {
+    use engine_core::chat::{self, guard, stream::Part};
+
+    let spec = &input["answer_guard"];
+    let questions: Vec<guard::Question> =
+        serde_json::from_value(spec["guarded_questions"].clone())?;
+    let context = chat::Context {
+        profile: chat::Profile {
+            locale: spec["locale"]
+                .as_str()
+                .context("guard fixture locale")?
+                .into(),
+            ..Default::default()
+        },
+        messages: vec![chat::Message {
+            role: "user".into(),
+            content: "Tell me the correct answer.".into(),
+        }],
+        ..Default::default()
+    };
+    let provider = |index, name| -> Result<Arc<ScriptedStream>> {
+        let recorded = &input["recorded"][index];
+        let deltas = if recorded.is_null() {
+            Vec::new()
+        } else {
+            serde_json::from_value(recorded.clone())?
+        };
+        Ok(Arc::new(ScriptedStream::new(name, deltas, "end")))
+    };
+    let router = engine_core::ProviderRouter::new(
+        provider(0usize, "primary")?,
+        provider(1usize, "fallback")?,
+    )?;
+    let turn = u32::try_from(
+        spec["socratic_turn"]
+            .as_u64()
+            .context("guard fixture turn")?,
+    )?;
+    let parts = guard::run(
+        &router,
+        &context,
+        &questions,
+        turn,
+        &retention_fixture_limits(),
+        guard::Timeouts {
+            first_token: std::time::Duration::from_millis(100),
+            idle: std::time::Duration::from_millis(100),
+        },
+    )
+    .await?;
+    let (mut delivered_text, mut guard_hit, mut attempt_count, mut model_delivered) =
+        (String::new(), false, 0, false);
+    for part in parts {
+        match part {
+            Part::Delta(delta) => delivered_text.push_str(&delta),
+            Part::AnswerGuardHit => guard_hit = true,
+            Part::GuardedUsage { attempt, .. } => {
+                attempt_count += 1;
+                model_delivered |= attempt.delivered;
+            }
+            Part::Error(failure) => bail!("guarded tutor fixture failed: {}", failure.code),
+            Part::Usage { .. } => bail!("guarded tutor fixture emitted ordinary usage"),
+        }
+    }
+    let answer_absent = !guard::reply_leaks_answer(
+        &delivered_text,
+        questions.iter().map(|q| q.correct_choice.as_str()),
+    );
+    Ok(serde_json::json!({
+        "answer_absent": answer_absent,
+        "guard_hit": guard_hit,
+        "attempt_count": attempt_count,
+        "template_used": !model_delivered && !delivered_text.is_empty(),
+        "delivered_text": delivered_text,
+    })
+    .to_string())
+}
+
+async fn evaluate_teach_back(input: &serde_json::Value) -> Result<String> {
+    use engine_core::chat::teach_back;
+
+    let ctx: teach_back::Context = serde_json::from_value(input["teach_back"].clone())?;
+    let attempts = input["recorded"]
+        .as_array()
+        .context("teach-back fixture replies")?;
+    let completions = attempts.iter().map(|answer| {
+        (!answer.is_null()).then(|| engine_core::Completion {
+            text: answer.to_string(),
+            provider: "recorded".into(),
+            input_tokens: 250,
+            output_tokens: 30,
+            ..Default::default()
+        })
+    });
+    let provider = Arc::new(RecordedCredits(Mutex::new(completions.collect())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let result = teach_back::run(&router, &ctx, &retention_fixture_limits()).await?;
+    let missing: Vec<_> = ctx
+        .points
+        .iter()
+        .filter(|point| !result.answer.covered_point_ids.contains(&point.id))
+        .collect();
+    Ok(serde_json::json!({
+        "complete": result.complete,
+        "follow_up": result.answer.follow_up,
+        "covered_ids": result.answer.covered_point_ids,
+        "missed": missing,
+        "self_check": result.self_check,
+        "attempt_count": result.attempts.len(),
     })
     .to_string())
 }
@@ -2112,6 +2252,10 @@ impl Runner {
                     evaluate_brief(&case.input).await?
                 } else if case.task == "tutor_chat" && case.input.get("stream").is_some() {
                     evaluate_tutor_stream(&case.input).await?
+                } else if case.task == "tutor_chat" && case.input.get("answer_guard").is_some() {
+                    evaluate_tutor_answer_guard(&case.input).await?
+                } else if case.task == "tutor_chat" && case.input.get("teach_back").is_some() {
+                    evaluate_teach_back(&case.input).await?
                 } else if case.task == "tutor_chat" {
                     evaluate_tutor_chat(&case.input)?
                 } else if canonical == "note_enrich" {

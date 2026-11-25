@@ -34,9 +34,10 @@ const (
 	stalePending = 5 * time.Minute
 )
 
-// Engine opens the tutor stream.
+// Engine opens a tutor stream or runs a platform-paid Teach it back turn.
 type Engine interface {
 	Chat(context.Context, *enginev1.ChatRequest) (enginev1.EngineService_ChatClient, error)
+	TeachBack(context.Context, *enginev1.TeachBackRequest) (*enginev1.TeachBackResponse, error)
 }
 
 // Financial is the E7 reservation boundary.
@@ -157,6 +158,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.quote(w, r, owner, id)
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/messages"):
 		s.send(w, r, owner, id)
+	case r.PathValue("lessonId") != "" && strings.HasSuffix(path, "/teach-back"):
+		s.teachBack(w, r, owner, id, r.PathValue("lessonId"))
 	case r.Method == http.MethodGet && strings.HasSuffix(path, "/tutor/personas"):
 		s.personas(w, r, owner, id)
 	case r.Method == http.MethodGet && strings.HasSuffix(path, "/tutor/thread"):
@@ -232,6 +235,12 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 	if ground != nil {
 		req.RegionQuestion = ground.Question
 	}
+	assessment, err := s.assessment(r.Context(), owner, course, in.Lesson)
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	req.GuardedQuestions = assessment.questions
 	quotes := pricing.NewQuotes(s.opts.Pool)
 	action, messageTokens := classAction(in.Class), estimateTokens(len(in.Message))
 	bounds, err := quotes.Bounds(r.Context(), pricing.QuoteInput{Action: action, InputTokens: messageTokens})

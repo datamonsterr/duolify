@@ -150,6 +150,43 @@ func TestPurgeUsesCreatedAtIndexes(t *testing.T) {
 	}
 }
 
+func TestTeachBackSweepClearsAbandonedExplanationsAndKeepsTheTurn(t *testing.T) {
+	ctx, db := t.Context(), newDB(t)
+	conn, err := db.Pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SET session_replication_role = replica`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = conn.Exec(ctx, `SET session_replication_role = DEFAULT`) }()
+	for _, age := range []string{"31 days", "1 day"} {
+		if _, err := conn.Exec(ctx, `
+INSERT INTO lesson_teach_backs(learner_id, lesson_stub_id, turn, messages, response, updated_at)
+VALUES(gen_random_uuid(), gen_random_uuid(), 1, '[{"role":"user","content":"Private explanation"}]',
+       '{"turn":1,"followUp":"What changes?"}', now() - $1::interval)`, age); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := New(db.Pool, Config{BatchSize: 1}, nil)
+	for range 2 {
+		if _, err := svc.PurgeExpiredRows(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var preserved, remainingText int
+	if err := db.Pool.QueryRow(ctx, `
+SELECT count(*) FILTER (WHERE turn=1 AND response->>'followUp'='What changes?'),
+       count(*) FILTER (WHERE messages <> '[]'::jsonb)
+FROM lesson_teach_backs`).Scan(&preserved, &remainingText); err != nil {
+		t.Fatal(err)
+	}
+	if preserved != 2 || remainingText != 1 {
+		t.Fatalf("preserved turns=%d and explanations=%d, want 2 and 1", preserved, remainingText)
+	}
+}
+
 func TestPurgeRemovesIdleGuidedChatDrafts(t *testing.T) {
 	ctx, db := t.Context(), newDB(t)
 	pool := db.Pool

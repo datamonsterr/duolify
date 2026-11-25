@@ -1,0 +1,39 @@
+.teach-back {
+  inline-size: 100%;
+}
+
+.teach-back section {
+  margin-block-start: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.teach-back form,
+.teach-back-summary {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.teach-back textarea {
+  inline-size: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+.teach-back :is(p, h3, ul) {
+  margin-block: 0;
+}
+
+.teach-back ul {
+  padding-inline-start: var(--space-5);
+}

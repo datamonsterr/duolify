@@ -34,6 +34,8 @@ service EngineService {
   rpc GenerateRetryVariants(GenerateRetryVariantsRequest) returns (GenerateRetryVariantsResponse);
   // Chat streams a tutor reply with course, lesson and learner context.
   rpc Chat(ChatRequest) returns (stream ChatEvent);
+  // TeachBack plays a novice or grades collected explanations at platform expense.
+  rpc TeachBack(TeachBackRequest) returns (TeachBackResponse);
   // EnrichNote turns a quick note into a summary, tags and links.
   rpc EnrichNote(EnrichNoteRequest) returns (EnrichNoteResponse);
   // SetupChat guides onboarding and learner profile configuration.
@@ -511,6 +513,17 @@ message ChatRequest {
   // Optional area of a Slide the Learner selected before asking. The API resolves it against the
   // Slide manifest regions; the client never supplies Slide text. Unset for ordinary questions.
   RegionQuestion region_question = 9;
+  // API-owned unanswered assessment questions. Correct choices stay on this private hop.
+  repeated GuardedQuestion guarded_questions = 10;
+  // The number of prior hints for the active unanswered question.
+  uint32 socratic_turn = 11;
+}
+
+message GuardedQuestion {
+  string question_id = 1;
+  string correct_choice = 2;
+  string prompt = 3;
+  string topic_id = 4;
 }
 
 // RegionQuestion grounds one tutor turn on part of a Slide. Every string in it comes from the
@@ -559,7 +572,35 @@ message ChatEvent {
     Usage attempt = 3;
     string error_code = 4;
     ChatStreamError stream_error = 5;
+    // Private signal for the API to record a guard hit without exposing an answer.
+    bool answer_guard_hit = 6;
   }
+}
+
+message TeachBackPoint {
+  string id = 1;
+  string text = 2;
+  // Zero-based Slide index. -1 means no source Slide could be linked.
+  int32 slide_index = 3;
+}
+
+message TeachBackRequest {
+  string lesson_title = 1;
+  repeated TeachBackPoint points = 2;
+  repeated ChatMessage messages = 3;
+  LearnerProfile learner = 4;
+  // Same validated style-only persona data as ChatRequest.
+  string tutor_persona_json = 5;
+  uint32 follow_ups = 6;
+  UsageLimits limits = 7;
+}
+
+message TeachBackResponse {
+  string follow_up = 1;
+  repeated string covered_point_ids = 2;
+  bool self_check = 3;
+  repeated Usage attempts = 4;
+  bool complete = 5;
 }
 
 message EnrichNoteRequest {

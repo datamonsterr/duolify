@@ -32,6 +32,7 @@ const (
 	EngineService_GenerateLesson_FullMethodName        = "/duolify.engine.v1.EngineService/GenerateLesson"
 	EngineService_GenerateRetryVariants_FullMethodName = "/duolify.engine.v1.EngineService/GenerateRetryVariants"
 	EngineService_Chat_FullMethodName                  = "/duolify.engine.v1.EngineService/Chat"
+	EngineService_TeachBack_FullMethodName             = "/duolify.engine.v1.EngineService/TeachBack"
 	EngineService_EnrichNote_FullMethodName            = "/duolify.engine.v1.EngineService/EnrichNote"
 	EngineService_SetupChat_FullMethodName             = "/duolify.engine.v1.EngineService/SetupChat"
 	EngineService_CourseBriefChat_FullMethodName       = "/duolify.engine.v1.EngineService/CourseBriefChat"
@@ -74,6 +75,8 @@ type EngineServiceClient interface {
 	GenerateRetryVariants(ctx context.Context, in *GenerateRetryVariantsRequest, opts ...grpc.CallOption) (*GenerateRetryVariantsResponse, error)
 	// Chat streams a tutor reply with course, lesson and learner context.
 	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatEvent], error)
+	// TeachBack plays a novice or grades collected explanations at platform expense.
+	TeachBack(ctx context.Context, in *TeachBackRequest, opts ...grpc.CallOption) (*TeachBackResponse, error)
 	// EnrichNote turns a quick note into a summary, tags and links.
 	EnrichNote(ctx context.Context, in *EnrichNoteRequest, opts ...grpc.CallOption) (*EnrichNoteResponse, error)
 	// SetupChat guides onboarding and learner profile configuration.
@@ -247,6 +250,16 @@ func (c *engineServiceClient) Chat(ctx context.Context, in *ChatRequest, opts ..
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EngineService_ChatClient = grpc.ServerStreamingClient[ChatEvent]
 
+func (c *engineServiceClient) TeachBack(ctx context.Context, in *TeachBackRequest, opts ...grpc.CallOption) (*TeachBackResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TeachBackResponse)
+	err := c.cc.Invoke(ctx, EngineService_TeachBack_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *engineServiceClient) EnrichNote(ctx context.Context, in *EnrichNoteRequest, opts ...grpc.CallOption) (*EnrichNoteResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EnrichNoteResponse)
@@ -341,6 +354,8 @@ type EngineServiceServer interface {
 	GenerateRetryVariants(context.Context, *GenerateRetryVariantsRequest) (*GenerateRetryVariantsResponse, error)
 	// Chat streams a tutor reply with course, lesson and learner context.
 	Chat(*ChatRequest, grpc.ServerStreamingServer[ChatEvent]) error
+	// TeachBack plays a novice or grades collected explanations at platform expense.
+	TeachBack(context.Context, *TeachBackRequest) (*TeachBackResponse, error)
 	// EnrichNote turns a quick note into a summary, tags and links.
 	EnrichNote(context.Context, *EnrichNoteRequest) (*EnrichNoteResponse, error)
 	// SetupChat guides onboarding and learner profile configuration.
@@ -404,6 +419,9 @@ func (UnimplementedEngineServiceServer) GenerateRetryVariants(context.Context, *
 }
 func (UnimplementedEngineServiceServer) Chat(*ChatRequest, grpc.ServerStreamingServer[ChatEvent]) error {
 	return status.Error(codes.Unimplemented, "method Chat not implemented")
+}
+func (UnimplementedEngineServiceServer) TeachBack(context.Context, *TeachBackRequest) (*TeachBackResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TeachBack not implemented")
 }
 func (UnimplementedEngineServiceServer) EnrichNote(context.Context, *EnrichNoteRequest) (*EnrichNoteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EnrichNote not implemented")
@@ -664,6 +682,24 @@ func _EngineService_Chat_Handler(srv interface{}, stream grpc.ServerStream) erro
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EngineService_ChatServer = grpc.ServerStreamingServer[ChatEvent]
 
+func _EngineService_TeachBack_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TeachBackRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).TeachBack(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_TeachBack_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).TeachBack(ctx, req.(*TeachBackRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _EngineService_EnrichNote_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EnrichNoteRequest)
 	if err := dec(in); err != nil {
@@ -822,6 +858,10 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateRetryVariants",
 			Handler:    _EngineService_GenerateRetryVariants_Handler,
+		},
+		{
+			MethodName: "TeachBack",
+			Handler:    _EngineService_TeachBack_Handler,
 		},
 		{
 			MethodName: "EnrichNote",

@@ -102,6 +102,17 @@ func (c *Client) Chat(ctx context.Context, r *enginev1.ChatRequest) (enginev1.En
 	return c.rpc.Chat(metadata.NewOutgoingContext(ctx, md), r)
 }
 
+// TeachBack runs a bounded platform-paid Tutor turn. The latest explanation uses the same
+// free-text screening as Tutor chat, and neither the request nor response is logged here.
+func (c *Client) TeachBack(ctx context.Context, r *enginev1.TeachBackRequest) (*enginev1.TeachBackResponse, error) {
+	if err := c.check(ctx, SurfaceTutorChat, lastUser(r.GetMessages()), ""); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 14*time.Second)
+	defer cancel()
+	return c.rpc.TeachBack(ctx, r)
+}
+
 // retryAttempts and retryBackoffs bound the deploy-restart retry: five attempts, about 7 s of waiting.
 const retryAttempts = 5
 

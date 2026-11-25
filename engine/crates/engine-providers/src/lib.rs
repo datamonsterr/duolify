@@ -328,7 +328,12 @@ impl LlmProvider for HttpProvider {
             return Err(last.context("empty model chain")?);
         }
         let response = self
-            .request(route, input, true, 4096)
+            .request(
+                route,
+                input,
+                true,
+                route.stream_output_tokens.unwrap_or(4096),
+            )
             .send()
             .await?
             .error_for_status()?;

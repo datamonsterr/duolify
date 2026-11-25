@@ -1,4 +1,4 @@
-// Package retention purges rows that only exist to make client retries idempotent.
+// Package retention removes expired data and preserves the state needed for safe retries.
 package retention
 
 import (
@@ -18,6 +18,7 @@ const (
 	DefaultAnswerOperationWindow   = 7 * 24 * time.Hour
 	DefaultSweepInterval           = 24 * time.Hour
 	DefaultBatchSize               = 5000
+	teachBackExplanationWindow     = 30 * 24 * time.Hour
 )
 
 // Config holds the retention windows, the sweep cadence and the delete batch size.
@@ -112,10 +113,32 @@ func (s *Service) purgeAt(ctx context.Context, now time.Time) (Result, error) {
 	if res.GuidedChatDrafts, err = s.purgeBy(ctx, "guided_chat_drafts", "expires_at", now); err != nil {
 		return res, err
 	}
+	if err = s.clearAbandonedTeachBacks(ctx, now); err != nil {
+		return res, err
+	}
 	if s.logger != nil && (res.PlaybackSyncEvents > 0 || res.AnswerOperations > 0 || res.GuidedChatDrafts > 0) {
 		s.logger.InfoContext(ctx, "row retention purge", "playback_sync_events", res.PlaybackSyncEvents, "lesson_test_answer_operations", res.AnswerOperations, "guided_chat_drafts", res.GuidedChatDrafts)
 	}
 	return res, nil
+}
+
+// Keep each Lesson's turn so retention cannot restart a paid attempt.
+func (s *Service) clearAbandonedTeachBacks(ctx context.Context, now time.Time) error {
+	cutoff := now.Add(-teachBackExplanationWindow)
+	for {
+		tag, err := s.pool.Exec(ctx, `
+UPDATE lesson_teach_backs SET messages='[]'::jsonb WHERE ctid = ANY(ARRAY(
+	SELECT ctid FROM lesson_teach_backs
+	WHERE messages <> '[]'::jsonb AND updated_at < $1
+		AND (processing_until IS NULL OR processing_until <= $2)
+	ORDER BY updated_at LIMIT $3 FOR UPDATE SKIP LOCKED))`, cutoff, now, s.cfg.BatchSize)
+		if err != nil {
+			return fmt.Errorf("clear lesson teach-back explanations: %w", err)
+		}
+		if tag.RowsAffected() < int64(s.cfg.BatchSize) {
+			return nil
+		}
+	}
 }
 
 // purgeTable takes a fixed table name from this file, never from input.
