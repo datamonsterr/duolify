@@ -255,7 +255,16 @@ async fn steering_grpc_screening_and_escaped_prompt_preserve_mastery() {
     // of user data, after the lesson requirements and Course context.
     let data = engine_core::steering::provider_data(prompt).unwrap();
     let (context, section) = data.split_once("\n<learner_instructions>\n").unwrap();
-    assert!(context.starts_with("Generate a lesson with Motion HTML slides"));
+    // Monolithic: the lesson rules lead the user data. Routed: the rules live in the system
+    // prefix and the user data opens with the context section.
+    let opening = if engine_core::skills::bundled().mode("lesson_slides")
+        == engine_core::skills::PromptMode::Routed
+    {
+        "Context (data):"
+    } else {
+        "Generate a lesson with Motion HTML slides"
+    };
+    assert!(context.starts_with(opening), "{context}");
     assert!(context.contains("Context (data):"));
     assert!(!context.contains("Use Go"));
     assert!(!envelope["policy"].as_str().unwrap().contains("Use Go"));
