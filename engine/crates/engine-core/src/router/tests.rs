@@ -74,7 +74,7 @@ async fn run(router: Option<&dyn SkillRouter>, cache: &dyn DecisionCache) -> Sel
 #[tokio::test]
 async fn model_picks_only_allowed_skills_above_threshold_most_likely_first() {
     let probs = BTreeMap::from([
-        ("timeline".to_string(), 0.95),
+        ("comparison_table".to_string(), 0.95),
         ("diagram_layout".to_string(), 0.99),
         ("code_slide".to_string(), 0.5),
         ("character_cast".to_string(), 0.99), // rule-managed: never model-decided
@@ -84,7 +84,10 @@ async fn model_picks_only_allowed_skills_above_threshold_most_likely_first() {
     let r = Fixed(probs, AtomicUsize::new(0));
     let s = run(Some(&r), &MemoryCache::default()).await;
     assert_eq!(s.source, Source::Model);
-    assert_eq!(s.ids, ["narration_pacing", "diagram_layout", "timeline"]);
+    assert_eq!(
+        s.ids,
+        ["narration_pacing", "diagram_layout", "comparison_table"]
+    );
 }
 
 #[tokio::test]
@@ -225,4 +228,120 @@ async fn each_model_call_is_counted_and_a_cache_hit_is_free() {
     }
     assert_eq!(r.1.load(Ordering::SeqCst), 1);
     assert_eq!(b.router.load(Ordering::Relaxed), ROUTER_CALL_NANOS);
+}
+
+/// The decision model sees only these descriptions, so overlapping ones make it over-pick
+/// (CI live A/B: `timeline` fired on every process and cycle, `diagram_layout` on comparisons).
+#[test]
+fn model_routed_descriptions_are_disjoint_in_scope() {
+    let lib = lib();
+    let ts = lib.task("lesson_slides").unwrap();
+    let d = |id: &str| ts.skills[id].description.to_lowercase();
+    let (diagram, timeline, table) = (d("diagram_layout"), d("timeline"), d("comparison_table"));
+    for cue in ["parts", "connect", "cause", "not for a plain ordered list"] {
+        assert!(diagram.contains(cue), "diagram_layout should name {cue}");
+    }
+    for cue in ["order", "sequence", "dated or not"] {
+        assert!(timeline.contains(cue), "timeline should name {cue}");
+    }
+    assert!(
+        !timeline.contains("not for"),
+        "timeline must not exclude processes or cycles"
+    );
+    assert!(table.contains("not"));
+}
+
+/// Says yes to both layout skills; `resolve` answers with `pick` (or fails when `None`).
+struct Overlap {
+    pick: Option<&'static str>,
+    resolves: AtomicUsize,
+}
+#[async_trait]
+impl SkillRouter for Overlap {
+    async fn decide(
+        &self,
+        _: &RouterInput,
+        candidates: &[Candidate],
+    ) -> anyhow::Result<BTreeMap<String, f64>> {
+        Ok(candidates
+            .iter()
+            .filter(|c| c.id == "diagram_layout" || c.id == "timeline")
+            .map(|c| (c.id.clone(), 0.95))
+            .collect())
+    }
+    async fn resolve(
+        &self,
+        _: &RouterInput,
+        options: &[Candidate],
+    ) -> anyhow::Result<BTreeMap<String, f64>> {
+        self.resolves.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(options.len(), 2);
+        let pick = self.pick.ok_or_else(|| anyhow::anyhow!("no choice"))?;
+        Ok(options
+            .iter()
+            .map(|c| (c.id.clone(), if c.id == pick { 0.8 } else { 0.2 }))
+            .collect())
+    }
+}
+fn overlap(pick: Option<&'static str>) -> Overlap {
+    Overlap {
+        pick,
+        resolves: AtomicUsize::new(0),
+    }
+}
+fn layout(sel: &Selection) -> Vec<&str> {
+    sel.ids
+        .iter()
+        .map(String::as_str)
+        .filter(|i| *i == "diagram_layout" || *i == "timeline")
+        .collect()
+}
+
+#[test]
+fn bundled_lesson_slides_declares_the_layout_exclusive_group() {
+    let ts = lib();
+    let ts = ts.task("lesson_slides").unwrap();
+    assert_eq!(
+        ts.exclusive,
+        vec![vec!["diagram_layout".to_string(), "timeline".to_string()]]
+    );
+}
+
+#[tokio::test]
+async fn overlapping_group_members_cost_one_extra_choice_and_keep_only_the_winner() {
+    for pick in ["timeline", "diagram_layout"] {
+        let r = overlap(Some(pick));
+        let sel = run(Some(&r), &MemoryCache::default()).await;
+        assert_eq!(layout(&sel), vec![pick]);
+        assert_eq!(sel.source, Source::Model);
+        assert_eq!(r.resolves.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[tokio::test]
+async fn a_failed_choice_keeps_the_first_listed_group_member() {
+    let r = overlap(None);
+    let sel = run(Some(&r), &MemoryCache::default()).await;
+    assert_eq!(layout(&sel), vec!["diagram_layout"]);
+    assert_eq!(sel.source, Source::Model);
+}
+
+#[tokio::test]
+async fn the_resolved_choice_is_cached_and_a_lone_member_needs_no_choice() {
+    let r = overlap(Some("timeline"));
+    let cache = MemoryCache::default();
+    run(Some(&r), &cache).await;
+    let hit = run(Some(&r), &cache).await;
+    assert_eq!(
+        (hit.source, layout(&hit)),
+        (Source::Cache, vec!["timeline"])
+    );
+    assert_eq!(r.resolves.load(Ordering::SeqCst), 1);
+
+    let one = Fixed(
+        BTreeMap::from([("timeline".into(), 0.95)]),
+        AtomicUsize::new(0),
+    );
+    let sel = run(Some(&one), &MemoryCache::default()).await;
+    assert_eq!(layout(&sel), vec!["timeline"]);
 }

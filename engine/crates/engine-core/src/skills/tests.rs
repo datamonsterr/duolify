@@ -176,3 +176,13 @@ fn the_system_prefix_is_identical_across_requests_with_different_data() {
     assert_eq!(one.system, two.system);
     assert!(!one.system.contains("learner"));
 }
+
+#[test]
+fn exclusive_groups_must_name_known_skills_and_have_two_members() {
+    for bad in ["[[\"a\", \"zzz\"]]", "[[\"a\"]]"] {
+        let src = HEAD.replace("[routing]", &format!("exclusive = {bad}\n[routing]"))
+            + &skill("a", 1, "")
+            + &skill("b", 2, "");
+        assert!(lib(&src).is_err(), "{bad}");
+    }
+}

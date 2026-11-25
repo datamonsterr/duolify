@@ -3,8 +3,13 @@
 # until the task's rollout PR. Rule skills (language_practice, character_cast) are chosen from
 # request fields; model-routed ones (diagram, code, math, table, timeline) wait for the router
 # (group 4) and are not loaded until then. `default` skills load for every routed lesson.
+#
+# `exclusive`: groups of overlapping model-routed skills of which at most one loads. The router
+# asks each skill yes/no on its own, so overlapping ones can all say yes; when more than one of a
+# group does, one extra `choice` call picks the winner, and on any failure the first listed wins.
 task = "lesson_slides"
 prompt_mode = "monolithic"
+exclusive = [["diagram_layout", "timeline"]]
 
 [routing]
 max_skills = 6
@@ -12,9 +17,9 @@ budget_tokens = 600
 
 [[skill]]
 id = "diagram_layout"
-description = "The lesson explains a process, structure, flow or labelled figure that is best drawn."
+description = "The lesson's point is the spatial or causal relations: parts and how they connect or interact, a mechanism, a loop of causes and effects, or a labelled structure, best shown as a picture. Not for a plain ordered list of stages, which goes on a timeline."
 tasks = ["lesson_slides"]
-version = 1
+version = 3
 order = 40
 tokens = 93
 default = true
@@ -42,9 +47,9 @@ body = """Skill math_notation: write formulas with Unicode (x², √, ≤, π, �
 
 [[skill]]
 id = "comparison_table"
-description = "The lesson contrasts two or more things (differences, pros and cons, A versus B)."
+description = "The lesson contrasts two or more things (differences, pros and cons, A versus B). Not for a single subject explained on its own."
 tasks = ["lesson_slides"]
-version = 1
+version = 2
 order = 43
 tokens = 58
 default = false
@@ -52,9 +57,9 @@ body = """Skill comparison_table: use one <table> in the body slot with a header
 
 [[skill]]
 id = "timeline"
-description = "The lesson is about ordered events, history, stages or a sequence over time."
+description = "The lesson's point is the order: a sequence of phases, stages, steps or events the learner should recall in order, dated or not, laid out along a line."
 tasks = ["lesson_slides"]
-version = 1
+version = 3
 order = 44
 tokens = 56
 default = false

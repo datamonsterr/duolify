@@ -126,3 +126,14 @@ async fn the_fast_guard_asks_one_question_per_reason_and_an_empty_answer_is_an_o
         .await;
     assert!(g.classify(Surface::QuickNote, "text").await.is_err());
 }
+
+#[test]
+fn choice_answers_parse_to_a_probability_per_option() {
+    let v = serde_json::json!({"answers": {"pick": {"type": "choice", "choice": "timeline",
+        "probabilities": {"timeline": 0.7, "diagram_layout": 0.3}}}});
+    let p = engine_providers::decisions::parse_choice(&v).unwrap();
+    assert_eq!(p["timeline"], 0.7);
+    assert!(
+        engine_providers::decisions::parse_choice(&serde_json::json!({"answers": {}})).is_err()
+    );
+}

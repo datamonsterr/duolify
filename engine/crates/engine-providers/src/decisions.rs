@@ -48,6 +48,36 @@ impl DecisionsRouter {
             "provider": {"data_collection": "deny"},
         })
     }
+
+    /// One `choice` question: which overlapping skill is the main point of the lesson.
+    fn choice_body(&self, input: &RouterInput, options: &[Candidate]) -> Value {
+        let criteria: serde_json::Map<String, Value> = options
+            .iter()
+            .map(|c| (c.id.clone(), Value::from(c.description.clone())))
+            .collect();
+        json!({
+            "model": self.model,
+            "state": serde_json::to_string(input).unwrap_or_default(),
+            "questions": {"pick": {
+                "type": "choice",
+                "instructions": format!(
+                    "Which one guidance fits this {} request best?", input.task),
+                "criteria": criteria,
+            }},
+            "provider": {"data_collection": "deny"},
+        })
+    }
+}
+
+/// `answers.pick = {type: "choice", probabilities: {id: p}}`.
+pub fn parse_choice(value: &Value) -> Result<BTreeMap<String, f64>> {
+    let probs = value["answers"]["pick"]["probabilities"]
+        .as_object()
+        .context("decisions answer without choice probabilities")?;
+    Ok(probs
+        .iter()
+        .filter_map(|(k, p)| Some((k.clone(), p.as_f64()?)))
+        .collect())
 }
 
 /// `answers.<id> = {type: "noul", noul: p}`; anything else is ignored, a missing `answers` is
@@ -82,6 +112,24 @@ impl SkillRouter for DecisionsRouter {
             bail!("decisions status {}", response.status());
         }
         parse(&response.json().await?)
+    }
+
+    async fn resolve(
+        &self,
+        input: &RouterInput,
+        options: &[Candidate],
+    ) -> Result<BTreeMap<String, f64>> {
+        let response = self
+            .client
+            .post(&self.url)
+            .bearer_auth(&self.key)
+            .json(&self.choice_body(input, options))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            bail!("decisions status {}", response.status());
+        }
+        parse_choice(&response.json().await?)
     }
 }
 

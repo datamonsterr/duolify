@@ -107,6 +107,8 @@ struct RawFile {
     #[serde(default)]
     prompt_mode: PromptMode,
     routing: Routing,
+    #[serde(default)]
+    exclusive: Vec<Vec<String>>,
     #[serde(default, rename = "skill")]
     skills: Vec<RawSkill>,
 }
@@ -152,6 +154,9 @@ pub struct Skill {
 pub struct TaskSkills {
     pub mode: PromptMode,
     pub routing: Routing,
+    /// Groups of overlapping model-routed skills of which at most one is loaded; the first
+    /// listed wins when the router cannot choose (ADR 0025 D20).
+    pub exclusive: Vec<Vec<String>>,
     pub skills: BTreeMap<String, Skill>,
 }
 
@@ -263,6 +268,7 @@ impl Library {
             let ts = TaskSkills {
                 mode: raw.prompt_mode,
                 routing: raw.routing,
+                exclusive: raw.exclusive,
                 skills,
             };
             ts.check(&raw.task)?;
@@ -360,6 +366,20 @@ impl TaskSkills {
             });
         }
         let ids: BTreeSet<&String> = self.skills.keys().collect();
+        for g in &self.exclusive {
+            if g.len() < 2 {
+                return Err(SkillError::Invalid {
+                    file: task.into(),
+                    message: "exclusive group under 2 skills".into(),
+                });
+            }
+            if let Some(u) = g.iter().find(|i| !ids.contains(i)) {
+                return Err(SkillError::UnknownSkill {
+                    task: task.into(),
+                    id: u.clone(),
+                });
+            }
+        }
         for s in self.skills.values() {
             if let Some(c) = s.conflicts.iter().find(|c| !ids.contains(c)) {
                 return Err(SkillError::UnknownSkill {
