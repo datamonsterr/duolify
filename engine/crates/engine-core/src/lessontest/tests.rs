@@ -33,6 +33,48 @@ fn test_validate_narration_empty_rejected() {
 }
 
 #[test]
+fn narration_rate_is_bounded_at_3_3_words_per_second() {
+    assert!(validate_narration("one two three four five six seven eight nine ten", 3300).is_ok());
+    assert!(validate_narration("one two three", 1000).is_ok());
+    assert!(validate_narration("one two three four", 1000).is_err());
+}
+
+#[test]
+fn lesson_prompt_teaches_with_medium_length_targets() {
+    let prompt = lesson_prompt("{}");
+    for phrase in [
+        "one objective",
+        "worked example",
+        "misconception",
+        "40 visible words",
+        "330 ms",
+        "5 slides",
+        "3 questions",
+    ] {
+        assert!(prompt.to_lowercase().contains(phrase), "missing {phrase}");
+    }
+}
+
+#[test]
+fn lesson_context_is_allowlisted_and_caps_history() {
+    let value = serde_json::json!({"outline": {}, "lesson": {}, "learner": {}, "history": [1,2,3,4,5,6], "limits": {"deadline_unix_ms": 123}, "other": true});
+    let context = lesson_context(&value, None);
+    assert_eq!(context["history"], serde_json::json!([2, 3, 4, 5, 6]));
+    assert_eq!(context["lesson_length"], "medium");
+    assert!(context.get("limits").is_none());
+    assert!(context.get("other").is_none());
+}
+
+#[test]
+fn static_quality_checks_warn_without_rejecting() {
+    let lesson = serde_json::json!({"slides": [{"html": format!("<div id='root'>{}</div>", "word ".repeat(41)), "narration": "word word word", "duration_ms": 10000}]});
+    let warnings = quality_warnings(&lesson);
+    assert!(warnings.contains(&"visible_words"));
+    assert!(warnings.contains(&"narration_wpm"));
+    assert!(warnings.contains(&"narration_overlap"));
+}
+
+#[test]
 fn test_validate_question_valid() {
     let choices = vec![
         "Earth".to_string(),
