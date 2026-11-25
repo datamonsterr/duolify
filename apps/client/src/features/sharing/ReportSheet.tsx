@@ -20,6 +20,8 @@ import {
   type ReportTarget,
 } from "./reports";
 import { CloseButton } from "../design/sheet/CloseButton";
+import { FooterSlot, FooterSlotProvider } from "../design/sheet/FooterSlot";
+import { useUiPreferences } from "../design/localization/Preferences";
 
 type State =
   | { kind: "form" }
@@ -58,6 +60,8 @@ export function ReportSheet({
   const titleId = useId();
   const helpId = useId();
   const chars = Array.from(text).length;
+  const { t } = useUiPreferences();
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   const busy = state.kind === "sending";
 
   useEffect(() => {
@@ -153,14 +157,26 @@ export function ReportSheet({
           </div>
         ) : guided ? (
           <div className="report-form" aria-busy={busy}>
-            <Suspense fallback={null}>
-              <GuidedReport onSend={(r, d) => submit(r, d)} />
-            </Suspense>
+            <FooterSlotProvider value={slot}>
+              <Suspense fallback={null}>
+                <GuidedReport onSend={(r, d) => submit(r, d)} />
+              </Suspense>
+            </FooterSlotProvider>
             {failure && (
               <p className="sharing-error" role="alert">
                 {reportMessages[failure]}
               </p>
             )}
+            <ActionFooter>
+              <button
+                type="button"
+                className="duo-button secondary"
+                onClick={close}
+              >
+                {t("common.cancel")}
+              </button>
+              <FooterSlot onSlot={setSlot} />
+            </ActionFooter>
           </div>
         ) : (
           <form

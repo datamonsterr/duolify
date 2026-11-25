@@ -127,6 +127,7 @@ export const ar: Record<MessageId, Message> = {
   "common.close": "إغلاق",
   "common.close_named": "إغلاق {name}",
   "common.undo": "تراجع",
+  "common.cancel": "إلغاء",
   "chat.title": "محادثة موجّهة",
   "chat.steps": "خطوات المحادثة",
   "chat.step": "الخطوة {current} من {total}",

@@ -1,7 +1,9 @@
 import { lazy, Suspense, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Button } from "../../design/Button";
 import { ActionFooter } from "../../design/sheet/ActionFooter";
+import { useFooterSlot } from "../../design/sheet/FooterSlot";
 import { useUiPreferences } from "../../design/localization/Preferences";
 import type { MessageId } from "../../design/localization/messages";
 import type { Step, Value } from "../types";
@@ -125,6 +127,8 @@ export function StepWidget(props: WidgetProps) {
   const { t } = useUiPreferences();
   const name = useId();
   const errorId = useId();
+  const formId = useId();
+  const slot = useFooterSlot();
   const file = useRef<File | undefined>(undefined);
   const [value, setValue] = useState<Value>(
     initial ??
@@ -483,14 +487,46 @@ export function StepWidget(props: WidgetProps) {
     "time",
     "date",
   ];
-  const actionsUsed =
-    destructive ||
-    (labelled && showSend) ||
-    (!inline.includes(step.widget) && showSend) ||
-    (!chipWidget && Boolean(props.onSkip && step.skippable && !editing)) ||
-    (editing && Boolean(props.onCancel));
+  const skip = !chipWidget && props.onSkip && step.skippable && !editing && (
+    <Button variant="quiet" onClick={props.onSkip}>
+      {t("guided.skip")}
+    </Button>
+  );
+  // Inside a dialog with a footer slot, that footer's Cancel replaces the chat's own.
+  const cancel =
+    !slot &&
+    props.onCancel &&
+    (destructive ? (
+      <Button variant="secondary" data-autofocus onClick={props.onCancel}>
+        {t("guided.cancel")}
+      </Button>
+    ) : (
+      editing && (
+        <Button variant="quiet" onClick={props.onCancel}>
+          {t("guided.cancel")}
+        </Button>
+      )
+    ));
+  const primary = (destructive || (labelled && showSend)) && (
+    <Button
+      type="submit"
+      form={formId}
+      disabled={disabled || blocked}
+      className={destructive ? "gc-danger" : undefined}
+    >
+      {t(step.actionKey ? t0(step.actionKey) : "guided.confirm")}
+    </Button>
+  );
+  const icon = !inline.includes(step.widget) && !labelled && showSend && (
+    <IconSubmit
+      quiet={quiet}
+      label={t(step.actionKey ? t0(step.actionKey) : "guided.send")}
+      disabled={disabled || blocked}
+    />
+  );
   return (
     <form
+      id={formId}
       className="gc-widget"
       data-widget={step.widget}
       onSubmit={submit}
@@ -523,44 +559,31 @@ export function StepWidget(props: WidgetProps) {
           {error}
         </p>
       )}
-      <ActionFooter className="gc-actions" hidden={!actionsUsed}>
-        {!chipWidget && props.onSkip && step.skippable && !editing && (
-          <Button variant="quiet" onClick={props.onSkip}>
-            {t("guided.skip")}
-          </Button>
-        )}
-        {editing && !destructive && props.onCancel && (
-          <Button variant="quiet" onClick={props.onCancel}>
-            {t("guided.cancel")}
-          </Button>
-        )}
-        {destructive && props.onCancel && (
-          <Button variant="secondary" data-autofocus onClick={props.onCancel}>
-            {t("guided.cancel")}
-          </Button>
-        )}
-        {destructive && (
-          <Button
-            type="submit"
-            disabled={disabled || blocked}
-            className="gc-danger"
-          >
-            {t(step.actionKey ? t0(step.actionKey) : "guided.confirm")}
-          </Button>
-        )}
-        {labelled && showSend && (
-          <Button type="submit" disabled={disabled || blocked}>
-            {t(step.actionKey ? t0(step.actionKey) : "guided.confirm")}
-          </Button>
-        )}
-        {!inline.includes(step.widget) && !labelled && showSend && (
-          <IconSubmit
-            quiet={quiet}
-            label={t(step.actionKey ? t0(step.actionKey) : "guided.send")}
-            disabled={disabled || blocked}
-          />
-        )}
-      </ActionFooter>
+      {slot ? (
+        <>
+          <ActionFooter className="gc-actions" hidden={!icon}>
+            {icon}
+          </ActionFooter>
+          {(skip || primary) &&
+            createPortal(
+              <>
+                {skip}
+                {primary}
+              </>,
+              slot,
+            )}
+        </>
+      ) : (
+        <ActionFooter
+          className="gc-actions"
+          hidden={!(skip || cancel || primary || icon)}
+        >
+          {skip}
+          {cancel}
+          {primary}
+          {icon}
+        </ActionFooter>
+      )}
     </form>
   );
 }

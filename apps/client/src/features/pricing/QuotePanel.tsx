@@ -5,6 +5,7 @@ import { Button } from "../design/Button";
 import { exposePricing, trackQuoteShown } from "../../lib/analytics";
 import { quoteAPI, type ActionQuote } from "./quotes";
 import { guidedEnabled } from "../guided-chat/flags";
+import { FooterSlot, FooterSlotProvider } from "../design/sheet/FooterSlot";
 
 const GuidedQuoteConsent = lazy(() =>
   import("./GuidedQuoteConsent").then((m) => ({
@@ -31,6 +32,7 @@ export function QuotePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     if (!recoveryQuoteId) return;
     let cancelled = false;
@@ -56,6 +58,9 @@ export function QuotePanel({
   }, []);
   const expired =
     !!quote && (quote.expired || Date.parse(quote.expires_at) <= now);
+  const guidedConsent = Boolean(consent) && guidedEnabled("rest");
+  // The accept button lives in the one bottom footer, right-most.
+  const plainAccept = !!quote && !quote.accepted && !expired && !guidedConsent;
   useEffect(() => {
     if (quote && !quote.accepted && !expired)
       trackQuoteShown({
@@ -206,25 +211,21 @@ export function QuotePanel({
             <p role="alert">
               Quote expired. Renew and review before accepting.
             </p>
-          ) : consent && guidedEnabled("rest") ? (
+          ) : guidedConsent ? (
             <Suspense fallback={null}>
-              <GuidedQuoteConsent
-                key={quote.id}
-                onAccept={accept}
-                onCancel={() => {
-                  setQuote(undefined);
-                  setError(false);
-                  consent.onCancel();
-                }}
-              />
+              <FooterSlotProvider value={slot}>
+                <GuidedQuoteConsent
+                  key={quote.id}
+                  onAccept={accept}
+                  onCancel={() => {
+                    setQuote(undefined);
+                    setError(false);
+                    consent?.onCancel();
+                  }}
+                />
+              </FooterSlotProvider>
             </Suspense>
-          ) : (
-            <ActionFooter>
-              <Button disabled={busy || error} onClick={() => void accept()}>
-                Accept quote terms
-              </Button>
-            </ActionFooter>
-          )}
+          ) : null}
         </div>
       )}
       <ActionFooter>
@@ -244,6 +245,12 @@ export function QuotePanel({
             Not now
           </Button>
         )}
+        {plainAccept && (
+          <Button disabled={busy || error} onClick={() => void accept()}>
+            Accept quote terms
+          </Button>
+        )}
+        <FooterSlot onSlot={setSlot} />
       </ActionFooter>
     </section>
   );

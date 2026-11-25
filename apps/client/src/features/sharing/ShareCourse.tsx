@@ -26,6 +26,10 @@ import { CharacterExportConfirmation } from "../characters/CharacterExportConfir
 import { BirthDatePrompt, publisherAgeError } from "./BirthDatePrompt";
 import { guidedEnabled } from "../guided-chat/flags";
 import { CloseButton } from "../design/sheet/CloseButton";
+import { ActionFooter } from "../design/sheet/ActionFooter";
+import { FooterSlot, FooterSlotProvider } from "../design/sheet/FooterSlot";
+import { Button } from "../design/Button";
+import { useUiPreferences } from "../design/localization/Preferences";
 
 const GuidedShare = lazy(() =>
   import("./GuidedShare").then((m) => ({ default: m.GuidedShare })),
@@ -66,6 +70,8 @@ export function ShareCoursePanel({
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef<HTMLButtonElement>(null);
+  const { t } = useUiPreferences();
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [state, setState] = useState<LinkState | null>(null);
   const [link, setLink] = useState<LinkCreated | null>(null);
   const [version, setVersion] = useState<{ n: number; lessons: number } | null>(
@@ -242,198 +248,206 @@ export function ShareCoursePanel({
         }
       }}
     >
-      <div className="sharing-body">
-        <header className="sharing-head">
-          <h2 id={`${id}-title`}>Share course</h2>
-          <CloseButton ref={close} onClick={onClose} />
-        </header>
-        {loading && (
-          <p role="status">
-            <span className="sharing-spinner" aria-hidden="true" />
-            Loading…
-          </p>
-        )}
-        {failure && (
-          <div className="sharing-error" role="alert">
-            <p>
-              {failure === "adult"
-                ? "You must be 18 or older to publish. You can keep learning privately."
-                : linkMessages[failure]}
+      <FooterSlotProvider value={slot}>
+        <div className="sharing-body">
+          <header className="sharing-head">
+            <h2 id={`${id}-title`}>Share course</h2>
+            <CloseButton ref={close} onClick={onClose} />
+          </header>
+          {loading && (
+            <p role="status">
+              <span className="sharing-spinner" aria-hidden="true" />
+              Loading…
             </p>
-            {failure === "offline" && !state && (
-              <button type="button" className="duo-button" onClick={retry}>
-                Retry
-              </button>
-            )}
-          </div>
-        )}
-        {verdictNote && (
-          <p className="sharing-banner" role="alert">
-            {verdictNote}
-          </p>
-        )}
-        {resumeAfterAge && (
-          <BirthDatePrompt
-            onSaved={() => {
-              setResumeAfterAge(null);
-              resumeAfterAge();
-            }}
-            onCancel={() => setResumeAfterAge(null)}
-          />
-        )}
-        {state && guided && (
-          <Suspense fallback={null}>
-            <GuidedShare
-              shared={shared}
-              onChange={(next) => (next === "link" ? publish() : revoke())}
-            />
-          </Suspense>
-        )}
-        {state && !guided && (
-          <fieldset className="sharing-visibility" disabled={busy !== null}>
-            <legend>Who can see this course?</legend>
-            <Choice
-              group={`${id}-visibility`}
-              label="Private"
-              hint="Only you"
-              checked={!shared}
-              onSelect={() => shared && void revoke()}
-            />
-            <Choice
-              group={`${id}-visibility`}
-              label="Anyone with the link"
-              hint="Not listed. Visitors see a preview and can sign in to enroll."
-              checked={shared}
-              onSelect={() => !shared && void publish()}
-            />
-            <Choice
-              group={`${id}-visibility`}
-              label="Public in marketplace"
-              hint="Not available yet."
-              checked={false}
-              disabled
-            />
-          </fieldset>
-        )}
-        {busy === "checking" && (
-          <p role="status">
-            <span className="sharing-spinner" aria-hidden="true" />
-            Checking this version for safety…
-          </p>
-        )}
-        {characters && exportsEnabled && (
-          <CharacterExportConfirmation
-            names={characters}
-            online={online}
-            busy={busy !== null}
-            onConfirm={() => void publish(true)}
-          />
-        )}
-        {characters && !exportsEnabled && (
-          <p role="status" className="sharing-banner">
-            Sharing Characters is not available yet. You can keep learning
-            privately, and existing copies keep working.
-          </p>
-        )}
-        {shared && (
-          <section className="sharing-link" aria-label="Share link">
-            {link ? (
-              <>
-                <code data-testid="share-link-url">
-                  {shortLink(link.preview_url)}
-                </code>
-                <button type="button" className="duo-button" onClick={copy}>
-                  Copy link
+          )}
+          {failure && (
+            <div className="sharing-error" role="alert">
+              <p>
+                {failure === "adult"
+                  ? "You must be 18 or older to publish. You can keep learning privately."
+                  : linkMessages[failure]}
+              </p>
+              {failure === "offline" && !state && (
+                <button type="button" className="duo-button" onClick={retry}>
+                  Retry
                 </button>
-              </>
+              )}
+            </div>
+          )}
+          {verdictNote && (
+            <p className="sharing-banner" role="alert">
+              {verdictNote}
+            </p>
+          )}
+          {resumeAfterAge && (
+            <BirthDatePrompt
+              onSaved={() => {
+                setResumeAfterAge(null);
+                resumeAfterAge();
+              }}
+              onCancel={() => setResumeAfterAge(null)}
+            />
+          )}
+          {state && guided && (
+            <Suspense fallback={null}>
+              <GuidedShare
+                shared={shared}
+                onChange={(next) => (next === "link" ? publish() : revoke())}
+              />
+            </Suspense>
+          )}
+          {state && !guided && (
+            <fieldset className="sharing-visibility" disabled={busy !== null}>
+              <legend>Who can see this course?</legend>
+              <Choice
+                group={`${id}-visibility`}
+                label="Private"
+                hint="Only you"
+                checked={!shared}
+                onSelect={() => shared && void revoke()}
+              />
+              <Choice
+                group={`${id}-visibility`}
+                label="Anyone with the link"
+                hint="Not listed. Visitors see a preview and can sign in to enroll."
+                checked={shared}
+                onSelect={() => !shared && void publish()}
+              />
+              <Choice
+                group={`${id}-visibility`}
+                label="Public in marketplace"
+                hint="Not available yet."
+                checked={false}
+                disabled
+              />
+            </fieldset>
+          )}
+          {busy === "checking" && (
+            <p role="status">
+              <span className="sharing-spinner" aria-hidden="true" />
+              Checking this version for safety…
+            </p>
+          )}
+          {characters && exportsEnabled && (
+            <CharacterExportConfirmation
+              names={characters}
+              online={online}
+              busy={busy !== null}
+              onConfirm={() => void publish(true)}
+            />
+          )}
+          {characters && !exportsEnabled && (
+            <p role="status" className="sharing-banner">
+              Sharing Characters is not available yet. You can keep learning
+              privately, and existing copies keep working.
+            </p>
+          )}
+          {shared && (
+            <section className="sharing-link" aria-label="Share link">
+              {link ? (
+                <>
+                  <code data-testid="share-link-url">
+                    {shortLink(link.preview_url)}
+                  </code>
+                  <button type="button" className="duo-button" onClick={copy}>
+                    Copy link
+                  </button>
+                </>
+              ) : (
+                <p className="sharing-note">
+                  The full link is shown only when it is created. Use New link
+                  to get a fresh one to copy.
+                </p>
+              )}
+              {version && version.n > 0 && (
+                <p className="sharing-note">
+                  Version {version.n} · {version.lessons} lessons ready.
+                  Learners pay for lessons beyond what you've generated.
+                </p>
+              )}
+              <div className="sharing-actions">
+                <button
+                  type="button"
+                  className="duo-button secondary"
+                  disabled={busy !== null}
+                  onClick={() => void rotate()}
+                >
+                  New link
+                </button>
+                <button
+                  type="button"
+                  className="duo-button secondary"
+                  disabled={busy !== null}
+                  onClick={() => void revoke()}
+                >
+                  Revoke link
+                </button>
+              </div>
+            </section>
+          )}
+          {shared &&
+            (newVersion ? (
+              <RepublishPanel courseId={courseId} />
             ) : (
-              <p className="sharing-note">
-                The full link is shown only when it is created. Use New link to
-                get a fresh one to copy.
-              </p>
-            )}
-            {version && version.n > 0 && (
-              <p className="sharing-note">
-                Version {version.n} · {version.lessons} lessons ready. Learners
-                pay for lessons beyond what you've generated.
-              </p>
-            )}
+              <button
+                type="button"
+                className="duo-button secondary"
+                onClick={() => setNewVersion(true)}
+              >
+                New version
+              </button>
+            ))}
+          {state && (
+            <InviteFriends
+              courseId={courseId}
+              shared={shared}
+              onShareFirst={() => void publish()}
+            />
+          )}
+          {state && state.visibility !== "private" && (
             <div className="sharing-actions">
               <button
+                ref={unpublishTrigger}
                 type="button"
                 className="duo-button secondary"
                 disabled={busy !== null}
-                onClick={() => void rotate()}
+                onClick={() => setConfirmUnpublish(true)}
               >
-                New link
-              </button>
-              <button
-                type="button"
-                className="duo-button secondary"
-                disabled={busy !== null}
-                onClick={() => void revoke()}
-              >
-                Revoke link
+                Unpublish course
               </button>
             </div>
-          </section>
-        )}
-        {shared &&
-          (newVersion ? (
-            <RepublishPanel courseId={courseId} />
-          ) : (
-            <button
-              type="button"
-              className="duo-button secondary"
-              onClick={() => setNewVersion(true)}
-            >
-              New version
-            </button>
-          ))}
-        {state && (
-          <InviteFriends
-            courseId={courseId}
-            shared={shared}
-            onShareFirst={() => void publish()}
-          />
-        )}
-        {state && state.visibility !== "private" && (
-          <div className="sharing-actions">
-            <button
-              ref={unpublishTrigger}
-              type="button"
-              className="duo-button secondary"
-              disabled={busy !== null}
-              onClick={() => setConfirmUnpublish(true)}
-            >
-              Unpublish course
-            </button>
-          </div>
-        )}
-        {confirmUnpublish && (
-          <UnpublishDialog
-            courseId={courseId}
-            onClose={() => {
-              setConfirmUnpublish(false);
-              queueMicrotask(() => unpublishTrigger.current?.focus());
-            }}
-            onDone={() => {
-              setConfirmUnpublish(false);
-              setLink(null);
-              setVersion(null);
-              setState({ visibility: "private", active: false });
-              setNotice("Unpublished");
-            }}
-          />
-        )}
-        <p className="sharing-note">
-          Never shared: your profile, notes, chat, progress or steering
-          instructions.
-        </p>
-        <p className="sharing-note" role="status" aria-live="polite">
-          {notice}
-        </p>
-      </div>
+          )}
+          {confirmUnpublish && (
+            <UnpublishDialog
+              courseId={courseId}
+              onClose={() => {
+                setConfirmUnpublish(false);
+                queueMicrotask(() => unpublishTrigger.current?.focus());
+              }}
+              onDone={() => {
+                setConfirmUnpublish(false);
+                setLink(null);
+                setVersion(null);
+                setState({ visibility: "private", active: false });
+                setNotice("Unpublished");
+              }}
+            />
+          )}
+          <p className="sharing-note">
+            Never shared: your profile, notes, chat, progress or steering
+            instructions.
+          </p>
+          <p className="sharing-note" role="status" aria-live="polite">
+            {notice}
+          </p>
+        </div>
+      </FooterSlotProvider>
+      <ActionFooter className="sharing-footer">
+        <Button variant="secondary" onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+        <FooterSlot onSlot={setSlot} />
+      </ActionFooter>
     </dialog>
   );
 }

@@ -19,3 +19,14 @@
     flex: 1 1 auto;
   }
 }
+.action-footer-slot {
+  display: contents;
+}
+.action-footer-slot > .duo-button {
+  min-block-size: var(--size-target);
+}
+@media (max-width: 37.4375rem) {
+  .action-footer-slot > * {
+    flex: 1 1 auto;
+  }
+}

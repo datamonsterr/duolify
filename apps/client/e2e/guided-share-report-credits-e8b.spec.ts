@@ -42,6 +42,26 @@ async function footerBottomRight(page: Page, scope: Locator, name: string) {
     expect(action.x).toBeGreaterThan(dialog.x + dialog.width / 2);
   } else expect(action.width).toBeGreaterThan(dialog.width * 0.6);
 }
+/** One footer, the dialog's last child, flush with its bottom edge, holding the only Cancel. */
+async function oneBottomFooter(scope: Locator) {
+  const footer = scope.locator(":scope > [data-action-footer]");
+  await expect(footer).toHaveCount(1);
+  expect(
+    await scope.evaluate((d) =>
+      d.lastElementChild?.hasAttribute("data-action-footer"),
+    ),
+  ).toBe(true);
+  await expect(
+    scope.getByRole("button", { name: "Cancel", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    footer.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeVisible();
+  const d = (await scope.boundingBox())!;
+  const f = (await footer.boundingBox())!;
+  // Within the dialog border.
+  expect(Math.abs(d.y + d.height - (f.y + f.height))).toBeLessThanOrEqual(6);
+}
 const noOverflow = async (page: Page) =>
   expect(
     await page.evaluate(
@@ -288,6 +308,7 @@ for (const [width, height, scheme] of [
         .click();
       await expect(panel.getByRole("radio")).toHaveCount(2);
       await footerBottomRight(page, panel, "Cancel");
+      await oneBottomFooter(panel);
       await shot(
         page,
         "share",

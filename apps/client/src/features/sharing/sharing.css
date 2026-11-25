@@ -499,3 +499,19 @@
   min-inline-size: 0;
   min-height: var(--size-target);
 }
+/* The one action row: at the dialog's bottom edge, pinned there while the body scrolls. */
+.sharing-sheet[open] {
+  display: flex;
+  flex-direction: column;
+}
+.sharing-sheet > .sharing-body {
+  flex: none;
+}
+.sharing-sheet > .sharing-footer {
+  position: sticky;
+  inset-block-end: calc(-1 * var(--space-5, 20px));
+  margin-block: auto calc(-1 * var(--space-5, 20px));
+  padding-block: var(--space-3, 12px) var(--space-5, 20px);
+  border-block-start: 1px solid var(--line);
+  background: var(--surface);
+}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { FooterSlotProvider } from "./FooterSlot";
 import "./modal-dialog.css";
 
 const focusable =
@@ -79,7 +80,8 @@ export function ModalDialog({
         }
       }}
     >
-      {children}
+      {/* A nested modal keeps its own actions, never the outer dialog's footer. */}
+      <FooterSlotProvider value={null}>{children}</FooterSlotProvider>
     </dialog>
   );
 }
