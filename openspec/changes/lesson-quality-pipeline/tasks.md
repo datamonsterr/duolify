@@ -5,7 +5,7 @@ Each group is one ticket and one PR. TDD order inside each: e2e, integration, un
 - [ ] 1.1 Unit tests: the lesson prompt contains the teaching contract and the length targets; context JSON has only the allowed keys; no `limits` or deadline text; history capped at 5.
 - [ ] 1.2 Rewrite `LESSON_SHAPE` with the teaching contract (design D4, about 120 tokens) and slide and question targets taken from a `lesson_length` argument (default `medium`). Same text in `routed_lesson_prompt` core.
 - [ ] 1.3 Replace `format!("{context:?}")` in `engine-server` `generate_lesson` with a compact JSON builder (D11).
-- [ ] 1.4 Narration bound 3.3 words per second; the prompt says at least 300 ms per word (D12). Update fixtures that break.
+- [ ] 1.4 Narration bound 3.3 words per second; the prompt says at least 330 ms per word (D12). Update fixtures that break.
 - [ ] 1.5 Static quality checks (visible words per Slide, wpm 110 to 200, narration-to-screen overlap at most 0.6): return warning codes; record them on `$ai_generation` `quality_warnings`; never trigger a repair.
 - [ ] 1.6 `mise run engine:lint`, `engine:test`, `engine:eval` (offline) pass; update the promotion fingerprint.
 

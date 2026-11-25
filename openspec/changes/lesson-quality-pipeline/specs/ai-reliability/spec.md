@@ -33,7 +33,7 @@ The golden set SHALL contain at least 30 `lesson_slides` cases covering programm
 - **THEN** every new case passes its deterministic checks and the quality thresholds
 
 ### Requirement: Narration pace bound
-Generated narration SHALL be at most 3.3 words per second of `duration_ms`, and the lesson prompt SHALL ask for at least 300 ms per narration word.
+Generated narration SHALL be at most 3.3 words per second of `duration_ms`, and the lesson prompt SHALL ask for at least 330 ms per narration word.
 
 #### Scenario: Fast narration
 - **WHEN** a Slide has 40 narration words and `duration_ms` 10000

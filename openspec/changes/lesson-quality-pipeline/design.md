@@ -52,7 +52,7 @@ The source list came from a research pass that did not open the primary papers, 
 | D9 | Static quality checks are warnings in production (analytics, no repair turn) and critical in evals. | A repair turn costs a second call, and the checks are heuristics. Evals hold the quality line. |
 | D10 | The LLM judge runs offline only (nightly and promotion). One binary call per criterion, evidence quote required, judge model family different from the generator (`anthropic/claude-haiku-5.5`), rubric anchors from the authored Courses and degraded copies. A judge change needs Cohen's kappa of at least 0.6 on 20 or more owner-labelled anchors. | Pointwise binary per criterion is the most stable form. Avoids self-preference and length bias. |
 | D11 | Lesson context = compact JSON `{outline, lesson, plan, learner, lesson_length, history (last 5), weak_topics}`. | Fewer tokens, stable shape, no limits or deadlines in the prompt. |
-| D12 | The narration bound is 3.3 words per second, and the prompt says at least 300 ms per word. | The validator and prompt agree, about 200 wpm at most. |
+| D12 | The narration bound is 3.3 words per second, and the prompt says at least 330 ms per word. | 330 ms per word sits just inside the 3.3 words/s bound, so a model that follows the prompt passes (about 180 to 200 wpm). |
 
 ## 3. Data
 
