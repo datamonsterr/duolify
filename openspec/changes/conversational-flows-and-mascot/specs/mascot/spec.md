@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Original default mascot
-Duolify SHALL ship one default guide mascot, working name Tinko: an original friendly green robot built from Duolify design tokens. It MUST NOT be based on, derived from or resemble any existing brand character (no owl, no Duo name, silhouette, face, pose or trade dress). Names considered: Tinko, Nodo, Glimmo; the final name needs an owner trademark check. The art MUST be hand-written SVG made of parametric parts (body, head, visor, eyes, mouth, antenna, ear pods, arms, accent) coloured only by CSS variables bound to tokens, use two to three greens and one warm accent, and stay recognisable at 32 px and 160 px. Reference drawings are `docs/design/mascot/mascot-sheet.svg` and `mascot-idle.svg`.
+Duolify SHALL ship one default guide mascot, working name Buo: an original friendly green robot built from Duolify design tokens. It MUST NOT be based on, derived from or resemble any existing brand character (no owl, no Duo name, silhouette, face, pose or trade dress). Names considered: Buo, Nodo, Glimmo; the final name needs an owner trademark check. The art MUST be hand-written SVG made of parametric parts (body, head, visor, eyes, mouth, antenna, ear pods, arms, accent) coloured only by CSS variables bound to tokens, use two to three greens and one warm accent, and stay recognisable at 32 px and 160 px. Reference drawings are `docs/design/mascot/mascot-sheet.svg` and `mascot-idle.svg`.
 
 #### Scenario: Small size
 - **WHEN** the mascot renders at 32 px on light and dark surfaces
@@ -52,7 +52,7 @@ The mascot is a client interface guide and MUST NOT be drawn into generated Moti
 - **THEN** the slides contain Default cast Characters only and not the mascot
 
 ### Requirement: Mascot customisation
-The Learner SHALL be able to customise the default mascot from a "Your guide" picker: recolour from a contrast-validated palette allowlist, add up to two accessories from an enum, or replace it with one of their own approved Characters. Customisation MUST be free, MUST NOT call a model, and MUST fall back to default Tinko if a chosen Character is deleted, unavailable or fails validation. The server MUST validate the preference against the shared part schema.
+The Learner SHALL be able to customise the default mascot from a "Your guide" picker: recolour from a contrast-validated palette allowlist, add up to two accessories from an enum, or replace it with one of their own approved Characters. Customisation MUST be free, MUST NOT call a model, and MUST fall back to default Buo if a chosen Character is deleted, unavailable or fails validation. The server MUST validate the preference against the shared part schema.
 
 #### Scenario: Recolour
 - **WHEN** the Learner picks a different body colour
@@ -60,7 +60,7 @@ The Learner SHALL be able to customise the default mascot from a "Your guide" pi
 
 #### Scenario: Character removed
 - **WHEN** the chosen Character is deleted
-- **THEN** the guide reverts to default Tinko without error
+- **THEN** the guide reverts to default Buo without error
 
 ### Requirement: Shared part schema with custom characters
 Mascot appearance and `custom-characters` rig output SHALL share `RigPartSpec v1`: `rig` (`robot-v1` or a Character rig id), `palette` slots `body`, `bodyEdge`, `trim`, `visor`, `eye`, `accent` (hex values from the allowlist that pass 3:1 against both canvases), `accessories` (enum array, at most 2) and the eight state names. The Character expressions `idle`, `happy`, `sad`, `thinking`, `celebrate` MUST map to `idle`, `happy`, `confused`, `thinking`, `celebrate`; states a rig does not define MUST fall back to `idle`. The `custom-characters` rewrite MUST adopt or extend this version rather than fork it.

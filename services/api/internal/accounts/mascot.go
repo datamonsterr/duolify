@@ -162,7 +162,7 @@ func MascotCharacterUsable(ctx context.Context, q db.DBTX, learnerID pgtype.UUID
 	return err == nil && ok
 }
 
-// ResolveMascot returns the stored object, falling back to built-in Tinko when the chosen
+// ResolveMascot returns the stored object, falling back to built-in Buo when the chosen
 // Character is deleted or unavailable. The stored value is left untouched.
 func ResolveMascot(ctx context.Context, q db.DBTX, learnerID pgtype.UUID, stored json.RawMessage) json.RawMessage {
 	v, ok := MergeMascot(stored, MascotPatch{})

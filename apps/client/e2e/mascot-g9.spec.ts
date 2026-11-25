@@ -114,7 +114,7 @@ for (const vp of [
     const shot = info.outputPath(`g9-${vp.name}-picker.png`);
     await page.screenshot({ path: shot, fullPage: true });
 
-    // The Character is deleted: the server resolves to default and the guide shows built-in Tinko.
+    // The Character is deleted: the server resolves to default and the guide shows built-in Buo.
     state.characters = [];
     state.mascot = { ...state.mascot, mode: "default" };
     delete state.mascot.character_id;
