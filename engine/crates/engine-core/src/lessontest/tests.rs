@@ -353,17 +353,42 @@ fn render_context_is_the_debug_text_while_the_task_is_monolithic() {
     struct Ctx {
         a: u32,
     }
-    assert_eq!(render_context(&Ctx { a: 0 }), "Ctx { a: 0 }");
+    let lib = lesson_library("monolithic");
+    assert_eq!(render_context_in(&lib, &Ctx { a: 0 }), "Ctx { a: 0 }");
+}
+
+fn lesson_library(mode: &str) -> crate::skills::Library {
+    // Pins the mode regardless of what the shipped file says.
+    let src = include_str!("../../../../config/skills/lesson_slides.toml").replace(
+        "prompt_mode = \"routed\"",
+        &format!("prompt_mode = \"{mode}\""),
+    );
+    crate::skills::Library::from_sources(&[("lesson_slides.toml", &src)]).expect("library")
 }
 
 fn routed_lesson_library() -> crate::skills::Library {
-    let src = include_str!("../../../../config/skills/lesson_slides.toml")
-        .replace("prompt_mode = \"monolithic\"", "prompt_mode = \"routed\"");
-    crate::skills::Library::from_sources(&[("lesson_slides.toml", &src)]).expect("routed library")
+    lesson_library("routed")
+}
+
+#[test]
+fn shipped_lesson_slides_is_routed_and_renders_compact_json() {
+    assert_eq!(
+        crate::skills::bundled().mode("lesson_slides"),
+        crate::skills::PromptMode::Routed
+    );
+    #[derive(Debug, serde::Serialize)]
+    struct Ctx {
+        a: u32,
+    }
+    assert_eq!(
+        render_context(&Ctx { a: 1 }),
+        compact_context(&serde_json::json!({"a": 1}))
+    );
 }
 
 #[test]
 fn monolithic_lesson_prompt_is_rules_then_context() {
+    // `lesson_prompt` is the legacy builder, independent of the task's mode.
     let p = lesson_prompt("CTX");
     assert!(p.starts_with(&lesson_rules()));
     assert_eq!(p, format!("{} Context (data): CTX", lesson_rules()));
