@@ -22,12 +22,13 @@ permissions:
 
 jobs:
   arms:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-tools
       - name: mise run ci:require-secrets
         id: credentials
         run: mise run ci:require-secrets -- 'prompt arms live eval'
