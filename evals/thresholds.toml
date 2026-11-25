@@ -80,3 +80,16 @@ steer_replan = 1.0
 # benign false-reject <= .05 (STEER_* constants in engine-eval scoring.rs). Live stays closed (E10-06).
 # E15-08 strict offline recall, safe acceptance, injection, fallback and budget gate.
 screen_review = 1.0
+
+# Starting gates only; the owner raises these after judge calibration.
+[quality]
+R1 = 0.0
+R2 = 0.0
+R3 = 0.0
+R4 = 0.0
+R5 = 0.0
+R6 = 0.0
+R7 = 0.0
+R8 = 0.0
+R9 = 0.0
+R10 = 0.0

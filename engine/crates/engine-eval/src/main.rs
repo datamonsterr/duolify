@@ -9,6 +9,9 @@ use std::path::PathBuf;
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 2 && args[1] == "judge-calibrate" {
+        return engine_eval::calibration::run(args.iter().any(|a| a == "--mock")).await;
+    }
     if args.len() >= 2 && args[1] == "gate" {
         let report_path = args
             .get(2)

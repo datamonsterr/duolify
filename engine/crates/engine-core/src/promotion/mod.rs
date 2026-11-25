@@ -113,6 +113,26 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../engine-eval/src/judge.rs"),
     ),
     (
+        "engine-eval/src/rubric.rs",
+        include_str!("../../../engine-eval/src/rubric.rs"),
+    ),
+    (
+        "engine-eval/src/calibration.rs",
+        include_str!("../../../engine-eval/src/calibration.rs"),
+    ),
+    (
+        "services/api/internal/examples/content/javascript-essentials-v1.json",
+        include_str!(
+            "../../../../../services/api/internal/examples/content/javascript-essentials-v1.json"
+        ),
+    ),
+    (
+        "services/api/internal/examples/content/product-management-foundations-v1.json",
+        include_str!(
+            "../../../../../services/api/internal/examples/content/product-management-foundations-v1.json"
+        ),
+    ),
+    (
         "engine-core/src/narration/voices.json",
         include_str!("../narration/voices.json"),
     ),

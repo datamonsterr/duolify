@@ -69,6 +69,25 @@ pub fn generate_markdown_report(report: &EvalReport) -> String {
         ));
     }
 
+    if report
+        .task_reports
+        .values()
+        .any(|tr| !tr.quality.is_empty())
+    {
+        md.push_str("\n## Lesson quality\n\n| Task | Criterion | Pass rate | Threshold | Evaluated | Passed |\n|---|---|---|---|---|---|\n");
+        for (task, tr) in &report.task_reports {
+            for (id, result) in &tr.quality {
+                md.push_str(&format!(
+                    "| {task} | {id} | {:.2} | {:.2} | {} | {} |\n",
+                    result.pass_rate,
+                    result.threshold,
+                    result.evaluated,
+                    if result.passed { "PASS" } else { "FAIL" }
+                ));
+            }
+        }
+    }
+
     if report.results.iter().any(|r| !r.served_models.is_empty()) {
         md.push_str("\n## Cases\n\n");
         md.push_str(
@@ -128,6 +147,7 @@ mod tests {
                 passed_cases: 5,
                 deterministic_score: 1.0,
                 judge_score: Some(1.0),
+                quality: Default::default(),
             },
         );
 

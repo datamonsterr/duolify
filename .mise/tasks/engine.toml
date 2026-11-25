@@ -47,3 +47,8 @@ run = "cargo run -p engine-eval --bin duolify-eval -- evidence"
 description = "Compare two live eval reports of the same cases (baseline then candidate prompt arm): tokens, cost, latency p50 and p95, pass rate, paired cost difference and the ADR 0025 economics gate verdict. Usage: mise run engine:compare -- <baseline.json> <candidate.json>"
 dir = "engine"
 run = "cargo run -q -p engine-eval --bin duolify-eval -- compare"
+
+["engine:judge-calibrate"]
+description = "Run offline judge calibration with mock fixtures"
+dir = "engine"
+run = "cargo run -p engine-eval --bin duolify-eval -- judge-calibrate --mock"

@@ -32,6 +32,8 @@ pub struct Thresholds {
     pub minimum_score: f64,
     #[serde(default)]
     pub tasks: HashMap<String, f64>,
+    #[serde(default)]
+    pub quality: HashMap<String, f64>,
     /// The `course_preview` output cap (tokens) the evidence is valid for. A live run refuses to
     /// record a report when the active pricing cap differs, and the file is fingerprinted, so a cap
     /// change makes committed evidence stale.
@@ -44,6 +46,7 @@ impl Default for Thresholds {
         Self {
             minimum_score: 1.0,
             tasks: HashMap::new(),
+            quality: HashMap::new(),
             preview_output_limit: None,
         }
     }
@@ -70,6 +73,8 @@ pub struct CaseResult {
     pub critical_failed: bool,
     pub deterministic_passed: bool,
     pub judge_passed: Option<bool>,
+    #[serde(default)]
+    pub quality: BTreeMap<String, bool>,
     pub errors: Vec<String>,
     #[serde(default)]
     pub cost_usd: f64,
@@ -103,6 +108,16 @@ pub struct TaskReport {
     pub passed_cases: usize,
     pub deterministic_score: f64,
     pub judge_score: Option<f64>,
+    #[serde(default)]
+    pub quality: BTreeMap<String, CriterionReport>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CriterionReport {
+    pub pass_rate: f64,
+    pub threshold: f64,
+    pub evaluated: usize,
+    pub passed: bool,
 }
 
 fn default_dataset_source() -> String {
@@ -419,7 +434,46 @@ pub fn aggregate_task_reports(
 
         let threshold = thresholds.threshold_for(&task);
         // Task passes only if score >= threshold AND no critical failure occurred in this task
-        let passed = score >= threshold && !task_critical_fail;
+        let mut quality = BTreeMap::new();
+        let criteria: std::collections::BTreeSet<String> = cases
+            .iter()
+            .flat_map(|c| c.quality.keys().cloned())
+            .chain(thresholds.quality.keys().cloned())
+            .collect();
+        for criterion in &criteria {
+            let values: Vec<bool> = cases
+                .iter()
+                .filter_map(|c| c.quality.get(criterion).copied())
+                .collect();
+            if !values.is_empty() {
+                let pass_rate = values.iter().filter(|v| **v).count() as f64 / values.len() as f64;
+                let threshold = thresholds.quality.get(criterion).copied().unwrap_or(0.0);
+                quality.insert(
+                    criterion.clone(),
+                    CriterionReport {
+                        pass_rate,
+                        threshold,
+                        evaluated: values.len(),
+                        passed: pass_rate >= threshold,
+                    },
+                );
+            } else if thresholds.quality.get(criterion).copied().unwrap_or(0.0) > 0.0
+                && ((task == "course_outline" && (criterion == "R1" || criterion == "R2"))
+                    || (task == "lesson_slides" && criterion != "R2"))
+            {
+                quality.insert(
+                    criterion.clone(),
+                    CriterionReport {
+                        pass_rate: 0.0,
+                        threshold: thresholds.quality[criterion],
+                        evaluated: 0,
+                        passed: false,
+                    },
+                );
+            }
+        }
+        let passed =
+            score >= threshold && !task_critical_fail && quality.values().all(|c| c.passed);
 
         if !passed {
             overall_passed = false;
@@ -447,6 +501,7 @@ pub fn aggregate_task_reports(
                 passed_cases: passed_count,
                 deterministic_score,
                 judge_score,
+                quality,
             },
         );
     }
@@ -532,6 +587,7 @@ mod tests {
                     passed_cases: 1,
                     deterministic_score: 1.0,
                     judge_score: None,
+                    quality: Default::default(),
                 },
             );
         }
@@ -565,6 +621,7 @@ mod tests {
                     passed_cases: 1,
                     deterministic_score: 1.0,
                     judge_score: None,
+                    quality: Default::default(),
                 },
             );
         }
@@ -604,6 +661,7 @@ mod tests {
         let thresholds = Thresholds {
             minimum_score: 0.5,
             tasks: HashMap::new(),
+            quality: HashMap::new(),
             preview_output_limit: None,
         };
 

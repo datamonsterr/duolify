@@ -1862,6 +1862,21 @@ impl Runner {
             }
             let canonical = canonical_task_name(&case.task);
             let route = model_route_for_task(&case.task);
+            let quality_task =
+                self.judge && matches!(canonical.as_str(), "lesson_slides" | "course_outline");
+            let judge_model = std::env::var("EVAL_JUDGE_MODEL")
+                .unwrap_or_else(|_| crate::rubric::DEFAULT_JUDGE.into());
+            if quality_task {
+                let generator = router
+                    .models
+                    .tasks
+                    .get(&route)
+                    .context("missing generator route")?;
+                crate::rubric::check_family(&judge_model, &generator.model)?;
+                for fallback in &generator.fallback_models {
+                    crate::rubric::check_family(&judge_model, fallback)?;
+                }
+            }
             models
                 .entry(canonical.clone())
                 .or_insert_with(|| route.clone());
@@ -2198,7 +2213,84 @@ impl Runner {
                 }
             }
 
-            let judge_passed = if self.judge {
+            let mut quality = std::collections::BTreeMap::new();
+            let judge_passed = if quality_task {
+                let output = primary_completion
+                    .as_ref()
+                    .map_or(response_text.as_str(), |c| c.text.as_str());
+                let value: serde_json::Value =
+                    serde_json::from_str(output).context("quality output must be JSON")?;
+                if canonical == "lesson_slides" {
+                    quality = crate::rubric::static_checks(&case.input, &value);
+                } else {
+                    quality = crate::rubric::outline_checks(&case.input, &value);
+                }
+                let criteria: &[&str] = if canonical == "course_outline" {
+                    &["R2"]
+                } else {
+                    &crate::rubric::JUDGED[1..]
+                };
+                for criterion in criteria {
+                    let preset = self.judge_fixtures.get(&format!("{}:{criterion}", case.id));
+                    let verdict = if let Some(preset) = preset {
+                        preset.clone()
+                    } else if self.provider_name == "mock" && self.custom_router.is_none() {
+                        let quote = crate::rubric::mock_quote(output)?;
+                        serde_json::json!({"verdict":"PASS", "evidence":quote}).to_string()
+                    } else {
+                        let mut judge_router = router.clone();
+                        let mut judge_route = judge_router
+                            .models
+                            .tasks
+                            .get("chat")
+                            .context("missing chat route")?
+                            .clone();
+                        judge_route.model = judge_model.clone();
+                        judge_route.fallback_models.clear();
+                        judge_route.fallback_model.clear();
+                        judge_route.response_format = None;
+                        judge_router
+                            .models
+                            .tasks
+                            .insert("quality_judge".into(), judge_route);
+                        let limits = engine_core::credits::Limits {
+                            input_tokens: 64000,
+                            output_tokens: 1000,
+                            timeout_ms: 30000,
+                            max_attempts: 1,
+                            max_cost_nanos: 1_000_000_000,
+                            input_nanos: 1000,
+                            output_nanos: 5000,
+                            cache_write_nanos: 1250,
+                            cache_read_nanos: 100,
+                            deadline_unix_ms: 0,
+                        };
+                        let prompt = crate::rubric::prompt(criterion, &case.input, output);
+                        let outcome = engine_core::eval::run_bounded(
+                            &judge_router,
+                            "quality_judge",
+                            &prompt,
+                            &limits,
+                            |_| true,
+                        )
+                        .await?;
+                        let completion =
+                            outcome.completion.context("judge produced no completion")?;
+                        if completion.usage_unavailable {
+                            bail!("quality judge usage unavailable");
+                        }
+                        input_tokens += completion.input_tokens;
+                        output_tokens += completion.output_tokens;
+                        case_cost_usd += price_table.cost_usd(&completion);
+                        completion.text
+                    };
+                    quality.insert(
+                        (*criterion).into(),
+                        crate::rubric::parse_verdict(&verdict, output)?,
+                    );
+                }
+                Some(criteria.iter().all(|c| quality.get(*c) == Some(&true)))
+            } else if self.judge {
                 let (verdict_str, judge_comp) = if let Some(preset) =
                     self.judge_fixtures.get(&case.id)
                 {
@@ -2273,7 +2365,7 @@ impl Runner {
 
             let deterministic_passed = errors.is_empty();
             let passed = deterministic_passed
-                && judge_passed.unwrap_or(true)
+                && (quality_task || judge_passed.unwrap_or(true))
                 && !case_budget_exceeded
                 && !critical_failed;
 
@@ -2284,6 +2376,7 @@ impl Runner {
                 critical_failed,
                 deterministic_passed,
                 judge_passed,
+                quality,
                 errors,
                 cost_usd: case_cost_usd,
                 input_tokens,

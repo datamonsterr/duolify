@@ -102,6 +102,7 @@ fn artifact_report_contracts_record_case_revision_provider_usage_budget_threshol
             passed_cases: 2,
             deterministic_score: 1.0,
             judge_score: None,
+            quality: Default::default(),
         },
     );
 
@@ -168,6 +169,7 @@ async fn critical_safety_ledger_cost_violations_are_rejected() {
     let thresholds = Thresholds {
         minimum_score: 0.0, // even with 0.0 minimum score
         tasks: HashMap::new(),
+        quality: HashMap::new(),
         preview_output_limit: None,
     };
 
@@ -200,6 +202,7 @@ fn feature_promotion_verification_disallows_missing_secrets_and_fixture_passes()
             passed_cases: 5,
             deterministic_score: 1.0,
             judge_score: None,
+            quality: Default::default(),
         },
     );
 
@@ -275,6 +278,7 @@ fn feature_promotion_verification_disallows_missing_secrets_and_fixture_passes()
                 passed_cases: 5,
                 deterministic_score: 1.0,
                 judge_score: None,
+                quality: Default::default(),
             });
     }
 
@@ -543,6 +547,7 @@ fn test_promotion_gate_enforces_all_canonical_tasks_and_minimum_coverage() {
                 passed_cases: 2,
                 deterministic_score: 1.0,
                 judge_score: None,
+                quality: Default::default(),
             },
         );
     }
