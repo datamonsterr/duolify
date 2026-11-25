@@ -100,6 +100,28 @@ for (const { name, width, height } of viewports) {
       expect(box.y + box.height).toBeLessThanOrEqual(height);
     });
 
+    test("streak and credits show once: sidebar on desktop, toolbar chips on phone", async ({
+      page,
+    }) => {
+      await seed(page, [course("a")]);
+      await page.goto("/courses");
+      const toolbar = page.getByRole("toolbar", { name: "Courses" });
+      await expect(toolbar).toBeVisible();
+      const chips = toolbar.getByRole("link", { name: /streak|credits/i });
+      if (width >= 768) {
+        await expect(chips).toHaveCount(0);
+        const stats = page.getByRole("group", { name: "Your progress" });
+        await expect(
+          stats.getByRole("link", { name: /streak/i }),
+        ).toBeVisible();
+        await expect(
+          stats.getByRole("link", { name: /credits/i }),
+        ).toBeVisible();
+      } else {
+        await expect(chips).toHaveCount(2);
+      }
+    });
+
     test("empty courses show one line and the primary action", async ({
       page,
     }) => {

@@ -159,7 +159,7 @@ test("real lesson preserves position, note and static explanation through prefer
   await page
     .getByRole("textbox", { name: "Your note", exact: true })
     .fill("Private lesson note");
-  await page.getByRole("button", { name: "Dark theme", exact: true }).click();
+  await page.emulateMedia({ colorScheme: "dark" });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(
     page.getByRole("textbox", { name: "Your note", exact: true }),

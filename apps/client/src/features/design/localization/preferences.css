@@ -62,3 +62,32 @@
   align-items: center;
   gap: var(--space-2);
 }
+.preference-segmented {
+  display: flex;
+  flex-basis: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.preference-segmented button {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: var(--size-target);
+  padding-inline: var(--space-2);
+  border: 0;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.preference-segmented button + button {
+  border-inline-start: 1px solid var(--line);
+}
+.preference-segmented button[aria-checked="true"] {
+  background: var(--raised);
+  box-shadow: inset 0 -3px 0 var(--primary);
+  font-weight: var(--weight-strong);
+}

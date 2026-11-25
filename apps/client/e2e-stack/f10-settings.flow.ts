@@ -23,7 +23,7 @@ test(
     });
     await flow.step("settings");
 
-    await form.getByLabel("Appearance").selectOption({ label: "Dark" });
+    await form.getByRole("radio", { name: "Dark" }).click();
     await page.getByRole("link", { name: "Privacy and data" }).click();
     const analytics = form.getByRole("checkbox", { name: "Analytics" });
     const consentBefore = await analytics.isChecked();
@@ -41,7 +41,7 @@ test(
       { checked: !consentBefore },
     );
     await page.getByRole("link", { name: "Look and language" }).click();
-    await expect(form.getByLabel("Appearance")).toHaveValue(/dark/i);
+    await expect(form.getByRole("radio", { name: "Dark" })).toBeChecked();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await flow.step("settings after reload");
 

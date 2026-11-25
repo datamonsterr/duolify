@@ -27,7 +27,8 @@ async function openLearn(page: Page) {
     }),
   );
   await page.goto("/");
-  await expect(page.locator(".app-bar-language:visible")).toBeVisible();
+  // The shell moves focus to the page heading once; wait for that before driving focus.
+  await expect(page.locator("main h1").first()).toBeFocused();
 }
 
 test("shows shortcuts, contains focus, and dismisses one layer per Escape", async ({

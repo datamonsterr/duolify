@@ -43,6 +43,8 @@ for (const width of [1280, 390]) {
         [".badge-credit", "credit", "credit-bg"],
         [".badge-streak", "streak", "streak-bg"],
       ]) {
+        // From 768 px the sidebar stats replace the streak and credit chips.
+        if (width >= 768 && selector !== ".badge-info") continue;
         const colors = await page
           .locator(selector)
           .first()

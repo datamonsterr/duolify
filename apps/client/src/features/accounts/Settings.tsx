@@ -18,6 +18,8 @@ import {
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Icon, type IconName } from "../design/Icon";
+import { openShortcutHelp } from "../hotkeys/escape";
+import { shortcutMessage } from "../hotkeys/messages";
 import { useMobileLayout } from "../shell/AdaptiveLayouts";
 import { Feedback } from "../design/chat/Feedback";
 import { YourGuide } from "./YourGuide";
@@ -132,6 +134,20 @@ export function Settings() {
     setDraft((current) => ({ ...current, [key]: value }));
     setNotice("");
   };
+
+  // Theme applies and saves on tap; the rest of the form waits for Save.
+  function chooseAppearance(appearance: LearnerSettings["appearance"]) {
+    update("appearance", appearance);
+    updateUi({ appearance });
+    if (!saved) return;
+    void profileApi
+      .saveSettings({ appearance })
+      .then((result) => {
+        setSaved(result);
+        if (!draft.analytics_opt_out) trackAppearanceChanged(appearance);
+      })
+      .catch(() => setError(t("settings.save_error")));
+  }
 
   async function commit() {
     if (pending || !saved) return;
@@ -283,6 +299,7 @@ export function Settings() {
             <legend>{sectionTitle("look")}</legend>
             <PreferenceControls
               hideReset
+              segmentedAppearance
               value={{
                 locale: resolveLocale(draft.locale),
                 appearance: draft.appearance,
@@ -290,7 +307,7 @@ export function Settings() {
               }}
               onChange={(patch) => {
                 if (patch.locale) update("locale", patch.locale);
-                if (patch.appearance) update("appearance", patch.appearance);
+                if (patch.appearance) chooseAppearance(patch.appearance);
                 if (patch.reduceMotion !== undefined)
                   update("motion", patch.reduceMotion ? "reduce" : "system");
               }}
@@ -310,6 +327,13 @@ export function Settings() {
                 ))}
               </select>
             </label>
+            <Button
+              data-control="shortcuts"
+              variant="quiet"
+              onClick={openShortcutHelp}
+            >
+              {shortcutMessage(resolveLocale(draft.locale), "show_help")}
+            </Button>
             <details>
               <summary>{t("mascot.guide")}</summary>
               <YourGuide />

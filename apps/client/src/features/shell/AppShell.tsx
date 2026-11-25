@@ -1,5 +1,5 @@
 import { OnboardingGate } from "../onboarding/OnboardingGate";
-import { AppBarControls } from "./AppBarControls";
+import { SidebarTools } from "./SidebarTools";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
@@ -137,9 +137,6 @@ export function AppShell() {
   const { data: wallet } = useWallet(path);
   const balance = useBalanceLabel(wallet);
   const main = useRef<HTMLElement>(null);
-  const [shortcutSlot, setShortcutSlot] = useState<HTMLSpanElement | null>(
-    null,
-  );
   const [helpOpen, setHelpOpen] = useState(false);
   useHelpShortcut(helpOpen, () => setHelpOpen(true), screenForPath(path));
   const positions = useRef(new Map<string, number>());
@@ -200,10 +197,15 @@ export function AppShell() {
                 </nav>
               )}
               {!mobile && <SidebarStats wallet={wallet} revision={path} />}
+              {!mobile && (
+                <SidebarTools
+                  surface={screenForPath(path)}
+                  onShowHelp={() => setHelpOpen(true)}
+                />
+              )}
             </aside>
             <header className="mobile-header">
               <Brand to="/" />
-              <AppBarControls />
               <Link
                 data-tour="credits"
                 className="credit-shortcut"
@@ -216,22 +218,11 @@ export function AppShell() {
           </>
         )}
         <main className="app-main" id="main-content" tabIndex={-1} ref={main}>
-          {!mobile && (
-            <div className="app-bar-row">
-              <span ref={setShortcutSlot} />
-              <AppBarControls />
-            </div>
-          )}
           <Outlet />
           <OnboardingGate path={path} />
         </main>
         <Suspense fallback={null}>
-          <ShellHotkeys
-            path={path}
-            slot={shortcutSlot}
-            open={helpOpen}
-            setOpen={setHelpOpen}
-          />
+          <ShellHotkeys path={path} open={helpOpen} setOpen={setHelpOpen} />
         </Suspense>
         {!focused && (
           <>

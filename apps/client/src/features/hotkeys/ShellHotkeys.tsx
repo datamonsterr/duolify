@@ -1,6 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { lazy, Suspense, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { navigateTo } from "../../lib/navigation";
 import { trackHotkey, trackNavigation } from "../../lib/analytics";
@@ -11,7 +10,6 @@ import {
   type Destination,
 } from "../shell/navigation";
 import { isTextTarget } from "./guards";
-import { useEscapeLayer } from "./escape";
 import { useHotkeys } from "./useHotkeys";
 import {
   nativeMenu,
@@ -20,19 +18,15 @@ import {
   shortcutPlatform,
   type ShortcutId,
 } from "./registry";
-import { shortcutMessage } from "./messages";
-import { ShortcutButton } from "./ShortcutButton";
 
 const ShortcutHelp = lazy(() => import("./ShortcutHelp"));
 
 export default function ShellHotkeys({
   path,
-  slot,
   open,
   setOpen,
 }: {
   path: string;
-  slot: HTMLSpanElement | null;
   open: boolean;
   setOpen: (open: boolean) => void;
 }) {
@@ -41,17 +35,6 @@ export default function ShellHotkeys({
   const desktop =
     clientPlatform(isTauri(), import.meta.env.VITE_MOBILE_PLATFORM) ===
     "desktop";
-
-  useEscapeLayer(
-    "menu",
-    () => {
-      const menu = slot?.closest("details");
-      if (menu) menu.open = false;
-      menu?.querySelector("summary")?.focus();
-    },
-    surface,
-    () => (slot?.closest("details")?.open ? slot : null),
-  );
 
   useHotkeys({
     scope: "app",
@@ -138,21 +121,6 @@ export default function ShellHotkeys({
 
   return (
     <>
-      {slot &&
-        createPortal(
-          <ShortcutButton
-            id="show_help"
-            label={shortcutMessage(preferences.locale, "help_trigger")}
-            surface={surface}
-            onClick={() => {
-              if (!open) {
-                setOpen(true);
-                trackHotkey("show_help", surface, "button");
-              }
-            }}
-          />,
-          slot,
-        )}
       {open && (
         <Suspense fallback={null}>
           <ShortcutHelp
