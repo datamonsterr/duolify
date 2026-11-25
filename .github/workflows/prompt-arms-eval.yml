@@ -1,0 +1,126 @@
+name: prompt-arms-eval
+
+# Manual live comparison of the monolithic and routed prompt arms plus two input-guard models.
+on:
+  workflow_dispatch:
+    inputs:
+      budget_usd:
+        description: Per-report live budget in USD
+        default: "1.5"
+        type: string
+      runs:
+        description: Paired monolithic/routed runs
+        default: "2"
+        type: string
+
+concurrency:
+  group: prompt-arms-eval
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  arms:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: mise run ci:require-secrets
+        id: credentials
+        run: mise run ci:require-secrets -- 'prompt arms live eval'
+        env:
+          REQUIRED_SECRETS: OPENROUTER_API_KEY
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      - uses: ./.github/actions/setup-engine
+        with:
+          cache-key: build
+      # api:pricing-e2e-server runs through `go run`.
+      - uses: ./.github/actions/setup-api
+        with:
+          tools: go
+          area: pricing-e2e
+      - name: Start pricing server
+        if: steps.credentials.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          E2E_API_ADDR=127.0.0.1:4721 ALLOW_UNAPPROVED_PRICING=true \
+            nohup mise run api:pricing-e2e-server >"$RUNNER_TEMP/pricing.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:4721/healthz >/dev/null && exit 0
+            sleep 3
+          done
+          tail -n 50 "$RUNNER_TEMP/pricing.log"
+          exit 1
+      - name: Build eval binary
+        if: steps.credentials.outputs.enabled == 'true'
+        working-directory: engine
+        run: cargo build -p engine-eval --bin duolify-eval
+      - name: Run arms and guards
+        if: steps.credentials.outputs.enabled == 'true'
+        timeout-minutes: 45
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          EVAL_PRICING_URL: http://127.0.0.1:4721/v1/pricing
+          BUDGET_USD: ${{ inputs.budget_usd }}
+          RUNS: ${{ inputs.runs }}
+        working-directory: engine
+        run: |
+          set -uo pipefail
+          D=../evals/datasets/duolify-golden/pending-prompt-skills.jsonl
+          mkdir -p ../evals/reports
+          : > ../evals/reports/exit-codes.txt
+          eval_run() { # <reports-dir> ; env carries the arm and guard settings
+            cargo run -q -p engine-eval --bin duolify-eval -- --provider live --data "$D" \
+              --limit 0 --budget "$BUDGET_USD" --reports "$1"
+          }
+          for run in $(seq 1 "$RUNS"); do
+            for arm in monolithic routed; do
+              PROMPT_ARM=$arm eval_run "../evals/reports/arm-$arm-$run"
+              echo "arm=$arm run=$run exit=$?" | tee -a ../evals/reports/exit-codes.txt
+            done
+          done
+          for gm in liquid/d1.2 microsoft/microsoft-decision-1.1; do
+            tag=$(echo "$gm" | tr '/.' '__')
+            PROMPT_ARM=routed INPUT_GUARD_ENABLED=true GUARD_CLASSIFIER=fast EVAL_GUARD_MODEL=$gm \
+              eval_run "../evals/reports/guard-$tag"
+            echo "guard=$gm exit=$?" | tee -a ../evals/reports/exit-codes.txt
+          done
+          exit 0
+      - name: Compare arms
+        if: always() && steps.credentials.outputs.enabled == 'true'
+        env:
+          RUNS: ${{ inputs.runs }}
+        run: |
+          set -uo pipefail
+          R=evals/reports
+          {
+            echo "## Prompt arms live comparison"
+            echo '```'
+            cat "$R/exit-codes.txt" 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          for run in $(seq 1 "$RUNS"); do
+            # A custom --reports dir gets only <stamp>.json (no latest.json); take the newest.
+            base=$(find "$R/arm-monolithic-$run" -maxdepth 1 -name '*.json' 2>/dev/null | sort | tail -n 1)
+            cand=$(find "$R/arm-routed-$run" -maxdepth 1 -name '*.json' 2>/dev/null | sort | tail -n 1)
+            echo "### Run $run: monolithic vs routed" >> "$GITHUB_STEP_SUMMARY"
+            if [ -z "$base" ] || [ -z "$cand" ]; then
+              echo "Missing report (monolithic=${base:-none} routed=${cand:-none})." >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            { echo '```'; mise run engine:compare -- "../$base" "../$cand" 2>&1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
+          for md in "$R"/*/*.md; do
+            [ -f "$md" ] || continue
+            { echo "### $md"; echo '```'; head -n 25 "$md"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: prompt-arms-eval-reports
+          path: evals/reports
+          retention-days: 14
+          if-no-files-found: warn
