@@ -151,3 +151,9 @@ run = "pnpm exec prettier --write src/features/steering src/features/lessontest/
 description = "Format course sharing sources and browser acceptance tests"
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec prettier --write src/features/sharing e2e/sharing*.spec.ts"
+
+["client:character-sheet"]
+description = "Render the default-cast Character review sheet (SVGs and PNG)"
+dir = "{{config_root}}/apps/client"
+env = { CHARACTER_SHEET_DIR = "{{config_root}}/docs/design/characters/default-cast" }
+run = "pnpm exec vitest run src/features/characters/character-sheet.generate.test.ts"
