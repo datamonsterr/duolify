@@ -38,14 +38,57 @@ fn normalize(text: &str, remove_markdown: bool) -> String {
     parts.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Match a full choice inside a reply after Unicode, case and whitespace normalization.
-/// A second pass ignores inline formatting that can divide the original text across chunks.
+fn unspaced_script(c: char) -> bool {
+    matches!(c as u32, 0x0e00..=0x0e7f | 0x3400..=0x4dbf | 0x4e00..=0x9fff
+        | 0xf900..=0xfaff | 0x20000..=0x323af | 0x3040..=0x30ff | 0xac00..=0xd7af)
+}
+
+fn tokens(text: &str) -> Vec<&str> {
+    let mut result = Vec::new();
+    let mut start = None;
+    let chars: Vec<_> = text.char_indices().collect();
+    for (i, &(offset, c)) in chars.iter().enumerate() {
+        let numeric_separator = matches!(c, '.' | '/')
+            && i > 0
+            && i + 1 < chars.len()
+            && chars[i - 1].1.is_numeric()
+            && chars[i + 1].1.is_numeric();
+        if c.is_alphanumeric() || numeric_separator {
+            start.get_or_insert(offset);
+        } else if let Some(begin) = start.take() {
+            result.push(&text[begin..offset]);
+        }
+    }
+    if let Some(begin) = start {
+        result.push(&text[begin..]);
+    }
+    result
+}
+
+fn matches_choice(reply: &str, choice: &str) -> bool {
+    if choice.chars().any(unspaced_script) && !choice.chars().any(char::is_whitespace) {
+        return choice.chars().count() >= 2 && reply.contains(choice);
+    }
+    let reply = tokens(reply);
+    let choice = tokens(choice);
+    if choice.is_empty() || choice.len() > reply.len() {
+        return false;
+    }
+    reply.windows(choice.len()).enumerate().any(|(i, window)| {
+        window == choice
+            // A numbered instruction refers to a step, not the numeric answer.
+            && !(choice.len() == 1 && choice[0].chars().all(char::is_numeric)
+                && i > 0 && reply[i - 1] == "step")
+    })
+}
+
+/// Match normalized choice tokens; repeat after stripping inline Markdown formatting.
 pub fn reply_leaks_answer<'a>(reply: &str, choices: impl IntoIterator<Item = &'a str>) -> bool {
     let normal = normalize(reply, false);
     let plain = normalize(reply, true);
     choices.into_iter().any(|choice| {
         let choice = normalize(choice, false);
-        !choice.is_empty() && (normal.contains(&choice) || plain.contains(&choice))
+        matches_choice(&normal, &choice) || matches_choice(&plain, &choice)
     })
 }
 

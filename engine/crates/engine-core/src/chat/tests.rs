@@ -163,6 +163,23 @@ fn answer_guard_normalizes_case_width_whitespace_and_formatting() {
 }
 
 #[test]
+fn answer_guard_matches_whole_tokens_and_unspaced_scripts() {
+    use super::guard::reply_leaks_answer;
+
+    assert!(!reply_leaks_answer("Try step 3 next", ["3"]));
+    assert!(reply_leaks_answer("The answer is 3", ["3"]));
+    assert!(!reply_leaks_answer("yesterday", ["yes"]));
+    assert!(!reply_leaks_answer("construe", ["true"]));
+    assert!(reply_leaks_answer("**Mitochondria** is", ["mitochondria"]));
+    assert!(reply_leaks_answer("答えは東京です", ["東京"]));
+    assert!(!reply_leaks_answer("答えは東京です", ["京"]));
+    assert!(reply_leaks_answer("The result is 3.5", ["3.5"]));
+    assert!(!reply_leaks_answer("The result is 3.5", ["3"]));
+    assert!(reply_leaks_answer("The result is 1/2", ["1/2"]));
+    assert!(!reply_leaks_answer("The result is 1/2", ["1"]));
+}
+
+#[test]
 fn guarded_prompt_pins_the_ladder_and_keeps_answer_keys_out_of_provider_data() {
     let questions = [guard::Question {
         question_id: "q2".into(),
