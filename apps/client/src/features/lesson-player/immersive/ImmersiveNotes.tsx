@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { VoiceBubble, type VoiceBubbleControls } from "../../voice/VoiceBubble";
+import { useVoiceQuickNote } from "../../notes/useVoiceQuickNote";
 import { ToastHost } from "../../../components/toast";
 import { Icon } from "../../design/Icon";
 import { useUiPreferences } from "../../design/localization/Preferences";
@@ -45,7 +47,7 @@ export default function ImmersiveNotes({
   children,
 }: Props) {
   const layout = useLayout();
-  const latest = useLatest({ view, actions });
+  const latest = useLatest({ view, actions, slideTitle });
   // Playback this component paused, so closing resumes only what it stopped.
   const pausedByUs = useRef(false);
   const [announce, setAnnounce] = useState("");
@@ -88,6 +90,29 @@ export default function ImmersiveNotes({
     onDiscard: discard,
   });
   const { selection, selectArea, adjust, clear } = sel;
+  const selected = useLatest(selection);
+  const voiceControls = useRef<VoiceBubbleControls>(null);
+  const voiceNote = useVoiceQuickNote({
+    surface: "immersive",
+    controls: voiceControls,
+    getPlayer: () => {
+      const { view: v, actions: a } = latest.current;
+      return {
+        courseId: v.courseId,
+        lessonId: v.lessonId,
+        slideIndex: v.index,
+        slideTitle: latest.current.slideTitle,
+        timeMs: v.timeMs,
+        playing: v.playing,
+        region:
+          selected.current.phase === "selected"
+            ? selected.current.rect
+            : undefined,
+        pause: a.pause,
+        play: a.toggle,
+      };
+    },
+  });
 
   // A Slide change drops the selection: a region belongs to one Slide.
   const slideIndex = view.index;
@@ -218,21 +243,22 @@ export default function ImmersiveNotes({
       >
         <Icon name="ask" />
       </button>
-      <button
-        type="button"
-        className="imm-btn imm-icon-btn"
-        data-testid="immersive-quick-note"
-        aria-label={t("imm.note")}
-        title={t("imm.note")}
-        onClick={() =>
-          openComposer(
-            selection.phase === "selected" ? selection.rect : undefined,
-          )
-        }
-        disabled={composer !== null}
+      <div
+        className="imm-voice-note"
+        data-testid="immersive-voice-note"
+        title={t("imm.voice_note")}
       >
-        <Icon name="note" />
-      </button>
+        <VoiceBubble
+          purpose="note"
+          entryPoint="quick_note"
+          lessonId={view.lessonId}
+          icon="voicenote"
+          testId="voice-note-mic"
+          controls={voiceControls}
+          disabled={composer !== null || answer !== null}
+          {...voiceNote}
+        />
+      </div>
     </>
   );
 

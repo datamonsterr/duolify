@@ -465,6 +465,7 @@ export const ar: Record<MessageId, Message> = {
   "imm.select_area": "تحديد منطقة",
   "imm.ask": "اسأل",
   "imm.note": "ملاحظة سريعة",
+  "imm.voice_note": "ملاحظة صوتية",
   "imm.offline": "غير متصل. تم الاحتفاظ بسؤالك.",
   "imm.credits": "الأرصدة غير كافية.",
   "imm.failed": "لا إجابة. لم يتم الخصم. أعد المحاولة.",

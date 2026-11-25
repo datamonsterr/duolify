@@ -27,6 +27,11 @@ const base = {
   timeMs: 0,
   durationMs: 1000,
 } as unknown as ImmersiveView;
+// The panel is reached by choosing an area and adding a note (the rail Note button is now Voice note).
+const openNote = () => {
+  fireEvent.click(screen.getByTestId("immersive-select-area"));
+  fireEvent.click(screen.getByTestId("region-note"));
+};
 const Rail = () => <div>{useImmersiveExtensions().sideRail}</div>;
 
 describe("closing a note after the Learner pressed Play", () => {
@@ -45,7 +50,7 @@ describe("closing a note after the Learner pressed Play", () => {
       </ImmersiveNotes>
     );
     const { rerender } = render(ui(true));
-    fireEvent.click(screen.getByTestId("immersive-quick-note"));
+    openNote();
     expect(actions.pause).toHaveBeenCalledTimes(1);
     rerender(ui(true)); // the Learner pressed Play while the note was open
     act(() => void fireEvent.click(screen.getByTestId("close-composer")));
@@ -66,7 +71,7 @@ describe("closing a note after the Learner pressed Play", () => {
       </ImmersiveNotes>
     );
     const { rerender } = render(ui(true));
-    fireEvent.click(screen.getByTestId("immersive-quick-note"));
+    openNote();
     rerender(ui(false)); // our pause took effect
     fireEvent.click(screen.getByTestId("close-composer"));
     expect(actions.toggle).toHaveBeenCalledTimes(1);

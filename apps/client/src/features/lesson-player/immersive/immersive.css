@@ -113,6 +113,13 @@ html[data-imm-rotated] body {
 .imm-ui > * {
   pointer-events: auto;
 }
+/* Toasts sit below the top bar (button height + its padding), never over the title. */
+.player.immersive {
+  --toast-top: calc(
+    var(--sa-t, env(safe-area-inset-top, 0px)) + var(--space-3) +
+      var(--size-target) + var(--space-2)
+  );
+}
 .imm-controls {
   position: absolute;
   inset: 0;
@@ -725,4 +732,11 @@ html[data-imm-rotated="true"][data-imm-panel] .imm-caption {
 /* The Talk and Note bubbles float; they never cover captions or the outlined region. */
 .imm-answer-compose .voice-bubble-wrap {
   justify-self: start;
+}
+/* The rail's Voice note is the shared round voice bubble, sized like its neighbours. */
+.imm-voice-note {
+  display: inline-flex;
+  justify-content: center;
+  min-inline-size: var(--size-target);
+  min-block-size: var(--size-target);
 }
