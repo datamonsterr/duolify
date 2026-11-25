@@ -1,0 +1,85 @@
+name: promotion-evidence
+
+# Manual live golden eval of the dispatched ref that refreshes evals/promotion/live-report.json.
+# Dispatch on a PR branch (`gh workflow run promotion-evidence.yml --ref <branch>`), download the
+# `promotion-evidence` artifact and commit live-report.json: committing evidence stays a reviewed change.
+on:
+  workflow_dispatch:
+    inputs:
+      budget_usd:
+        description: Live budget in USD
+        default: "0.5"
+        type: string
+
+concurrency:
+  group: promotion-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+      - name: mise run ci:require-secrets
+        id: credentials
+        run: mise run ci:require-secrets -- 'promotion evidence'
+        env:
+          REQUIRED_SECRETS: OPENROUTER_API_KEY ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+      - uses: ./.github/actions/setup-engine
+        with:
+          cache-key: build
+      # api:pricing-e2e-server runs through `go run`.
+      - uses: ./.github/actions/setup-api
+        with:
+          tools: go
+          area: pricing-e2e
+      - name: Start pricing server
+        if: steps.credentials.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          E2E_API_ADDR=127.0.0.1:4721 ALLOW_UNAPPROVED_PRICING=true \
+            nohup mise run api:pricing-e2e-server >"$RUNNER_TEMP/pricing.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:4721/healthz >/dev/null && exit 0
+            sleep 3
+          done
+          tail -n 50 "$RUNNER_TEMP/pricing.log"
+          exit 1
+      - name: mise run engine:eval-golden
+        if: steps.credentials.outputs.enabled == 'true'
+        timeout-minutes: 25
+        run: mise run engine:eval-golden
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          NARRATION_LIVE_ENABLED: "true"
+          EVAL_PRICING_URL: http://127.0.0.1:4721/v1/pricing
+          EVAL_BUDGET_USD: ${{ inputs.budget_usd }}
+      - name: mise run engine:promote
+        if: steps.credentials.outputs.enabled == 'true'
+        run: mise run engine:promote ../evals/reports/latest.json
+      - name: mise run engine:evidence
+        if: steps.credentials.outputs.enabled == 'true'
+        run: |
+          mise run engine:evidence -- --require-launch
+          { echo '## Promotion evidence'; echo '```'; head -n 30 evals/reports/latest.md; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: promotion-evidence
+          path: |
+            evals/promotion/live-report.json
+            evals/reports
+          retention-days: 14
+          if-no-files-found: warn
