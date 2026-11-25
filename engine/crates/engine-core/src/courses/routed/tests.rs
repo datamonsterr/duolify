@@ -41,8 +41,16 @@ fn monolithic_prompts_are_unchanged_json_with_the_instruction_inside() {
     assert!(
         replan.contains(&serde_json::to_string(REPLAN_CORE).unwrap()[1..REPLAN_CORE.len() + 1])
     );
-    assert_eq!(bundled().mode("course_preview"), PromptMode::Monolithic);
-    let p = bundled()
+    // Pin monolithic explicitly: the shipped mode of course_preview is routed.
+    let src = crate::skills::BUNDLED
+        .iter()
+        .find(|(f, _)| f.ends_with("course_preview.toml"))
+        .unwrap()
+        .1
+        .replace("prompt_mode = \"routed\"", "prompt_mode = \"monolithic\"");
+    let mono = Library::from_sources(&[("course_preview.toml", &src)]).unwrap();
+    assert_eq!(mono.mode("course_preview"), PromptMode::Monolithic);
+    let p = mono
         .assemble(
             "course_preview",
             PREVIEW_CORE,
@@ -52,6 +60,11 @@ fn monolithic_prompts_are_unchanged_json_with_the_instruction_inside() {
         .unwrap();
     assert!(p.system.is_empty());
     assert_eq!(p.user, PREVIEW_CORE);
+}
+
+#[test]
+fn shipped_course_preview_is_routed() {
+    assert_eq!(bundled().mode("course_preview"), PromptMode::Routed);
 }
 
 #[test]
