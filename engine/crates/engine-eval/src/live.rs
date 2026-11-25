@@ -189,10 +189,13 @@ pub async fn evaluate(
         "course_outline" => {
             use engine_core::courses::outline;
             let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
+            let brief = &input["brief"];
+            let profile = &input["profile"];
+            let language = outline::course_language(brief, profile);
             let prompt = outline::creation_prompt(
                 &base,
-                input["brief"].clone(),
-                input["profile"].clone(),
+                brief,
+                profile,
                 input
                     .get("clarifications")
                     .cloned()
@@ -203,14 +206,14 @@ pub async fn evaluate(
                 outline::PLAN_ROUTE,
                 &prompt,
                 &limits(input, 12000, 4000, 60000),
-                |text| outline::validate_created(&base, text),
+                |text| outline::validate_created(&base, language, text),
             )
             .await?;
             let plan = parsed(&outcome.completion);
             let adhered = outcome.completion.is_some();
             Ok(bounded(
                 outcome,
-                json!({"adhered": adhered, "units": plan["units"], "plans": plan["plans"]}),
+                json!({"adhered": adhered, "units": adhered.then_some(base), "plans": plan["plans"]}),
             ))
         }
         "lesson_slides" => {

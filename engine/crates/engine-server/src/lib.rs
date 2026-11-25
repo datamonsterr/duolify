@@ -1375,10 +1375,13 @@ impl EngineService for Service {
             .collect();
         let b = req.brief.unwrap_or_default();
         let p = req.learner.unwrap_or_default();
+        let brief = serde_json::json!({"topic":b.topic,"goal":b.goal,"include_topics":b.include_topics,"skip_topics":b.skip_topics,"level":b.level,"maths":b.maths,"viewing_conditions":b.viewing_conditions,"lesson_length":b.lesson_length,"language":b.language});
+        let profile = serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level});
+        let language = outline::course_language(&brief, &profile);
         let prompt = outline::creation_prompt(
             &units,
-            serde_json::json!({"topic":b.topic,"goal":b.goal,"include_topics":b.include_topics,"skip_topics":b.skip_topics,"level":b.level,"maths":b.maths,"viewing_conditions":b.viewing_conditions,"lesson_length":b.lesson_length,"language":b.language}),
-            serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level}),
+            &brief,
+            &profile,
             serde_json::json!(req.clarifications),
         )
         .map_err(|_| Status::invalid_argument("invalid outline"))?;
@@ -1387,7 +1390,7 @@ impl EngineService for Service {
             PLAN_ROUTE,
             &prompt,
             &limits,
-            |text| outline::validate_created(&units, text),
+            |text| outline::validate_created(&units, language, text),
         )
         .await
         .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
@@ -1395,7 +1398,7 @@ impl EngineService for Service {
             .completion
             .as_ref()
             .map(|completion| {
-                let mut plans = outline::parse_created(&units, &completion.text)?;
+                let mut plans = outline::parse_created(&units, language, &completion.text)?;
                 let mut planned = base.clone();
                 for lesson in planned.units.iter_mut().flat_map(|unit| &mut unit.lessons) {
                     let plan = plans

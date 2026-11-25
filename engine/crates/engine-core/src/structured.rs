@@ -109,15 +109,7 @@ pub fn response_format(task: &str) -> Option<Value> {
             let strings = json!({"type":"array","items":{"type":"string"}});
             schema(
                 "course_plan",
-                json!({"type":"object","additionalProperties":false,"required":["units","plans"],"properties":{
-                    "units":{"type":"array","items":{"type":"object","additionalProperties":false,
-                        "required":["id","title","lessons"],"properties":{
-                            "id":{"type":"string"},"title":{"type":"string"},
-                            "lessons":{"type":"array","items":{"type":"object","additionalProperties":false,
-                                "required":["id","title","goal"],"properties":{
-                                    "id":{"type":"string"},"title":{"type":"string"},"goal":{"type":"string"}
-                                }}}
-                        }}},
+                json!({"type":"object","additionalProperties":false,"required":["plans"],"properties":{
                     "plans":{"type":"array","items":{"type":"object","additionalProperties":false,
                         "required":["lesson_id","plan"],"properties":{
                             "lesson_id":{"type":"string"},
@@ -333,8 +325,11 @@ mod tests {
         assert_eq!(response_format("outline").unwrap()["type"], "json_object");
         let planner = response_format(crate::courses::outline::PLAN_ROUTE).unwrap();
         assert_eq!(planner["json_schema"]["strict"], true);
-        let plan =
-            &planner["json_schema"]["schema"]["properties"]["plans"]["items"]["properties"]["plan"];
+        let schema = &planner["json_schema"]["schema"];
+        assert_eq!(schema["required"], json!(["plans"]));
+        assert_eq!(schema["properties"].as_object().unwrap().len(), 1);
+        assert_eq!(schema["additionalProperties"], false);
+        let plan = &schema["properties"]["plans"]["items"]["properties"]["plan"];
         assert_eq!(plan["additionalProperties"], false);
         assert_eq!(plan["required"].as_array().unwrap().len(), 6);
         assert_eq!(response_format("preview").unwrap()["type"], "json_schema");

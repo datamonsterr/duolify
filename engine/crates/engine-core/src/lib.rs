@@ -393,7 +393,7 @@ impl LlmProvider for MockProvider {
                 }}));
                 previous = Some(id);
             }
-            serde_json::json!({"units":units,"plans":plans}).to_string()
+            serde_json::json!({"plans":plans}).to_string()
         } else if serde_json::from_str::<serde_json::Value>(input)
             .ok()
             .is_some_and(|v| v["task"] == "outline_chat_change")

@@ -1,3 +1,4 @@
+use engine_core::{Completion, CompletionStream, LlmProvider, ProviderRouter};
 use engine_proto::{
     self as pb, engine_service_client::EngineServiceClient,
     engine_service_server::EngineServiceServer,
@@ -5,16 +6,14 @@ use engine_proto::{
 use engine_server::Service;
 use std::sync::Arc;
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::transport::Server;
-#[tokio::test]
-async fn all_rpcs() {
+use tonic::transport::{Channel, Server};
+
+async fn start_engine(
+    service: Service,
+) -> (EngineServiceClient<Channel>, tokio::task::JoinHandle<()>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let server = EngineServiceServer::new(Service {
-        router: Arc::new(engine_providers::router("mock").unwrap()),
-        speech: Arc::new(engine_core::narration::MockSpeechProvider),
-        promotion: Default::default(),
-    });
+    let server = EngineServiceServer::new(service);
     let task = tokio::spawn(async move {
         Server::builder()
             .add_service(server)
@@ -22,9 +21,124 @@ async fn all_rpcs() {
             .await
             .unwrap();
     });
-    let mut c = EngineServiceClient::connect(format!("http://{addr}"))
+    let client = EngineServiceClient::connect(format!("http://{addr}"))
         .await
         .unwrap();
+    (client, task)
+}
+
+#[tokio::test]
+async fn spanish_course_brief_returns_the_confirmed_outline_with_a_plan() {
+    struct SpanishPlan;
+
+    #[async_trait::async_trait]
+    impl LlmProvider for SpanishPlan {
+        fn name(&self) -> &'static str {
+            "openrouter"
+        }
+
+        fn is_fixture(&self) -> bool {
+            true
+        }
+
+        async fn complete(&self, model: &str, _: &str) -> anyhow::Result<Completion> {
+            Ok(Completion {
+                text: serde_json::json!({"plans":[{"lesson_id":"ser-estar","plan":{
+                    "objective":"Elegir ser o estar según el contexto",
+                    "key_points":["Identidad y origen","Estados y ubicación"],
+                    "prerequisite_lesson_ids":[],
+                    "misconceptions":["Estar siempre describe algo temporal"],
+                    "example_hint":"Comparar las frases «es listo» y «está listo»",
+                    "review_lesson_ids":[]
+                }}]})
+                .to_string(),
+                provider: self.name().into(),
+                model: model.into(),
+                input_tokens: 150,
+                output_tokens: 100,
+                ..Default::default()
+            })
+        }
+
+        async fn stream(&self, _: &str, _: &str) -> anyhow::Result<CompletionStream> {
+            anyhow::bail!("only the course planner is configured")
+        }
+    }
+
+    let provider = Arc::new(SpanishPlan);
+    let (mut client, task) = start_engine(Service {
+        router: Arc::new(ProviderRouter::new(provider.clone(), provider).unwrap()),
+        speech: Arc::new(engine_core::narration::MockSpeechProvider),
+        promotion: Default::default(),
+    })
+    .await;
+    let base = pb::CourseOutline {
+        title: "Español paso a paso".into(),
+        description: "Gramática en contexto".into(),
+        units: vec![pb::Unit {
+            unit_id: "u1".into(),
+            title: "Los verbos".into(),
+            lessons: vec![pb::LessonRef {
+                lesson_id: "ser-estar".into(),
+                title: "Ser y estar".into(),
+                goal: "Usar cada verbo en contexto".into(),
+                plan: None,
+            }],
+        }],
+        ..Default::default()
+    };
+    let response = client
+        .generate_course_outline(pb::GenerateCourseOutlineRequest {
+            edited_outline: Some(base.clone()),
+            outline_revision: 1,
+            draft_id: "confirmed-draft".into(),
+            brief: Some(pb::CourseBrief {
+                language: "es".into(),
+                ..Default::default()
+            }),
+            learner: Some(pb::LearnerProfile {
+                locale: "en-US".into(),
+                ..Default::default()
+            }),
+            limits: Some(pb::UsageLimits {
+                input_tokens: 6000,
+                output_tokens: 4000,
+                timeout_ms: 3000,
+                max_attempts: 2,
+                max_cost_nanos: 100_000_000,
+                input_nanos: 200,
+                output_nanos: 500,
+                cache_write_nanos: 200,
+                cache_read_nanos: 50,
+                provider: "openrouter".into(),
+                model: "tencent/hy4-flash".into(),
+                fallback_provider: "openrouter".into(),
+                fallback_model: "z-ai/glm-5.3-flash".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    task.abort();
+    assert!(!response.unavailable, "{response:?}");
+    assert_eq!(response.attempts.len(), 1);
+    assert!(response.attempts[0].delivered);
+    let mut confirmed = response.outline.unwrap();
+    let plan = confirmed.units[0].lessons[0].plan.take().unwrap();
+    assert_eq!(plan.objective, "Elegir ser o estar según el contexto");
+    assert_eq!(confirmed, base);
+}
+
+#[tokio::test]
+async fn all_rpcs() {
+    let (mut c, task) = start_engine(Service {
+        router: Arc::new(engine_providers::router("mock").unwrap()),
+        speech: Arc::new(engine_core::narration::MockSpeechProvider),
+        promotion: Default::default(),
+    })
+    .await;
     let original =
         include_str!("../../../../services/api/internal/characters/schema/original.fixture.json");
     let screened = c

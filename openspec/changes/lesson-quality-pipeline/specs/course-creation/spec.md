@@ -1,15 +1,15 @@
 ## MODIFIED Requirements
 
 ### Requirement: Outline-only generation
-After explicit final cost consent, the system SHALL create an outline-only River job from the latest learner-confirmed edited outline revision. Ordered Units, Lesson titles and goals, additions and removals MUST be preserved exactly; unapplied proposals MUST NOT enter the job. The private GenerateCourseOutline request MUST carry the edited outline, draft revision, trusted quote bounds and the draft's clarification answers. The Engine SHALL return the unchanged outline plus one Lesson plan per Lesson: `objective` (starts with an observable verb), 2 to 4 `key_points`, `prerequisite_lesson_ids` (earlier Lessons only), 1 to 3 `misconceptions`, an `example_hint` and `review_lesson_ids` (earlier Lessons only). Output that changes the confirmed structure, omits or adds a plan, references a later or unknown Lesson, or contains Slides, Lesson tests or HTML MUST be rejected within the bounded evaluated fallback policy. Plans SHALL be stored immutably on the Lesson stubs.
+After explicit final cost consent, the system SHALL create an outline-only River job from the latest learner-confirmed edited outline revision. Ordered Units, Lesson titles and goals, additions and removals MUST be preserved exactly. Unapplied proposals MUST NOT enter the job. The private GenerateCourseOutline request MUST carry the edited outline, draft revision, trusted quote bounds and the draft's clarification answers. The model SHALL return only a list of Lesson plans keyed by confirmed Lesson ID. The Engine SHALL attach the validated plans to the unchanged request outline and return it. Each plan SHALL have a plain-text `objective`, 2 to 4 `key_points`, `prerequisite_lesson_ids` (earlier Lessons only), 1 to 3 `misconceptions`, an `example_hint` and `review_lesson_ids` (earlier Lessons only). The model SHALL write all plan text in the brief language, falling back to the learner locale and then to English. English objectives MUST start with an observable verb. Every objective MUST be non-empty plain text. Model output that includes outline fields, omits or adds a plan, duplicates a Lesson ID, references a later or unknown Lesson, or contains Slides, Lesson tests or HTML MUST be rejected within the bounded evaluated fallback policy. Plans SHALL be stored immutably on the Lesson stubs.
 
 #### Scenario: Confirmed edited outline creates a course
 - **WHEN** the learner accepts the revision-bound quote and confirms Create
 - **THEN** validated success atomically stores the Course, ordered Units, locked Lesson stubs with their Lesson plans and one enrollment
 - **AND** only the first Lesson is ready_to_generate and no lesson content is generated
 
-#### Scenario: Plan changes the outline
-- **WHEN** the Engine output renames, reorders, adds or removes a Unit or Lesson
+#### Scenario: Model returns an outline or incorrect plans
+- **WHEN** the model returns outline fields or its plans fail to cover the confirmed Lesson IDs exactly once
 - **THEN** the output is rejected and the bounded fallback runs
 
 #### Scenario: Plan points forward
