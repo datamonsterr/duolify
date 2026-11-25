@@ -88,3 +88,11 @@ reasoning_effort = "none"
 model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]
 reasoning_effort = "none"
+
+# ADR 0025 input guard: one cheap classifier for every learner free-text surface. Same chain as the
+# four screens it consolidates (parity first); the choice and measured cost are in
+# openspec/changes/prompt-skill-routing-and-guardrails/design.md section 12.
+[tasks.input_guard]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"

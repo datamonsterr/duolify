@@ -48,6 +48,8 @@ const paths = {
   globe:
     "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3 12h18 M12 3c3 3 3 15 0 18 M12 3c-3 3-3 15 0 18",
   keyboard: "M3 6h18v12H3z M7 10h.01 M11 10h.01 M15 10h.01 M7 14h10",
+  voicenote:
+    "M6 3h9l4 4v14H6z M14 3v5h5 M12 10a1.5 1.5 0 0 0-1.5 1.5v2a1.5 1.5 0 0 0 3 0v-2A1.5 1.5 0 0 0 12 10z M9.5 14a2.5 2.5 0 0 0 5 0 M12 16.5v2",
 } as const;
 export type IconName = keyof typeof paths;
 
@@ -66,6 +68,7 @@ export const iconOnlyAllowlist: readonly IconName[] = [
   "add",
   "send",
   "microphone",
+  "voicenote",
   "volume",
   "mute",
   "fullscreen",

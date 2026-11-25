@@ -1,11 +1,10 @@
 appId: app.duolify.client
 androidWebViewHierarchy: devtools
 ---
-- launchApp:
-    clearState: true
-- extendedWaitUntil:
-    visible: "Learn any topic.*"
-    timeout: 45000
+# Continues from launch.yaml, which returns to the signed-out welcome screen.
+# A second clearState relaunch can kill the new Android process when the old
+# task is removed late (run 45419091676).
+- assertVisible: Get started
 - takeScreenshot: sign-in-welcome
 - scrollUntilVisible:
     element: Get started

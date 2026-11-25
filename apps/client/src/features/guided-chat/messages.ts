@@ -8,6 +8,7 @@ import type { signinAr, signinEn } from "./messages.signin";
 import type { courseAr, courseEn } from "./messages.course";
 import type { profileAr, profileEn } from "./messages.profile";
 import type { socialAr, socialEn } from "./messages.social";
+import type { characterAr, characterEn } from "./messages.character";
 import type { setupAr, setupEn } from "./messages.setup";
 import type { landingAr, landingEn } from "../landing/messages.landing";
 
@@ -20,6 +21,7 @@ export const guidedEn = {
   ...({} as typeof courseEn),
   ...({} as typeof profileEn),
   ...({} as typeof socialEn),
+  ...({} as typeof characterEn),
   "guided.guide": "Guide",
   "guided.title": "Guided chat",
   "guided.transcript": "Conversation",
@@ -27,6 +29,7 @@ export const guidedEn = {
   "guided.answer": "Your answer",
   "guided.type_instead": "Or type a message",
   "guided.send": "Send",
+  "guided.loading": "Loading…",
   "guided.skip": "Skip",
   "guided.confirm": "Confirm",
   "guided.cancel": "Cancel",
@@ -63,6 +66,7 @@ export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   ...({} as typeof accountAr),
   ...({} as typeof profileAr),
   ...({} as typeof socialAr),
+  ...({} as typeof characterAr),
   ...({} as typeof signinAr),
   ...({} as typeof landingAr),
   ...({} as typeof courseAr),
@@ -73,6 +77,7 @@ export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   "guided.answer": "إجابتك",
   "guided.type_instead": "أو اكتب رسالة",
   "guided.send": "إرسال",
+  "guided.loading": "جارٍ التحميل…",
   "guided.skip": "تخطَّ",
   "guided.confirm": "تأكيد",
   "guided.cancel": "إلغاء",

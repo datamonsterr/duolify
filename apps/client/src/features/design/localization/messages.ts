@@ -60,6 +60,7 @@ export const en = {
   "outline.goal_error": "Enter a lesson goal.",
   "outline.expand": "Expand {name}",
   "outline.collapse": "Collapse {name}",
+  "player.more_controls": "More controls",
   "settings.sec_look": "Look and language",
   "settings.sec_audio": "Lessons and audio",
   "settings.sec_goals": "Goals and reminders",
@@ -87,6 +88,7 @@ export const en = {
   "settings.back": "Back",
   "settings.loading": "Loading…",
   "settings.retry_load": "Retry",
+  "settings.language_error": "Could not load the language. Try again.",
   "settings.read_error": "Could not read settings. Connect and retry.",
   "settings.save_error": "Could not save settings. Retry.",
   "settings.characters": "Private characters",
@@ -507,12 +509,14 @@ export const en = {
   "imm.select_area": "Select area",
   "imm.ask": "Ask",
   "imm.note": "Quick note",
+  "imm.voice_note": "Voice note",
   "imm.offline": "Offline. Your question is kept.",
   "imm.credits": "Not enough Credits.",
   "imm.failed": "No answer. Nothing charged. Retry.",
   "imm.block": "Too long for a quick answer.",
   "imm.answering": "Answering",
   "imm.ready": "Answer ready",
+  "imm.swipe_close": "Swipe to close",
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 // The Arabic catalogue is its own chunk: English readers never download it.

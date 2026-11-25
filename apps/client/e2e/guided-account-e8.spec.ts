@@ -47,3 +47,22 @@ for (const [width, height] of [
     await expect(page).toHaveURL(/sign-in/);
   });
 }
+
+test("failed deletion waits for an explicit retry", async ({ page }) => {
+  let requests = 0;
+  await page.route("**/v1/me/deletion-request", async (route) => {
+    requests++;
+    await route.fulfill({ status: 500, json: { error: "unavailable" } });
+  });
+  await page.goto("/settings#privacy");
+  await page.getByRole("button", { name: "Delete account" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete account" });
+  await dialog.getByRole("button", { name: "Delete forever" }).click();
+  await expect(dialog.getByRole("button", { name: "Try again" })).toBeVisible();
+  await page.waitForTimeout(1000);
+  expect(requests).toBe(1);
+  await dialog.getByRole("button", { name: "Try again" }).click();
+  await expect.poll(() => requests).toBe(2);
+  await page.waitForTimeout(1000);
+  expect(requests).toBe(2);
+});

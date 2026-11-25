@@ -62,6 +62,8 @@ export function lintScript(
       !step.options?.length
     )
       problems.push(`${step.id} needs options`);
+    if (step.widget === "character" && !step.character)
+      problems.push(`${step.id} needs a character tab or pick`);
     if (
       step.widget === "confirm" &&
       !step.submit &&

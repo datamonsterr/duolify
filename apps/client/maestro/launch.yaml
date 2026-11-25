@@ -17,3 +17,8 @@ androidWebViewHierarchy: devtools
 - takeScreenshot: landscape-example
 - assertVisible: "Shared example"
 - setOrientation: PORTRAIT
+- scrollUntilVisible:
+    element: Return to welcome
+- tapOn: Return to welcome
+- scrollUntilVisible:
+    element: Get started

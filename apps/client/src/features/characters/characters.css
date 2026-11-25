@@ -145,21 +145,34 @@
   top: 0;
   z-index: 2;
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-  background: var(--bg, #f7f9f4);
-  border-bottom: 2px solid var(--line);
-  box-shadow: 0 -24px 0 var(--bg, #f7f9f4);
-}
-.cv2-bar {
-  display: flex;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    "back title save"
+    "stage stage stage"
+    "tabs tabs tabs";
   align-items: center;
   gap: var(--space-2);
+  padding: var(--space-2) 0;
+  background: var(--canvas);
+  border-bottom: 2px solid var(--line);
+  box-shadow: 0 -24px 0 var(--canvas);
+}
+.cv2-head > .cv2-icon {
+  grid-area: back;
+}
+.cv2-head > h1 {
+  grid-area: title;
+}
+.cv2-head > .cv2-stage {
+  grid-area: stage;
+}
+.cv2-head > .cv2-tabs {
+  grid-area: tabs;
 }
 .cv2-save {
-  margin-inline-start: auto;
+  grid-area: save;
 }
-.cv2-bar h1 {
+.cv2-head > h1 {
   font-size: 1.25rem;
   margin: 0;
 }
@@ -169,17 +182,52 @@
   justify-content: center;
   gap: var(--space-3);
 }
-.cv2-avatar {
-  width: 96px;
-  height: 96px;
-  padding: 0;
+.cv2-stage-pair {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+.cv2-fig {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  font-size: 0.75rem;
+}
+.cv2-fig figcaption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.cv2-fig .cv2-preview {
+  width: 60px;
+  height: 60px;
   border: 2px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  cursor: pointer;
 }
-.cv2-avatar[aria-pressed="true"] {
-  width: 96px;
+.cv2-fig-body .cv2-preview {
+  width: 60px;
+  height: 84px;
+  aspect-ratio: auto;
+}
+.cv2-field,
+.cv2-tile input,
+.cv2-swatch input {
+  scroll-margin-top: 220px;
+}
+.cv2-pronoun-other {
+  margin-top: var(--space-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv2-creator *,
+  .cv2-selector * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 .cv2-icon {
   display: grid;
@@ -259,7 +307,7 @@
   padding: 4px;
   border: 2px solid var(--line);
   border-radius: var(--radius-lg);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   text-align: center;
   cursor: pointer;
 }
@@ -337,21 +385,200 @@
 }
 @media (min-width: 900px) {
   .cv2-creator {
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: minmax(340px, 400px) 1fr;
     align-items: start;
   }
+  /* Left: a sticky preview panel as tall as the viewport. Right: the scrolling selectors. */
   .cv2-head {
     grid-column: 1;
     top: var(--space-4);
+    height: calc(100dvh - 120px);
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "back title"
+      "stage stage"
+      "tabs tabs"
+      "save save";
     border: 2px solid var(--line);
     border-radius: var(--radius-lg);
     padding: var(--space-3);
+    box-shadow: none;
   }
-  .cv2-avatar {
-    width: 220px;
-    height: 220px;
+  .cv2-save {
+    justify-self: end;
+  }
+  .cv2-head > .cv2-stage {
+    align-self: stretch;
+    min-height: 0;
+    position: relative;
+    display: block;
+  }
+  .cv2-head > .cv2-stage > .cv2-icon {
+    position: absolute;
+    top: 0;
+    inset-inline-end: 0;
+  }
+  .cv2-tall {
+    height: 100%;
+  }
+  .cv2-field,
+  .cv2-tile input,
+  .cv2-swatch input {
+    scroll-margin-top: 0;
+  }
+  .cv2-tabs {
+    min-width: 0;
   }
   .cv2-side {
     grid-column: 2;
   }
+}
+
+/* Tall stage: full-body preview fills the panel, avatar sits above it. */
+@media (min-width: 900px) {
+  .cv2-stage-pair.cv2-tall {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    justify-items: center;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+  .cv2-tall .cv2-fig {
+    min-height: 0;
+    min-width: 0;
+    font-size: 0.8rem;
+  }
+  .cv2-tall .cv2-fig figcaption {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+  }
+  .cv2-tall .cv2-fig-avatar .cv2-preview {
+    width: 112px;
+    height: 112px;
+  }
+  .cv2-tall .cv2-fig-body {
+    grid-template-rows: minmax(0, 1fr) auto;
+    width: 100%;
+  }
+  .cv2-tall .cv2-fig-body .cv2-preview {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    min-height: 0;
+  }
+}
+
+.gc-host {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.gc-host-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.gc-host-bar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.gc-host-done {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+.gc-character {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.gc-character > .cv2-stage-pair {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  justify-content: center;
+  padding: var(--space-2) 0;
+  background: var(--canvas);
+  border-bottom: 2px solid var(--line);
+  box-shadow: 0 -16px 0 var(--canvas);
+}
+.cv2-none {
+  opacity: 0.5;
+}
+/* In chat the stage stays small and pinned so previews remain visible while choosing. */
+@media (max-width: 899px) {
+  .gc-character .cv2-fig .cv2-preview {
+    width: 60px;
+    height: 60px;
+  }
+  .gc-character .cv2-fig-body .cv2-preview {
+    height: 84px;
+  }
+}
+.gc-character .cv2-field,
+.gc-character .cv2-tile input,
+.gc-character .cv2-swatch input,
+.gc-character .cv2-text input {
+  scroll-margin-top: 180px;
+}
+
+/* Text-only chips (pronouns): readable size, wrap, 44px targets. */
+.cv2-tiles.cv2-chips {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+}
+.cv2-tile.cv2-chip {
+  min-height: 44px;
+  padding: 8px 12px;
+  align-content: center;
+  font-size: 0.9rem;
+}
+/* Desktop chat: a full-height preview panel on the left, choices and actions on the right. */
+@media (min-width: 900px) {
+  .gc-character:has(> .cv2-stage-pair) {
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+    align-items: start;
+  }
+  .gc-character > .cv2-stage-pair {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    position: sticky;
+    top: var(--space-4);
+    height: calc(100dvh - 120px);
+    border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+    padding: var(--space-3);
+    background: var(--surface);
+  }
+  .gc-character:has(> .cv2-stage-pair) > :not(.cv2-stage-pair) {
+    grid-column: 2;
+  }
+  .gc-character .cv2-field,
+  .gc-character .cv2-tile input,
+  .gc-character .cv2-swatch input,
+  .gc-character .cv2-text input {
+    scroll-margin-top: 0;
+  }
+}
+/* Action buttons: bottom-right on desktop, full width at the bottom on phone. */
+.gc-character-actions {
+  display: grid;
+}
+@media (min-width: 900px) {
+  .gc-character-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .gc[data-script^="character."] .gc-actions,
+  .gc-host-done {
+    justify-content: flex-end;
+    justify-items: end;
+  }
+}
+.gc-character .cv2-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
 }
