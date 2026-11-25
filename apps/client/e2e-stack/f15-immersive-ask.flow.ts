@@ -21,7 +21,7 @@ test(
       .getByRole("button", { name: /Prepare lesson/i })
       .first()
       .click();
-    await page.getByRole("button", { name: "Accept quote terms" }).click();
+    await page.getByRole("button", { name: "Accept terms" }).click();
     const start = page.getByRole("link", { name: /Start lesson/i }).first();
     await expect(start).toBeVisible({ timeout: 180_000 });
     await start.click();

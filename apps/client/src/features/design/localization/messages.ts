@@ -160,6 +160,7 @@ export const en = {
   "common.close": "Close",
   "common.close_named": "Close {name}",
   "common.undo": "Undo",
+  "common.cancel": "Cancel",
   "chat.title": "Guided chat",
   "chat.steps": "Chat steps",
   "chat.step": "Step {current} of {total}",

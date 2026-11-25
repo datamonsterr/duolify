@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef } from "react";
 import { Button } from "../design/Button";
@@ -72,12 +73,12 @@ export function ForkWarning({
           </li>
           <li>You won&apos;t receive the publisher&apos;s future updates.</li>
         </ul>
-        <div className="steering-actions">
+        <ActionFooter className="steering-actions">
           <Button variant="secondary" onClick={onCancel}>
             Cancel
           </Button>
           <Button onClick={onConfirm}>Make it mine</Button>
-        </div>
+        </ActionFooter>
       </div>
     </div>
   );

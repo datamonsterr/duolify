@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import {
   lazy,
   Suspense,
@@ -161,7 +162,15 @@ function VoiceTextButton({
           data-testid="voice-explain"
         >
           <p>{t("voice.explain_body")}</p>
-          <div className="voice-row">
+          <ActionFooter className="voice-row">
+            <button
+              type="button"
+              className="voice-retry"
+              data-testid="voice-explain-skip"
+              onClick={() => setExplaining(false)}
+            >
+              {t("voice.not_now")}
+            </button>
             <button
               type="button"
               className="voice-retry"
@@ -178,15 +187,7 @@ function VoiceTextButton({
             >
               {t("voice.allow")}
             </button>
-            <button
-              type="button"
-              className="voice-retry"
-              data-testid="voice-explain-skip"
-              onClick={() => setExplaining(false)}
-            >
-              {t("voice.not_now")}
-            </button>
-          </div>
+          </ActionFooter>
         </div>
       )}
     </div>

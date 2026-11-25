@@ -3,7 +3,7 @@
   display: grid;
   gap: var(--space-4);
 }
-.settings-page form {
+.settings-page form:not(.gc-widget) {
   display: grid;
   gap: var(--space-5);
 }
@@ -279,12 +279,12 @@
 }
 @media (width < 48rem) {
   /* Reach map: the primary action stays in the lower third even when the section is short. */
-  .settings-page form {
+  .settings-page form:not(.gc-widget) {
     display: flex;
     flex-direction: column;
     min-block-size: calc(100dvh - 17rem);
   }
-  .settings-page form > .action-dock {
+  .settings-page form:not(.gc-widget) > .action-dock {
     margin-block-start: auto;
   }
 }

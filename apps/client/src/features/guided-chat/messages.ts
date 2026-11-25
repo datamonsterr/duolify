@@ -6,6 +6,7 @@ import type { accountAr, accountEn } from "./messages.account";
 import type { briefAr, briefEn } from "./messages.brief";
 import type { signinAr, signinEn } from "./messages.signin";
 import type { courseAr, courseEn } from "./messages.course";
+import type { shareAr, shareEn } from "./messages.share";
 import type { profileAr, profileEn } from "./messages.profile";
 import type { socialAr, socialEn } from "./messages.social";
 import type { characterAr, characterEn } from "./messages.character";
@@ -19,6 +20,7 @@ export const guidedEn = {
   ...({} as typeof signinEn),
   ...({} as typeof landingEn),
   ...({} as typeof courseEn),
+  ...({} as typeof shareEn),
   ...({} as typeof profileEn),
   ...({} as typeof socialEn),
   ...({} as typeof characterEn),
@@ -43,6 +45,7 @@ export const guidedEn = {
   "guided.stars": { one: "{count} star", other: "{count} stars" },
   "guided.required": "Please answer this one.",
   "guided.invalid": "That doesn't look right. Try again.",
+  "guided.too_long": "Keep it under {max} characters.",
   "guided.last": "Last one.",
   "guided.done": "All set. Check and confirm.",
   "guided.changed": "I changed: {steps}.",
@@ -70,6 +73,7 @@ export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   ...({} as typeof signinAr),
   ...({} as typeof landingAr),
   ...({} as typeof courseAr),
+  ...({} as typeof shareAr),
   "guided.guide": "المرشد",
   "guided.title": "محادثة موجّهة",
   "guided.transcript": "المحادثة",
@@ -98,6 +102,7 @@ export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   },
   "guided.required": "أجب عن هذا من فضلك.",
   "guided.invalid": "لا يبدو هذا صحيحًا. حاول مجددًا.",
+  "guided.too_long": "اجعله أقل من {max} حرفًا.",
   "guided.last": "آخر سؤال.",
   "guided.done": "اكتمل. راجع ثم أكّد.",
   "guided.changed": "غيّرت: {steps}.",

@@ -69,6 +69,15 @@
   padding: 0;
   font-size: var(--font-size-caption);
 }
+.gc-slot,
+.gc-widget {
+  display: contents;
+}
+/* Chips and inputs stay in the body; the action footer closes the dock. */
+.gc-dock > .gc-actions,
+.gc-widget .gc-actions {
+  order: 9;
+}
 .gc-actions[hidden] {
   display: none;
 }
@@ -142,8 +151,6 @@
   outline: var(--size-focus-width) solid var(--focus);
   outline-offset: var(--size-focus-offset);
 }
-.gc-slot,
-.gc-widget,
 .gc-fallback,
 .gc-composer {
   display: flex;

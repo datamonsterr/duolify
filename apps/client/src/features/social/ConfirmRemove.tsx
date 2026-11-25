@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useEffect, useId, useRef } from "react";
 import "./social.css";
 
@@ -44,7 +45,7 @@ export function ConfirmRemove({
           You'll both leave each other's friends list and any friend streak
           ends. {name} isn't notified.
         </p>
-        <div className="social-actions">
+        <ActionFooter className="social-actions">
           <button
             ref={cancel}
             type="button"
@@ -61,7 +62,7 @@ export function ConfirmRemove({
           >
             Remove
           </button>
-        </div>
+        </ActionFooter>
       </div>
     </dialog>
   );

@@ -2,6 +2,13 @@ import type { APIRequestContext, Browser, Page } from "@playwright/test";
 import { apiBase, webBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 type Headers = { Authorization: string };
 type Course = {
   units: { lessons: { id: string; state: string; content?: string }[] }[];

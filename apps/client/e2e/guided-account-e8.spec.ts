@@ -31,7 +31,7 @@ for (const [width, height] of [
       /duolify-data-.*\.json/,
     );
     await expect(page.getByText(/Encrypted export downloaded/)).toBeVisible();
-    await dialog.getByRole("status").getByRole("button").click();
+    await dialog.locator("[data-action-footer]").getByRole("button").click();
 
     await page.getByRole("button", { name: "Delete account" }).click();
     const del = page.getByRole("dialog", { name: "Delete account" });
@@ -47,6 +47,25 @@ for (const [width, height] of [
     await expect(page).toHaveURL(/sign-in/);
   });
 }
+
+test("export dialog contains Tab, closes on Escape and returns focus", async ({
+  page,
+}) => {
+  await page.goto("/settings#privacy");
+  const opener = page.getByRole("button", { name: "Export data" });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "Export data" });
+  await expect(dialog).toBeVisible();
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press("Tab");
+    expect(
+      await dialog.evaluate((node) => node.contains(document.activeElement)),
+    ).toBe(true);
+  }
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
 
 test("failed deletion waits for an explicit retry", async ({ page }) => {
   let requests = 0;

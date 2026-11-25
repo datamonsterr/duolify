@@ -2,6 +2,13 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { apiBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 // E15-06 course invites, real API. The browser learner is the owner in the
 // "send" tests and the recipient in the "inbox" tests.
 type Headers = { Authorization: string };

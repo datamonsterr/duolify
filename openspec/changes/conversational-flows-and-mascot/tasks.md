@@ -55,8 +55,8 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 ## 8. Migrate remaining flows (L, two PRs)
 
 - [x] 8.1a e2e per flow; scripts `profile.edit`, `profile.goal` (daily goal and reminder clock), `social.username`, `social.add_friend` (flag `duolify.guided.rest`; old forms stay until 8.3)
-- [ ] 8.1b e2e per flow; scripts `course.share`, `course.invite`, `course.republish`, `course.review`, `report.content`
-- [ ] 8.2 Scripts `credits.confirm`, `account.export`, `account.delete` (destructive card, secure password)
+- [x] 8.1b e2e per flow; scripts `course.share`, `course.invite`, `course.republish`, `course.review`, `report.content` (flag `duolify.guided.rest`; old forms stay until 8.3; `social.*` is 8.1a)
+- [x] 8.2 Scripts `credits.confirm`, `account.export`, `account.delete` (destructive card, secure password)
 - [ ] 8.3 Delete old forms and flags one release after each flow's rollout; update `docs/analytics/coverage.md`
 
 ## 9. Customisation (M)

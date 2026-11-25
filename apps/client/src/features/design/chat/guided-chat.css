@@ -188,6 +188,18 @@
   justify-content: space-between;
   margin-block-end: var(--space-4);
 }
+.guided-sheet-close {
+  min-inline-size: var(--size-touch, 2.75rem);
+  min-block-size: var(--size-touch, 2.75rem);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
 .guided-panel-header h2 {
   margin: 0;
 }
@@ -316,6 +328,11 @@
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+/* Actions sit last in the sheet, so the footer lands at its bottom edge. */
+.guided-sheet.modal[open] {
+  display: flex;
+  flex-direction: column;
 }
 @media (max-width: 47.999rem) {
   .guided-demo {

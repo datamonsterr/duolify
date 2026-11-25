@@ -1,6 +1,13 @@
 import { test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 test("published Characters survive edits, confirmed forks, deletion and takedown replay", async ({
   page,
   request,

@@ -1,5 +1,15 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { guidedEnabled } from "../guided-chat/flags";
 import {
   reportFailure,
   reportMaxChars,
@@ -9,12 +19,19 @@ import {
   type ReportFailure,
   type ReportTarget,
 } from "./reports";
+import { CloseButton } from "../design/sheet/CloseButton";
+import { FooterSlot, FooterSlotProvider } from "../design/sheet/FooterSlot";
+import { useUiPreferences } from "../design/localization/Preferences";
 
 type State =
   | { kind: "form" }
   | { kind: "sending" }
   | { kind: "failed"; failure: ReportFailure }
   | { kind: "done"; merged: boolean };
+
+const GuidedReport = lazy(() =>
+  import("./GuidedReport").then((m) => ({ default: m.GuidedReport })),
+);
 
 const focusable =
   "button:not(:disabled), input:not(:disabled), textarea:not(:disabled)";
@@ -43,6 +60,8 @@ export function ReportSheet({
   const titleId = useId();
   const helpId = useId();
   const chars = Array.from(text).length;
+  const { t } = useUiPreferences();
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   const busy = state.kind === "sending";
 
   useEffect(() => {
@@ -55,15 +74,22 @@ export function ReportSheet({
     if (state.kind === "done") done.current?.focus();
   }, [state.kind]);
 
-  const submit = async () => {
-    if (sending.current || !reason || chars > reportMaxChars) return;
+  const guided = guidedEnabled("rest");
+  const submit = async (picked = reason, details = text) => {
+    if (
+      sending.current ||
+      !picked ||
+      Array.from(details).length > reportMaxChars
+    )
+      return;
     sending.current = true;
     setState({ kind: "sending" });
     try {
-      const result = await sendReport(target, reason, text.trim());
+      const result = await sendReport(target, picked, details.trim());
       setState({ kind: "done", merged: result.merged });
     } catch (error) {
       setState({ kind: "failed", failure: reportFailure(error) });
+      throw error;
     } finally {
       sending.current = false;
     }
@@ -102,14 +128,7 @@ export function ReportSheet({
       >
         <div className="report-head">
           <h2 id={titleId}>{title}</h2>
-          <button
-            type="button"
-            className="report-close"
-            aria-label="Close"
-            onClick={close}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
+          <CloseButton onClick={close} />
         </div>
         {state.kind === "done" ? (
           <div className="report-done">
@@ -125,21 +144,46 @@ export function ReportSheet({
                   : "A moderator will review it. The creator is never told who reported."}
               </p>
             </div>
-            <button
-              ref={done}
-              type="button"
-              className="duo-button"
-              onClick={onClose}
-            >
-              Done
-            </button>
+            <ActionFooter>
+              <button
+                ref={done}
+                type="button"
+                className="duo-button"
+                onClick={onClose}
+              >
+                Done
+              </button>
+            </ActionFooter>
+          </div>
+        ) : guided ? (
+          <div className="report-form" aria-busy={busy}>
+            <FooterSlotProvider value={slot}>
+              <Suspense fallback={null}>
+                <GuidedReport onSend={(r, d) => submit(r, d)} />
+              </Suspense>
+            </FooterSlotProvider>
+            {failure && (
+              <p className="sharing-error" role="alert">
+                {reportMessages[failure]}
+              </p>
+            )}
+            <ActionFooter>
+              <button
+                type="button"
+                className="duo-button secondary"
+                onClick={close}
+              >
+                {t("common.cancel")}
+              </button>
+              <FooterSlot onSlot={setSlot} />
+            </ActionFooter>
           </div>
         ) : (
           <form
             className="report-form"
             onSubmit={(e) => {
               e.preventDefault();
-              void submit();
+              submit().catch(() => undefined);
             }}
           >
             <fieldset disabled={busy}>
@@ -176,20 +220,22 @@ export function ReportSheet({
                   <button
                     type="button"
                     className="duo-button secondary"
-                    onClick={() => void submit()}
+                    onClick={() => submit().catch(() => undefined)}
                   >
                     Retry
                   </button>
                 )}
               </div>
             )}
-            <button
-              type="submit"
-              className="duo-button report-send"
-              disabled={busy || !reason || chars > reportMaxChars}
-            >
-              {busy ? "Sending…" : "Send report"}
-            </button>
+            <ActionFooter>
+              <button
+                type="submit"
+                className="duo-button report-send"
+                disabled={busy || !reason || chars > reportMaxChars}
+              >
+                {busy ? "Sending…" : "Send report"}
+              </button>
+            </ActionFooter>
           </form>
         )}
       </div>

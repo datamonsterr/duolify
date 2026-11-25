@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { useCharacterT } from "./useCharacterT";
@@ -491,36 +492,38 @@ export function CharacterLibrary() {
               Future choices use a safe default. Previous lessons retain their
               saved version.
             </p>
-            <Button
-              autoFocus
-              pending={pending}
-              onClick={() => {
-                setPending(true);
-                void characterLibrary
-                  .delete(deleting.id)
-                  .then(() => {
-                    setRecords((current) =>
-                      current!.filter((r) => r.id !== deleting.id),
-                    );
-                    setDeleting(null);
-                    title.current?.focus();
-                  })
-                  .catch((err) => setError(failure(err)))
-                  .finally(() => setPending(false));
-              }}
-            >
-              Confirm deletion
-            </Button>
-            <Button
-              disabled={pending}
-              variant="secondary"
-              onClick={() => {
-                setDeleting(null);
-                title.current?.focus();
-              }}
-            >
-              Cancel
-            </Button>
+            <ActionFooter>
+              <Button
+                disabled={pending}
+                variant="secondary"
+                onClick={() => {
+                  setDeleting(null);
+                  title.current?.focus();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                autoFocus
+                pending={pending}
+                onClick={() => {
+                  setPending(true);
+                  void characterLibrary
+                    .delete(deleting.id)
+                    .then(() => {
+                      setRecords((current) =>
+                        current!.filter((r) => r.id !== deleting.id),
+                      );
+                      setDeleting(null);
+                      title.current?.focus();
+                    })
+                    .catch((err) => setError(failure(err)))
+                    .finally(() => setPending(false));
+                }}
+              >
+                Confirm deletion
+              </Button>
+            </ActionFooter>
           </div>
         </div>
       )}

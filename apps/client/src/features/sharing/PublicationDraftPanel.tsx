@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./drafts";
 import "./sharing.css";
 import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 type State =
   | { kind: "loading"; text: string }
@@ -130,14 +132,7 @@ export function PublicationDraftPanel({
       <div className="sharing-body">
         <header className="sharing-head">
           <h2 id={`${id}-title`}>Preview publication draft</h2>
-          <button
-            ref={close}
-            type="button"
-            className="duo-button quiet"
-            onClick={onClose}
-          >
-            Close
-          </button>
+          <CloseButton ref={close} onClick={onClose} />
         </header>
         <p className="sharing-note">
           Shared: course content only. Never: your profile, notes, chat,
@@ -193,17 +188,19 @@ export function PublicationDraftPanel({
             }}
           />
         )}
-        <button
-          type="button"
-          className="duo-button secondary"
-          disabled
-          aria-describedby={`${id}-later`}
-        >
-          Public sharing is not available yet
-        </button>
         <p id={`${id}-later`} className="sharing-note">
           This draft stays private. Nothing is public and no link exists.
         </p>
+        <ActionFooter>
+          <button
+            type="button"
+            className="duo-button secondary"
+            disabled
+            aria-describedby={`${id}-later`}
+          >
+            Public sharing is not available yet
+          </button>
+        </ActionFooter>
       </div>
     </dialog>
   );

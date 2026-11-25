@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ActionFooter } from "../design/sheet/ActionFooter";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { session } from "../accounts/session";
 import { marketFailure, marketMessages } from "./market";
 import { ReportSheet } from "./ReportSheet";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const GuidedReview = lazy(() =>
+  import("./GuidedReview").then((m) => ({ default: m.GuidedReview })),
+);
 
 type Review = {
   id: string;
@@ -94,8 +107,12 @@ export function CourseReviews({
       setError(marketMessages[marketFailure(e)]);
     }
   };
-  const run = async (remove = false) => {
-    if (saving.current) return;
+  /** Resolves false when nothing was saved, so a chat can keep its answers. */
+  const run = async (
+    remove = false,
+    values?: { stars: number; text: string },
+  ): Promise<boolean> => {
+    if (saving.current) return false;
     saving.current = true;
     setBusy(true);
     setError("");
@@ -109,8 +126,8 @@ export function CourseReviews({
         setStatus(t("review.deleted"));
       } else {
         const r = await session.request<Review>(`${base}/review`, "PUT", {
-          stars,
-          text,
+          stars: values?.stars ?? stars,
+          text: values?.text ?? text,
         });
         setText(r.text ?? "");
         setStatus(
@@ -120,8 +137,10 @@ export function CourseReviews({
       const next = await load();
       onRatingChange?.(next.rating_count, next.rating_average);
       if (remove) heading.current?.focus();
+      return true;
     } catch (e) {
       setError(marketMessages[marketFailure(e)]);
+      return false;
     } finally {
       saving.current = false;
       setBusy(false);
@@ -129,6 +148,7 @@ export function CourseReviews({
   };
   const chars = Array.from(text).length;
   const maxChars = data?.max_chars ?? 2000;
+  const guided = guidedEnabled("rest");
   return (
     <section
       className="course-reviews"
@@ -175,6 +195,35 @@ export function CourseReviews({
                   needed: data.lessons_needed,
                 })}
               </p>
+            </div>
+          ) : guided ? (
+            <div className="review-editor">
+              <h3>
+                {data.mine
+                  ? t("review.yours_version", { version: data.mine.version })
+                  : t("review.yours")}
+              </h3>
+              <Suspense fallback={null}>
+                <GuidedReview
+                  key={`${data.mine?.id ?? "new"}:${data.mine?.stars}:${data.mine?.text}`}
+                  mine={data.mine}
+                  maxChars={maxChars}
+                  onSave={(n, x) => run(false, { stars: n, text: x })}
+                />
+              </Suspense>
+              {data.mine && (
+                <div className="share-slide-nav">
+                  <button
+                    ref={deleteButton}
+                    type="button"
+                    className="duo-button secondary"
+                    disabled={busy}
+                    onClick={() => setConfirm(true)}
+                  >
+                    {t("review.delete")}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <form
@@ -322,7 +371,7 @@ export function CourseReviews({
           <h2 id="review-delete-title">{t("review.confirm_title")}</h2>
           <p>{t("review.confirm_body")}</p>
           {error && <p role="alert">{error}</p>}
-          <div className="share-slide-nav">
+          <ActionFooter>
             <button
               type="button"
               className="duo-button secondary"
@@ -339,7 +388,7 @@ export function CourseReviews({
             >
               {t("review.confirm")}
             </button>
-          </div>
+          </ActionFooter>
         </dialog>
       )}
     </section>

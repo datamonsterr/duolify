@@ -1,5 +1,12 @@
 import { test, expect } from "./accounts-fixture";
 
+// The old forms stay one release behind the `rest` flag; this spec covers them.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.rest", "off"),
+  );
+});
+
 for (const mobile of [false, true]) {
   test(`generate lesson one, play, answer and pass with no completion bypass ${mobile ? "mobile" : "desktop"}`, async ({
     page,

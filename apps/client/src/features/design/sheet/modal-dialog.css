@@ -1,0 +1,28 @@
+.modal-dialog {
+  inline-size: min(calc(100% - 2rem), 34rem);
+  max-block-size: min(90dvh, 42rem);
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background-color: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 20%);
+  overflow: auto;
+}
+.modal-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.modal-dialog::backdrop {
+  background: rgb(20 28 40 / 48%);
+}
+@media (max-width: 37.4375rem) {
+  .modal-dialog {
+    inset-block-end: 0;
+    margin-block-end: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    border-radius: 1.25rem 1.25rem 0 0;
+  }
+}

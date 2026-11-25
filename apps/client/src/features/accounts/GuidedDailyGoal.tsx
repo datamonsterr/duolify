@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "../design/Button";
@@ -132,24 +133,17 @@ export function GuidedDailyGoal({
           onSubmit={submit}
           focusOnMount
         />
-        {done && (
-          <p role="status">
-            {t("g.goal.done")}{" "}
-            <button type="button" className="gc-link" onClick={onClose}>
-              {t("guided.cancel")}
-            </button>
-          </p>
-        )}
+        {done && <p role="status">{t("g.goal.done")}</p>}
         {failed && (
           <p role="alert" className="field-error">
             {t("g.goal.error")}
           </p>
         )}
-        {!done && (
-          <button type="button" className="gc-link" onClick={onClose}>
+        <ActionFooter>
+          <Button variant="quiet" onClick={onClose}>
             {t("guided.cancel")}
-          </button>
-        )}
+          </Button>
+        </ActionFooter>
       </section>
     </div>,
     document.body,

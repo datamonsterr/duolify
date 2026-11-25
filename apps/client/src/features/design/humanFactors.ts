@@ -79,3 +79,24 @@ export function gapViolations(boxes: Box[], min = 8) {
     }
   return out;
 }
+
+/**
+ * Dialog action convention: the action footer (`[data-action-footer]`) is the last
+ * element of its dialog, and the primary action is its last (right-most) button.
+ */
+export function actionFooterViolations(dialog: ParentNode) {
+  const out: string[] = [];
+  for (const footer of dialog.querySelectorAll("[data-action-footer]")) {
+    if (footer.hasAttribute("hidden")) continue;
+    for (let n = footer.nextElementSibling; n; n = n.nextElementSibling)
+      if (!n.hasAttribute("hidden") && !n.matches("[data-action-footer]"))
+        out.push("content follows the action footer; footers go last");
+    const buttons = [...footer.querySelectorAll("button")];
+    const primary = buttons.findIndex(
+      (b) => !/\b(secondary|quiet)\b/.test(b.className),
+    );
+    if (primary !== -1 && primary !== buttons.length - 1)
+      out.push("primary action is not the last (right-most) button");
+  }
+  return out;
+}

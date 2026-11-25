@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { closeOnEscape } from "../hotkeys/escape";
 import { useEffect, useId, useRef, useState } from "react";
 import { unpublish } from "./retention";
@@ -121,7 +122,7 @@ export function UnpublishDialog({
             )}
           </div>
         )}
-        <div className="mod-buttons">
+        <ActionFooter className="mod-buttons">
           <button
             ref={keep}
             type="button"
@@ -139,7 +140,7 @@ export function UnpublishDialog({
           >
             {busy ? "Unpublishing…" : "Unpublish"}
           </button>
-        </div>
+        </ActionFooter>
       </div>
     </div>
   );

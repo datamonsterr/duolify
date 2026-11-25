@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Button } from "../design/Button";
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { MascotAvatar, useMascotState } from "../../components/mascot";
 import { Feedback } from "../design/chat/Feedback";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -246,8 +247,16 @@ export function GuidedScriptChat({
     const editing = state.editing === step.id;
     const out = answerStep(script, state, step.id, value);
     if (out.error) {
+      const max =
+        step.validate?.type === "string" ? step.validate.max : undefined;
       setError(
-        label(out.error === "required" ? "guided.required" : "guided.invalid"),
+        out.error === "invalid" &&
+          max !== undefined &&
+          typeof value === "string"
+          ? t("guided.too_long", { max })
+          : label(
+              out.error === "required" ? "guided.required" : "guided.invalid",
+            ),
       );
       return;
     }
@@ -544,7 +553,7 @@ export function GuidedScriptChat({
             aria-label={t("guided.not_clear")}
           >
             <p>{t("guided.not_clear")}</p>
-            <div className="gc-actions">
+            <ActionFooter className="gc-actions">
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -572,7 +581,7 @@ export function GuidedScriptChat({
                   {t("guided.skip")}
                 </Button>
               )}
-            </div>
+            </ActionFooter>
           </div>
         )}
         {limited && <p className="field-hint">{t("guided.limit")}</p>}

@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useEffect, useId, useRef } from "react";
 import "./social.css";
 
@@ -47,7 +48,17 @@ export function ConfirmBlock({
           {name} won't be able to find you, send requests or invites. Any friend
           streak ends. {name} isn't notified.
         </p>
-        <div className="social-actions">
+        <ActionFooter className="social-actions">
+          {onRemoveInstead && (
+            <button
+              type="button"
+              className="duo-button quiet"
+              disabled={busy}
+              onClick={onRemoveInstead}
+            >
+              Only remove friend
+            </button>
+          )}
           <button
             ref={cancel}
             type="button"
@@ -64,17 +75,7 @@ export function ConfirmBlock({
           >
             Block
           </button>
-        </div>
-        {onRemoveInstead && (
-          <button
-            type="button"
-            className="duo-button quiet"
-            disabled={busy}
-            onClick={onRemoveInstead}
-          >
-            Only remove friend
-          </button>
-        )}
+        </ActionFooter>
       </div>
     </dialog>
   );

@@ -172,6 +172,7 @@ Source: `openspec/changes/simplify-ux-gestures-hotkeys` (Human-factors rules, Ph
 | Rule | How it is applied and tested |
 | --- | --- |
 | Fitts | Primary action of a phone view is docked at the bottom of the scrolling main area (`.action-dock`, `.courses-create`), in the lower 40% of 390 by 844, at least 44 by 44, above the tab bar. Tab bar is at least 56 px plus the safe-area inset. `reachViolations`, `gapViolations`. |
+| Dialog actions | Every dialog, sheet and guided chat ends in one `ActionFooter` (`features/design/sheet/ActionFooter.tsx`): last element, right-aligned, secondary/cancel first and the primary right-most; below 600 px it is full width with the primary last (at the thumb). Destructive primaries keep the danger style. Chips and text inputs stay in the body. `actionFooterViolations`; `action_footer_convention.test.tsx` fails a dialog component that does not use it. |
 | Hick | At most 1 `data-action-level="primary"` and 2 `secondary` per view. Mark the view's controls with `data-action-level` (Button passes it through). `actionLevelViolations`. |
 | Recognition | One icon set in `features/design/Icon.tsx`. Icon-only controls only from `iconOnlyAllowlist` and with an accessible name; every other icon has a visible label of at most 2 words. `iconOnlyViolations`. |
 | Colour never alone | `Feedback` carries a tone icon (info, warning, error, check) plus a title; greyscale test saves with a failing request. |

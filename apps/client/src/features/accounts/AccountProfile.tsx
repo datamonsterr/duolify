@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LearnerProfile, SetupProfile } from "./LearnerProfile";
@@ -78,10 +79,12 @@ export function AccountProfile() {
               aria-label="Update profile by chat"
             >
               <h2>Update by chat</h2>
-              <Button variant="secondary" onClick={() => setChatOpen(false)}>
-                Close chat
-              </Button>
               <SetupProfile entry="profile" />
+              <ActionFooter>
+                <Button variant="secondary" onClick={() => setChatOpen(false)}>
+                  Close chat
+                </Button>
+              </ActionFooter>
             </section>
           )}
 

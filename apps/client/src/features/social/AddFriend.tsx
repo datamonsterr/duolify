@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { guidedEnabled } from "../guided-chat/flags";
 import { session } from "../accounts/session";
@@ -20,6 +21,7 @@ import {
   type SendResult,
 } from "./friends";
 import "./social.css";
+import { CloseButton } from "../design/sheet/CloseButton";
 
 const GuidedAddFriend = lazy(() =>
   import("./GuidedAddFriend").then((m) => ({ default: m.GuidedAddFriend })),
@@ -298,11 +300,9 @@ export function AddFriend({ onClose }: { onClose: () => void }) {
             </p>
           )}
         </section>
-        <div className="social-actions">
-          <button type="button" className="duo-button quiet" onClick={onClose}>
-            Close
-          </button>
-        </div>
+        <ActionFooter className="social-actions">
+          <CloseButton onClick={onClose} />
+        </ActionFooter>
       </Body>
     </dialog>
   );

@@ -1,8 +1,17 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { ReservationPanel } from "../credits/ReservationPanel";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { exposePricing, trackQuoteShown } from "../../lib/analytics";
 import { quoteAPI, type ActionQuote } from "./quotes";
+import { guidedEnabled } from "../guided-chat/flags";
+import { FooterSlot, FooterSlotProvider } from "../design/sheet/FooterSlot";
+
+const GuidedQuoteConsent = lazy(() =>
+  import("./GuidedQuoteConsent").then((m) => ({
+    default: m.GuidedQuoteConsent,
+  })),
+);
 export function QuotePanel({
   narrationCharacters,
   recoveryQuoteId,
@@ -23,6 +32,7 @@ export function QuotePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     if (!recoveryQuoteId) return;
     let cancelled = false;
@@ -48,6 +58,9 @@ export function QuotePanel({
   }, []);
   const expired =
     !!quote && (quote.expired || Date.parse(quote.expires_at) <= now);
+  const guidedConsent = Boolean(consent) && guidedEnabled("rest");
+  // The accept button lives in the one bottom footer, right-most.
+  const plainAccept = !!quote && !quote.accepted && !expired && !guidedConsent;
   useEffect(() => {
     if (quote && !quote.accepted && !expired)
       trackQuoteShown({
@@ -79,16 +92,19 @@ export function QuotePanel({
     void create();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!consent]);
-  async function accept() {
-    if (!quote || expired) return;
+  /** Resolves false when the terms were not accepted, so a chat can offer a retry. */
+  async function accept(): Promise<boolean> {
+    if (!quote || expired) return false;
     setBusy(true);
     setError(false);
     try {
       await quoteAPI.accept(quote.id);
       setQuote({ ...quote, accepted: true });
       consent?.onAccepted({ ...quote, accepted: true });
+      return true;
     } catch {
       setError(true);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -195,29 +211,47 @@ export function QuotePanel({
             <p role="alert">
               Quote expired. Renew and review before accepting.
             </p>
-          ) : (
-            <Button disabled={busy || error} onClick={() => void accept()}>
-              Accept quote terms
-            </Button>
-          )}
+          ) : guidedConsent ? (
+            <Suspense fallback={null}>
+              <FooterSlotProvider value={slot}>
+                <GuidedQuoteConsent
+                  key={quote.id}
+                  onAccept={accept}
+                  onCancel={() => {
+                    setQuote(undefined);
+                    setError(false);
+                    consent?.onCancel();
+                  }}
+                />
+              </FooterSlotProvider>
+            </Suspense>
+          ) : null}
         </div>
       )}
-      <Button variant="quiet" disabled={busy} onClick={() => void create()}>
-        {quote || error ? "Renew quote" : "Get action quote"}
-      </Button>
-      {(quote || consent) && (
-        <Button
-          variant="quiet"
-          disabled={busy && !consent}
-          onClick={() => {
-            setQuote(undefined);
-            setError(false);
-            consent?.onCancel();
-          }}
-        >
-          Not now
+      <ActionFooter>
+        <Button variant="quiet" disabled={busy} onClick={() => void create()}>
+          {quote || error ? "Renew quote" : "Get action quote"}
         </Button>
-      )}
+        {(quote || consent) && (
+          <Button
+            variant="quiet"
+            disabled={busy && !consent}
+            onClick={() => {
+              setQuote(undefined);
+              setError(false);
+              consent?.onCancel();
+            }}
+          >
+            Not now
+          </Button>
+        )}
+        {plainAccept && (
+          <Button disabled={busy || error} onClick={() => void accept()}>
+            Accept quote terms
+          </Button>
+        )}
+        <FooterSlot onSlot={setSlot} />
+      </ActionFooter>
     </section>
   );
 }

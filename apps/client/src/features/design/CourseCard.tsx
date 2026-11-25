@@ -1,3 +1,5 @@
+import { ModalDialog } from "./sheet/ModalDialog";
+import { ActionFooter } from "./sheet/ActionFooter";
 import { useEscapeLayer } from "../hotkeys/escape";
 import { useUiPreferences } from "./localization/Preferences";
 import { useId, useState } from "react";
@@ -103,19 +105,18 @@ export function CourseCard({
         </div>
       )}
       {showConfirm && onRemove && (
-        <div
-          role="dialog"
-          aria-modal="true"
+        <ModalDialog
+          onClose={() => setShowConfirm(false)}
           aria-labelledby={`${heading}-remove-title`}
           aria-describedby={`${heading}-remove-desc`}
-          className="course-remove-dialog card"
+          className="course-remove-dialog"
         >
           <h3 id={`${heading}-remove-title`}>Remove course</h3>
           <p id={`${heading}-remove-desc`}>
             This course will be hidden immediately and permanently purged after
             30 days.
           </p>
-          <div className="course-remove-dialog-actions">
+          <ActionFooter className="course-remove-dialog-actions">
             <button
               type="button"
               className="btn btn-secondary"
@@ -139,8 +140,8 @@ export function CourseCard({
             >
               {removing ? "Removing…" : "Confirm removal"}
             </button>
-          </div>
-        </div>
+          </ActionFooter>
+        </ModalDialog>
       )}
     </article>
   );

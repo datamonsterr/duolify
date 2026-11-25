@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import {
   lazy,
   Suspense,
@@ -116,7 +117,7 @@ function ConfirmDelete({
       <b id="tutor-delete-title">{t("tutor.delete_title")}</b>
       <p>{t("tutor.delete_body", { title, count })}</p>
       {error && <p role="alert">{t("tutor.delete_error")}</p>}
-      <div className="tutor-row">
+      <ActionFooter className="tutor-row">
         <button
           type="button"
           ref={cancel}
@@ -134,7 +135,7 @@ function ConfirmDelete({
         >
           {t("tutor.delete_confirm")}
         </button>
-      </div>
+      </ActionFooter>
     </dialog>
   );
 }

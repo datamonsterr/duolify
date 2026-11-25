@@ -95,7 +95,7 @@ for (const [width, height, scheme] of [
       await dialog.getByRole("button", { name: "Confirm" }).click();
       await expect(dialog.getByText("Daily goal saved.")).toBeVisible();
       await shot(page, "goal", "done", tag);
-      await dialog.getByRole("status").getByRole("button").click();
+      await dialog.locator("[data-action-footer]").getByRole("button").click();
       await expect(page.getByText("Reminder at 08:30")).toBeVisible();
       await page.reload();
       await expect(page.getByText("Reminder at 08:30")).toBeVisible();

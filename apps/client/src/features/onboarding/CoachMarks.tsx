@@ -1,3 +1,4 @@
+import { ActionFooter } from "../design/sheet/ActionFooter";
 import { matchesShortcut } from "../hotkeys/matcher";
 import {
   useEffect,
@@ -254,7 +255,14 @@ export function CoachMarks({
           <span id="onboarding-target" className="sr-only">
             {targetLabel}
           </span>
-          <div className="onboarding-actions">
+          <ActionFooter className="onboarding-actions">
+            <Button
+              variant="quiet"
+              className="onboarding-skip"
+              onClick={() => move("skip")}
+            >
+              {t("onboarding.skip")}
+            </Button>
             <Button
               variant="quiet"
               disabled={index === 0}
@@ -269,14 +277,7 @@ export function CoachMarks({
                   : "onboarding.next",
               )}
             </Button>
-          </div>
-          <Button
-            variant="quiet"
-            className="onboarding-skip"
-            onClick={() => move("skip")}
-          >
-            {t("onboarding.skip")}
-          </Button>
+          </ActionFooter>
         </div>
       </div>
     </Modal>
