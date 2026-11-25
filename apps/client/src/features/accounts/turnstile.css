@@ -1,0 +1,23 @@
+.share-preview-checking {
+  align-content: start;
+}
+
+.turnstile-check {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin-block: var(--space-3);
+  text-align: start;
+}
+
+.turnstile-check p {
+  margin: 0;
+}
+
+.turnstile-check [role="alert"] {
+  color: var(--danger);
+}
+
+.turnstile-check button {
+  justify-self: start;
+}

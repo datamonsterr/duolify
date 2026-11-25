@@ -28,7 +28,6 @@ import {
 } from "@tanstack/react-router";
 import { DailyCheckIn } from "./features/credits/DailyCheckIn";
 import { MascotSync } from "./features/accounts/MascotSync";
-import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
 import { courseTreeQuery, LearnPath } from "./LearnPath";
 import { AppShell, MorePage } from "./features/shell/AppShell";
@@ -39,7 +38,11 @@ import {
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
 import { AppLink } from "./lib/navigation";
-// Route chunks load on navigation (or link hover); only sign-in and the Learn home are eager.
+// Route chunks load on navigation (or link hover); the Learn home is eager.
+const SignIn = lazyRouteComponent(
+  () => import("./features/accounts/SignIn"),
+  "SignIn",
+);
 const ProgressPage = lazyRouteComponent(
   () => import("./features/gamification/DailyGoal"),
   "ProgressPage",
@@ -486,7 +489,7 @@ const lessonTest = createRoute({
 const signIn = createRoute({
   getParentRoute: () => root,
   path: "/sign-in",
-  component: SignInRoute,
+  component: withPreload(SignInRoute, SignIn),
 });
 const ssoBridge = createRoute({
   getParentRoute: () => root,

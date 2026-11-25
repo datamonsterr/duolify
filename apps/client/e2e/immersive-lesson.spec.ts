@@ -828,6 +828,16 @@ test.describe("enter on rotation", () => {
   }) => {
     await setSettings(page, request, { fullscreen_on_rotate: false });
     await openLesson(page);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse(
+              localStorage.getItem("duolify.player-preferences") ?? "{}",
+            ).fullscreenOnRotate,
+        ),
+      )
+      .toBe(false);
     await page.setViewportSize({ width: 844, height: 390 });
     await page.waitForTimeout(500);
     await expect(page.locator(".player.immersive")).toHaveCount(0);

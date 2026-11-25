@@ -456,6 +456,9 @@ func run() (result error) {
 	})))
 	blockLedger := &fixtureLedger{}
 	sharingService := newSharingService(db.Pool, objects, sharingGeneration).WithAssetStore(objects).WithBlockLedger(backup.ModerationLedger{Objects: blockLedger})
+	if err := registerTurnstileFixtures(mux, db.Pool, sink, rateLimits, sharingService, logger); err != nil {
+		return err
+	}
 	mux.Handle("POST /test/sharing/restore", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		restoreFixture(w, r, db.Pool, sharingService, blockLedger, objects)
 	})))

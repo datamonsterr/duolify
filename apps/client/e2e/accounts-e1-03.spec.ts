@@ -22,6 +22,9 @@ test.beforeEach(async ({ page, request }) => {
     });
   });
 });
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+});
 for (const width of [1280, 390, 320]) {
   for (const colorScheme of ["light", "dark"] as const) {
     test(`confirmed context, clear and skip at ${width}px ${colorScheme}`, async ({

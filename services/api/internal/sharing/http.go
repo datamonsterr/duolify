@@ -169,6 +169,19 @@ type PreviewHandler struct{ s *Service }
 // NewPreviewHandler returns the anonymous preview handler.
 func NewPreviewHandler(s *Service) *PreviewHandler { return &PreviewHandler{s: s} }
 
+// WithTurnstile configures proof checking for public share previews.
+func (s *Service) WithTurnstile(gate *accounts.Turnstile) *Service {
+	c := *s
+	c.turnstile = gate
+	return &c
+}
+
+// VerifyPreviewProof is the Go challenge seam for a preview read. The caller
+// first applies the preview rate limit and uses the same proof only once.
+func (s *Service) VerifyPreviewProof(w http.ResponseWriter, r *http.Request) bool {
+	return s.turnstile.Require(w, r, r.Header.Get(accounts.TurnstileHeader), s.clientIP(r), accounts.TurnstileSharePreview, accounts.LearnerID(r.Context()))
+}
+
 func (h *PreviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -186,6 +199,9 @@ func (h *PreviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.ErrorContext(r.Context(), "public preview limiter failed", "error", err)
 		write(w, http.StatusServiceUnavailable, map[string]string{"error": "sharing_unavailable"})
+		return
+	}
+	if !h.s.VerifyPreviewProof(w, r) {
 		return
 	}
 

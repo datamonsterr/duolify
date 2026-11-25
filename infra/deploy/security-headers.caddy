@@ -14,7 +14,7 @@
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()"
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$LESSON_ASSET_ORIGIN:http://localhost:9000} {$POSTHOG_HOST:https://us.i.posthog.com} {$POSTHOG_ASSETS_HOST:https://us-assets.i.posthog.com}; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$LESSON_ASSET_ORIGIN:http://localhost:9000} {$POSTHOG_HOST:https://us.i.posthog.com} {$POSTHOG_ASSETS_HOST:https://us-assets.i.posthog.com}; frame-src 'self' https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 	}
 }
 

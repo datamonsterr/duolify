@@ -313,6 +313,11 @@ func run(ctx context.Context, args []string) (result error) {
 	auth.ConfigureWebOrigins(accounts.WebOriginsFromEnv(os.Getenv))
 	auth.ConfigureProfile(profileOptions)
 	auth.ConfigureDeletionLedger(deletionLedger)
+	turnstile, err := accounts.TurnstileFromEnv(os.Getenv, events)
+	if err != nil {
+		return err
+	}
+	auth.ConfigureTurnstile(turnstile)
 	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
 		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
 	}
@@ -399,7 +404,7 @@ func run(ctx context.Context, args []string) (result error) {
 	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
 	lessonObjects := player.NewS3(os.Getenv)
 	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithObjects(lessonObjects, os.Getenv("LESSON_ASSET_ORIGIN")).
-		WithAssetStore(lessonObjects).WithBlockLedger(backup.ModerationLedger{Objects: objects})
+		WithAssetStore(lessonObjects).WithBlockLedger(backup.ModerationLedger{Objects: objects}).WithTurnstile(turnstile)
 	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
 	// Marketplace pages are cached in Redis only as derived data; the flag MARKETPLACE_ENABLED stays off by default (E15-07).
 	sharingService = sharingService.WithMarketplaceCache(redis)

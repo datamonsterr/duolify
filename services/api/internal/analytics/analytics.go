@@ -92,6 +92,8 @@ func allowlisted(event string) bool {
 		return true
 	case "lesson_region_selected", "lesson_region_question_sent", "lesson_answer_panel_closed":
 		return true
+	case "turnstile_verification":
+		return true
 	case "action_quote_accepted", "learner_signed_up", "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "retry_variant_pool_exhausted", "lesson_test_recap_shown", "ui_test_retry_presented",
@@ -225,6 +227,16 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "learner_signed_up":
 		if v, ok := input["method"].(string); ok && (v == "email" || v == "clerk") {
 			out["method"] = v
+		}
+	case "turnstile_verification":
+		for key, allowed := range map[string][]string{
+			"surface":     {"email_code", "sign_up", "share_preview"},
+			"outcome":     {"passed", "rejected", "unavailable"},
+			"reason_code": {"none", "missing", "invalid", "expired_or_duplicate", "mismatch", "provider_unavailable"},
+		} {
+			if value, ok := input[key].(string); ok && slices.Contains(allowed, value) {
+				out[key] = value
+			}
 		}
 	case "course_replan_quoted", "course_replan_proposed", "course_replan_confirmed", "course_replan_discarded", "course_replan_failed":
 		ids("course_id", "proposal_id", "pricing_version")

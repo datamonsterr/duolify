@@ -29,12 +29,17 @@ describe("Tauri content security policy", () => {
     }
   });
 
-  it("stays narrow: no wildcard host, no blanket scheme, scripts still self only", () => {
+  it("limits scripts to the app and Turnstile, with narrow connect origins", () => {
     for (const source of connect) {
       expect(source).not.toBe("*");
       expect(source).not.toMatch(/^(https?|wss?):$/);
     }
-    expect(csp).toContain("script-src 'self';");
+    expect(csp).toContain(
+      "script-src 'self' https://challenges.cloudflare.com;",
+    );
+    expect(csp).toContain(
+      "frame-src 'self' about: https://challenges.cloudflare.com;",
+    );
     expect(csp).toContain("object-src 'none'");
   });
 });

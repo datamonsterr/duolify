@@ -51,11 +51,12 @@ export type GuidedScriptChatProps = {
   needsNetwork?: boolean;
   onDone?: () => void;
   /** Runs after a step validates and before it is accepted (e.g. request the sign-in code).
-   * Return an error message to keep the step open with the entry intact. */
+   * Return an error message or false for a failure with its own inline feedback. */
   onStepCommit?: (
     stepId: string,
     answers: Record<string, Value>,
-  ) => Promise<string | null>;
+  ) => Promise<string | false | null>;
+  stepDisabled?: (step: Step) => boolean;
   /** Extra controls under the active widget (e.g. Resend code). */
   stepActions?: (step: Step) => ReactNode;
   /** Focus the first control on mount (a screen whose only job is the chat, e.g. sign-in). */
@@ -78,6 +79,7 @@ export function GuidedScriptChat({
   onDone,
   onCancel,
   onStepCommit,
+  stepDisabled,
   stepActions,
   focusOnMount = false,
 }: GuidedScriptChatProps) {
@@ -236,7 +238,7 @@ export function GuidedScriptChat({
 
   const [committing, setCommitting] = useState(false);
   async function submitValue(value: Value, file?: File) {
-    if (!step || committing) return;
+    if (!step || committing || stepDisabled?.(step)) return;
     const editing = state.editing === step.id;
     const out = answerStep(script, state, step.id, value);
     if (out.error) {
@@ -254,15 +256,15 @@ export function GuidedScriptChat({
       for (const [id, a] of Object.entries(out.state.answers))
         if (!a.skipped) values[id] = a.value;
       setCommitting(true);
-      let failure: string | null;
+      let failure: string | false | null;
       try {
         failure = await onStepCommit(step.id, values);
       } catch {
         failure = label("guided.submit_failed");
       }
       setCommitting(false);
-      if (failure) {
-        setError(failure);
+      if (failure !== null) {
+        setError(failure || null);
         return;
       }
     }
@@ -513,6 +515,7 @@ export function GuidedScriptChat({
               disabled={
                 status === "sending" ||
                 committing ||
+                Boolean(stepDisabled?.(step)) ||
                 Boolean(onStepCommit && needsNetwork && !online)
               }
               onSubmit={submitValue}

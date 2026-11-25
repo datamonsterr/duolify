@@ -1,4 +1,5 @@
 import { session } from "../accounts/session";
+import { turnstileHeader } from "../accounts/turnstile-config";
 import type { PublicationDraft } from "./drafts";
 
 export type LinkState = {
@@ -71,15 +72,30 @@ export const links = {
 };
 
 /** Anonymous read: no credentials, so a stale session can never change the answer. */
-export async function fetchPreview(token: string): Promise<PublicPreview> {
+export async function fetchPreview(
+  token: string,
+  proof?: string,
+  signal?: AbortSignal,
+): Promise<PublicPreview> {
   const response = await fetch(
     `${apiBase}/v1/public/shares/${encodeURIComponent(token)}`,
-    { credentials: "omit", headers: { Accept: "application/json" } },
+    {
+      credentials: "omit",
+      signal,
+      headers: {
+        Accept: "application/json",
+        ...(proof ? { [turnstileHeader]: proof } : {}),
+      },
+    },
   );
-  if (!response.ok)
+  if (!response.ok) {
+    const details: unknown =
+      response.status === 400 ? await response.json().catch(() => null) : null;
     throw Object.assign(new Error("preview unavailable"), {
       status: response.status,
+      details,
     });
+  }
   return (await response.json()) as PublicPreview;
 }
 

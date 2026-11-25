@@ -1,5 +1,5 @@
 // Which built files the service worker caches when. See public/lesson-shell-sw.js.
-//   shell   - index.html plus everything the first screen loads; precached on install.
+//   shell   - index.html, its dependencies and the sign-in route; precached on install.
 //   offline - route chunks an opened or downloaded lesson needs; cached when a lesson is opened
 //             or a course is downloaded, so playback survives going offline.
 // Everything else (other routes, posthog, Clerk) is cached on first use.
@@ -27,6 +27,7 @@ export const OFFLINE_ROUTE_MODULES = [
   "/components/mascot/MascotArt",
 ];
 const APP_ENTRY = /\/index\.html$/;
+const SIGN_IN_ROUTE = /\/features\/accounts\/SignIn\.tsx$/;
 
 function closure(bundle: BundleLike, roots: Chunk[]): Set<string> {
   const files = new Set<string>();
@@ -56,7 +57,13 @@ export function buildOfflineManifest(bundle: BundleLike): {
   );
   if (entries.length === 0)
     throw new Error("offline manifest: app entry not found");
-  const shell = closure(bundle, entries);
+  const signIn = chunks.filter(
+    (c) =>
+      c.isDynamicEntry &&
+      c.facadeModuleId &&
+      SIGN_IN_ROUTE.test(c.facadeModuleId),
+  );
+  const shell = closure(bundle, [...entries, ...signIn]);
   // Fonts and images the stylesheets reference are tiny and needed to paint the shell.
   for (const item of Object.values(bundle))
     if (

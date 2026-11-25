@@ -79,7 +79,7 @@ test("the policy is active: an injected inline script is blocked", async ({
   const seen = watch(page);
   const response = await page.goto("/sign-in");
   expect(response!.headers()["content-security-policy"]).toContain(
-    "script-src 'self';",
+    "script-src 'self' https://challenges.cloudflare.com;",
   );
   const ran = await page.evaluate(() => {
     const script = document.createElement("script");
