@@ -212,8 +212,14 @@ func (s *Service) linkBody(token string) map[string]string {
 	}
 }
 
-// clientIP honours X-Forwarded-For only for the configured number of trusted proxy hops.
+// clientIP accepts the authenticated Worker's client address or the existing
+// X-Forwarded-For policy for the configured number of trusted proxy hops.
 func (s *Service) clientIP(r *http.Request) string {
+	if s.trustedEdge(r) {
+		if ip := net.ParseIP(r.Header.Get(edgeClientIPHeader)); ip != nil {
+			return ip.String()
+		}
+	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr

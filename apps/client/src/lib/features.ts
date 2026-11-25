@@ -101,3 +101,58 @@ export function useMarketplaceEnabled(): boolean {
   }, []);
   return enabled;
 }
+
+let chatEdgeFlag: Promise<boolean> | null = null;
+
+export function isChatEdgeEnabled(): boolean {
+  if (
+    typeof window !== "undefined" &&
+    (window as unknown as { __CHAT_EDGE_ENABLED__?: boolean })
+      .__CHAT_EDGE_ENABLED__ !== undefined
+  ) {
+    return Boolean(
+      (window as unknown as { __CHAT_EDGE_ENABLED__?: boolean })
+        .__CHAT_EDGE_ENABLED__,
+    );
+  }
+  const envVal = import.meta.env.VITE_CHAT_EDGE_ENABLED;
+  if (envVal === "true") return true;
+  // Default is false (off)
+  return false;
+}
+
+export function fetchChatEdgeEnabled(): Promise<boolean> {
+  chatEdgeFlag ??= (async () => {
+    try {
+      const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+      const res = await fetch(`${base}/v1/features`);
+      if (!res.ok) return false;
+      const data = (await res.json()) as { chat_edge_enabled?: unknown };
+      const enabled = data.chat_edge_enabled === true;
+      if (typeof window !== "undefined") {
+        (
+          window as unknown as { __CHAT_EDGE_ENABLED__?: boolean }
+        ).__CHAT_EDGE_ENABLED__ = enabled;
+      }
+      return enabled;
+    } catch {
+      chatEdgeFlag = null;
+      return false;
+    }
+  })();
+  return chatEdgeFlag;
+}
+
+export function useChatEdgeEnabled(): boolean {
+  const [enabled, setEnabled] = useState(isChatEdgeEnabled());
+  useEffect(() => {
+    let active = true;
+    fetchChatEdgeEnabled().then((value) => {
+      if (active) setEnabled(value);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return enabled;
+}

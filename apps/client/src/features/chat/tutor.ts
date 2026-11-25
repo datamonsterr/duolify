@@ -2,6 +2,7 @@ import { AuthError, session } from "../accounts/session";
 import { secureStore } from "../accounts/secure-store";
 import type { WalletResponse } from "../credits/types";
 import type { ActionQuote } from "../pricing/quotes";
+import { withChatTransport } from "./load-chat-transport";
 
 /** A reference only: the API looks the lesson up itself and never trusts client-supplied lesson text. */
 export type LessonRef = { lesson_id: string; slide_index: number };
@@ -240,7 +241,7 @@ async function call<T>(
   }
 }
 
-export const tutorService: TutorService = {
+export const legacyTutorService: TutorService = {
   wallet: () => call("/v1/me/credits"),
   thread: (id) => call(`${course(id)}/thread`),
   quote: (id, cls, message, approveLargeContext, lesson, region) =>
@@ -330,4 +331,20 @@ export const tutorService: TutorService = {
     if (!done) throw new TutorStreamError("stream_closed", true);
     return done;
   },
+};
+
+function withTutorTransport<T>(request: (service: TutorService) => Promise<T>) {
+  return withChatTransport(
+    ({ edgeTutorService }) => request(edgeTutorService),
+    () => request(legacyTutorService),
+  );
+}
+
+export const tutorService: TutorService = {
+  ...legacyTutorService,
+  thread: (...args) => withTutorTransport((service) => service.thread(...args)),
+  quote: (...args) => withTutorTransport((service) => service.quote(...args)),
+  send: (...args) => withTutorTransport((service) => service.send(...args)),
+  stop: (...args) => withTutorTransport((service) => service.stop(...args)),
+  turn: (...args) => withTutorTransport((service) => service.turn(...args)),
 };

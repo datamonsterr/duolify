@@ -41,6 +41,20 @@ describe("security headers (infra/deploy/security-headers.caddy)", () => {
     expect(csp).not.toMatch(/duolify\.online/);
   });
 
+  it("includes EDGE_CHAT_ORIGIN in connect-src when provided", () => {
+    const csp = headersFor("web", {
+      ...env,
+      EDGE_CHAT_ORIGIN:
+        "https://chat-edge.example.test wss://chat-edge.example.test",
+    })["Content-Security-Policy"]!;
+    expect(directives(csp)["connect-src"]).toContain(
+      "https://chat-edge.example.test",
+    );
+    expect(directives(csp)["connect-src"]).toContain(
+      "wss://chat-edge.example.test",
+    );
+  });
+
   it("web policy: strict, no eval, no inline script, no framing", () => {
     const web = headersFor("web", env);
     const csp = directives(web["Content-Security-Policy"]!);

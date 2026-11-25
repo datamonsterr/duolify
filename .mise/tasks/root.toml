@@ -1,6 +1,6 @@
 # Root tasks. Each area owns one file in .mise/tasks/:
 #   api.toml (services/api), engine.toml (engine/), client.toml (apps/client),
-#   proto.toml (proto/), infra.toml (docker compose, Railway), ci.toml (workflow lint).
+#   edge.toml (edge/), proto.toml (proto/), infra.toml (docker compose, Railway), ci.toml (workflow lint).
 # Contract: every code area exposes <area>:lint, <area>:test, <area>:build.
 # CI calls mise tasks only, so local runs and CI runs match.
 
@@ -10,12 +10,12 @@ run = ["mise install", "lefthook install"]
 
 [lint]
 description = "Lint every area"
-depends = ["api:lint", "engine:lint", "client:lint", "proto:lint"]
+depends = ["api:lint", "engine:lint", "client:lint", "proto:lint", "edge:lint"]
 
 [test]
 description = "Unit and integration tests for every area"
-depends = ["api:test", "engine:test", "client:test"]
+depends = ["api:test", "engine:test", "client:test", "edge:test"]
 
 [build]
 description = "Build every area"
-depends = ["api:build", "engine:build", "client:build"]
+depends = ["api:build", "engine:build", "client:build", "edge:build"]

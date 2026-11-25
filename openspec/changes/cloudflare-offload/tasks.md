@@ -81,13 +81,13 @@ Add recorded `lesson_narration` cases to `evals/fixtures/golden.sample.jsonl` an
 ### Spec
 
 - [Course sharing delta](specs/course-sharing/spec.md), [Marketplace delta](specs/marketplace/spec.md), and [shared demo delta](specs/course-creation/spec.md).
-- [ ] Create `edge/`, `edge/wrangler.jsonc`, `.mise/tasks/edge.toml`, and the path-filtered edge CI job in `.github/workflows/_checks.yml` and its callers. Use the Workers Vitest integration now published as `@cloudflare/vitest-plugin` (formerly `@cloudflare/vitest-pool-workers`). Set workflow concurrency with cancellation and a timeout for every added job. Keep the repository's platform and CI trigger policy.
-- [ ] Serve the four anonymous public surfaces with the Hyperdrive/read-only Tunnel plan and Go-read-cache fallback. Gate Marketplace before reading cache, carry the Go contract through cache TTL and moderation, and exclude viewer-specific data. Provide the share authorization boundary CF-04 can use. Until Go verification is wired, keep share preview on the Go path for the release gate. Keep source-of-truth reads for token revocation and rotation.
+- [x] Create `edge/`, `edge/wrangler.jsonc`, `.mise/tasks/edge.toml`, and the path-filtered edge CI job in `.github/workflows/_checks.yml` and its callers. Use the Workers Vitest integration now published as `@cloudflare/vitest-plugin` (formerly `@cloudflare/vitest-pool-workers`). Set workflow concurrency with cancellation and a timeout for every added job. Keep the repository's platform and CI trigger policy.
+- [x] Serve Marketplace through locally verified Hyperdrive with a selectable Go-cache fallback. Keep fresh cache hits at the edge. Document the hosted Hyperdrive/Tunnel release gate and read-only role. Gate Marketplace before reading cache, carry the Go contract through cache TTL and moderation, and exclude viewer-specific data. Provide the share authorization boundary CF-04 can use. Until Go verification is wired, keep share preview on the Go path for the release gate. Keep source-of-truth reads for token revocation and rotation.
 
 ### Tests (TDD order)
 
-1. **E2E** `edge/test/e2e/public-reads.e2e.test.ts` — call local Worker and Go origin over HTTP using seeded published and private Courses; cover all four surfaces, flag-off with warm cache, blocked signed-in viewer, revoked link and moderation expiry in both data modes.
-2. **Integration** `edge/test/integration/public-read-conformance.test.ts` — run Workers Vitest against migrated disposable Postgres and the exact role with both origin handlers and Worker. Compare payload/status, filters, pagination, visibility, authorization, cache age and read-only permissions. Force conformance or connection failure and select the Go read-cache mode.
+1. **E2E** `edge/test/e2e/` — call local Worker and Go origin over HTTP using seeded published and private Courses; cover all four surfaces, flag-off with warm cache, blocked signed-in viewer, revoked link and moderation expiry in both data modes.
+2. **Integration** `edge/test/integration/` — run Workers Vitest against migrated disposable Postgres and the exact role with both origin handlers and Worker. Compare payload/status, filters, pagination, visibility, authorization, cache age and read-only permissions. Force conformance or connection failure and select the Go read-cache mode.
 3. **Unit** `edge/test/unit/public-read-policy.test.ts` — check normalized cache keys, TTL and age, disabled flag bypass, immutable demo version, no-store, and no cache for cookies, authenticated, revoked or non-success responses.
 
 ### Acceptance
@@ -151,7 +151,7 @@ No AI. Use an injected Siteverify client and official public dummy fixtures. Tra
 ### Spec
 
 - [Tutor chat delta](specs/tutor-chat/spec.md), [Guided chat delta](specs/guided-chat/spec.md), and [W4 design](design.md#w4-chat-sessions-at-the-edge).
-- [ ] Add per-Learner-session SQLite-backed Durable Objects using the `agents` package, hibernating WebSocket, and SSE fallback. Gate upgrades and SSE before deriving object identity, use scoped service-to-service auth to Go, and delegate quote/reserve/settle/release and chat persistence to the existing Go API/ledger. Keep `CHAT_EDGE_ENABLED=false` by default and preserve the existing Engine route. Keep scripts, offline behavior and consent for optional paid Guided chat detours.
+- [x] Add per-Learner-session SQLite-backed Durable Objects using the `agents` package, hibernating WebSocket, and SSE fallback. Gate upgrades and SSE before deriving object identity, use scoped service-to-service auth to Go, and delegate quote/reserve/settle/release and chat persistence to the existing Go API/ledger. Keep `CHAT_EDGE_ENABLED=false` by default and preserve the existing Engine route. Keep scripts, offline behavior and consent for optional paid Guided chat detours.
 
 ### Tests (TDD order)
 
@@ -185,7 +185,7 @@ Reuse bounded Engine paths and Golden set thresholds. Add synthetic Tutor/Guided
 ### Spec
 
 - [Tutor chat streaming](specs/tutor-chat/spec.md#requirement-streaming-replies), [Tutor chat recovery](specs/tutor-chat/spec.md#requirement-edge-chat-authority-and-recovery), and [Guided chat edge transport](specs/guided-chat/spec.md).
-- [ ] Add WebSocket transport behind the server flag, Edge SSE when upgrade/connection fails, and the existing Go/Engine fallback. Preserve one turn identity, consent, stop, draft recovery, offline behavior and accessible announcements. Include desktop and mobile screenshots of the connected and fallback UI in the PR body and request owner UI approval before merge.
+- [x] Add WebSocket transport behind the server flag, Edge SSE when upgrade/connection fails, and the existing Go/Engine fallback. Preserve one turn identity, consent, stop, draft recovery, offline behavior and accessible announcements. Include desktop and mobile screenshots of the connected and fallback UI in the PR body and request owner UI approval before merge.
 
 ### Tests (TDD order)
 

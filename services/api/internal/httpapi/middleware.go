@@ -45,6 +45,11 @@ func configuredOrigin(origin string) bool {
 	return false
 }
 
+func allowedOrigin(origin string) bool {
+	return origin != "" && (origin == "tauri://localhost" || origin == "http://tauri.localhost" || origin == "https://tauri.localhost" ||
+		(os.Getenv("DUOLIFY_ENV") == "development" && (origin == "http://localhost:1420" || origin == "http://127.0.0.1:1420")) || configuredOrigin(origin))
+}
+
 // setSecurityHeaders marks every API response as non-embeddable, non-sniffable data. The API serves only
 // JSON and event streams, so the CSP forbids everything. HSTS has no preload: that is a one-way commitment
 // for the whole domain. CORP same-site stops cross-site no-cors embeds; CORS fetches are not affected.
@@ -89,8 +94,7 @@ func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.M
 		origin := r.Header.Get("Origin")
 		rw.Header().Add("Vary", "Origin")
 		if origin != "" {
-			allowed := origin == "tauri://localhost" || origin == "http://tauri.localhost" || origin == "https://tauri.localhost" || (os.Getenv("DUOLIFY_ENV") == "development" && (origin == "http://localhost:1420" || origin == "http://127.0.0.1:1420")) || configuredOrigin(origin)
-			if allowed {
+			if allowedOrigin(origin) {
 				rw.Header().Set("Access-Control-Allow-Origin", origin)
 				rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Quote-ID, X-App-Version, X-Platform, If-None-Match")

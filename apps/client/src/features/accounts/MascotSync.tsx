@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { profileApi } from "./learner-context";
+import { readLearnerSettings } from "./learner-settings";
 import { session } from "./session";
 
 /** Loads the Learner's guide preference once per sign-in so every placement shows it (applies via readSettings). */
@@ -9,7 +9,7 @@ export function MascotSync() {
   const signedIn = Boolean(owner && !session.expired());
   useEffect(() => {
     if (signedIn && navigator.onLine)
-      void profileApi.readSettings().catch(() => {});
+      void readLearnerSettings().catch(() => {});
   }, [owner, signedIn]);
   return null;
 }

@@ -1,0 +1,36 @@
+["edge:lint"]
+description = "Check Worker source and configuration formatting"
+dir = "{{config_root}}/edge"
+run = "pnpm exec prettier --check ."
+
+["edge:test"]
+description = "Test both Workers in workerd"
+depends = ["edge:test-chat"]
+dir = "{{config_root}}/services/api"
+run = "go test -count=1 -tags integration,edge_conformance -run '^TestEdgePublicRead$' -v ./internal/sharing"
+
+["edge:test-chat"]
+description = "Test chat transports in workerd against an outbound Go API fixture"
+dir = "{{config_root}}/edge"
+run = "pnpm exec vitest run --config vitest.chat.config.ts"
+
+["edge:build"]
+description = "Type-check and bundle the Worker locally"
+dir = "{{config_root}}/edge"
+run = [
+  "pnpm exec tsc --noEmit",
+  "pnpm exec esbuild workers/public-read/index.ts --bundle --platform=node --format=esm --external:pg-native --target=es2022 --outdir=dist/public-read",
+  "pnpm exec esbuild workers/chat/index.ts --bundle --platform=node --format=esm --external:cloudflare:* --target=es2022 --outdir=dist/chat",
+]
+
+["edge:dev"]
+description = "Run the public read Worker on loopback using local workerd"
+dir = "{{config_root}}/edge"
+env = { WRANGLER_SEND_METRICS = "false" }
+run = "pnpm exec wrangler dev --local --ip 127.0.0.1 --port 4190"
+
+["edge:dev-chat"]
+description = "Run the chat Worker on loopback using local workerd"
+dir = "{{config_root}}/edge"
+env = { WRANGLER_SEND_METRICS = "false" }
+run = "pnpm exec wrangler dev --config workers/chat/wrangler.jsonc --local --ip 127.0.0.1 --port 4192"

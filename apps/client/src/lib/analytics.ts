@@ -1356,3 +1356,54 @@ export function trackGuidedChatEvent(value: GuidedChatAnalytics) {
     // UI works even when analytics is unavailable.
   }
 }
+
+// CF-05 and CF-06: chat transport fallback transitions
+export type ChatTransportType = "websocket" | "sse" | "engine";
+export type ChatFallbackReasonCode =
+  "upgrade_failed" | "connection_lost" | "edge_unavailable" | "disabled";
+
+export interface ChatTransportFallbackEvent {
+  surface: "tutor" | "guided";
+  from_transport: "websocket" | "sse";
+  to_transport: "sse" | "engine";
+  reason_code: ChatFallbackReasonCode;
+}
+
+const chatFallbackReasons: ChatFallbackReasonCode[] = [
+  "upgrade_failed",
+  "connection_lost",
+  "edge_unavailable",
+  "disabled",
+];
+
+export function trackChatTransportFallback(
+  e: ChatTransportFallbackEvent,
+): void {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  if (
+    (e.from_transport !== "websocket" || e.to_transport !== "sse") &&
+    ((e.from_transport !== "websocket" && e.from_transport !== "sse") ||
+      e.to_transport !== "engine")
+  ) {
+    return;
+  }
+  if (!chatFallbackReasons.includes(e.reason_code)) return;
+  if (e.surface !== "tutor" && e.surface !== "guided") return;
+
+  try {
+    if (!posthog.has_opted_out_capturing()) {
+      posthog.capture("chat_transport_fallback", {
+        distinct_id: identity.learnerId,
+        platform: identity.platform,
+        app_version: identity.appVersion ?? appVersion,
+        source: "client",
+        surface: e.surface,
+        from_transport: e.from_transport,
+        to_transport: e.to_transport,
+        reason_code: e.reason_code,
+      });
+    }
+  } catch {
+    // Analytics failure should never break UI
+  }
+}
