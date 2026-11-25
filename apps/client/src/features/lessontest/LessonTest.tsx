@@ -14,6 +14,8 @@ import { useLessonTestTracerEnabled } from "../../lib/features";
 import { CharacterReaction } from "../characters/CharacterReaction";
 import type { LessonCastSnapshot } from "../characters/types";
 import { AppLink, navigateTo } from "../../lib/navigation";
+import { TutorChat } from "../chat/TutorChat";
+import { TeachBack } from "./TeachBack";
 import {
   Mascot,
   emitMascotCue,
@@ -408,6 +410,9 @@ export function LessonTest({
       lesson_test_select: (event) => {
         const index = Number(event.key) - 1;
         if (
+          finished ||
+          (event.target instanceof Element &&
+            event.target.closest("[data-assessment-tutor]")) ||
           showRecap ||
           feedback ||
           pendingOffline ||
@@ -417,7 +422,13 @@ export function LessonTest({
           return false;
         handleSelectChoice(index);
       },
-      lesson_test_submit: () => {
+      lesson_test_submit: (event) => {
+        if (
+          finished ||
+          (event.target instanceof Element &&
+            event.target.closest("[data-assessment-tutor]"))
+        )
+          return false;
         if (showRecap) setShowRecap(false);
         if (showRecap || feedback || pendingOffline) {
           handleContinue();
@@ -599,6 +610,9 @@ export function LessonTest({
           Lesson complete!
         </h2>
         <CompletionXP lessonId={effectiveLessonId} review={passed} />
+        {courseId && (
+          <TeachBack courseId={courseId} lessonId={effectiveLessonId} />
+        )}
 
         {nextStatus === "insufficient_credits" && (
           <>
@@ -1097,6 +1111,19 @@ export function LessonTest({
               );
             })}
           </fieldset>
+          {courseId && !feedback && !pendingOffline && (
+            <div data-assessment-tutor>
+              <TutorChat
+                key={currentQuestion.question_id}
+                courseId={courseId}
+                lesson={{
+                  lesson_id: effectiveLessonId,
+                  slide_index: 0,
+                  question_id: currentQuestion.question_id,
+                }}
+              />
+            </div>
+          )}
         </main>
       )}
 
@@ -1524,7 +1551,7 @@ export function LessonTestRoute() {
 
   return (
     <LessonTest
-      key={questions.map((q) => q.question_id).join(",") || lessonId}
+      key={`${lessonId}:${questions.map((q) => q.question_id).join(",")}`}
       lessonId={lessonId}
       courseId={effectiveCourseId}
       questions={questions}

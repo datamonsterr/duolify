@@ -24,6 +24,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	backend "github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -34,16 +35,42 @@ import (
 
 type lessonEngine struct {
 	enginev1.UnimplementedEngineServiceServer
-	mu       sync.Mutex
-	requests []*enginev1.ChatRequest
+	mu                sync.Mutex
+	requests          []*enginev1.ChatRequest
+	teachBackRequests []*enginev1.TeachBackRequest
 }
 
 func (e *lessonEngine) Chat(r *enginev1.ChatRequest, stream enginev1.EngineService_ChatServer) error {
 	e.mu.Lock()
 	e.requests = append(e.requests, r)
 	e.mu.Unlock()
+	if len(r.GetGuardedQuestions()) > 0 {
+		if err := stream.Send(&enginev1.ChatEvent{Event: &enginev1.ChatEvent_AnswerGuardHit{AnswerGuardHit: true}}); err != nil {
+			return err
+		}
+	}
 	return stream.Send(&enginev1.ChatEvent{Event: &enginev1.ChatEvent_Delta{Delta: "Look at the second slide."}})
 }
+
+func (e *lessonEngine) TeachBack(_ context.Context, r *enginev1.TeachBackRequest) (*enginev1.TeachBackResponse, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.teachBackRequests = append(e.teachBackRequests, r)
+	if r.GetFollowUps() < 2 {
+		return &enginev1.TeachBackResponse{FollowUp: "Why does that happen?"}, nil
+	}
+	return &enginev1.TeachBackResponse{Complete: true, CoveredPointIds: []string{r.GetPoints()[0].GetId()}}, nil
+}
+
+type teachBackSlides []player.ObjectSlide
+
+func (s teachBackSlides) SlideAt(_ context.Context, _, _ string, index int) (player.ObjectSlide, error) {
+	if index >= len(s) {
+		return player.ObjectSlide{}, player.ErrSlideNotFound
+	}
+	return s[index], nil
+}
+
 func (e *lessonEngine) calls() int { e.mu.Lock(); defer e.mu.Unlock(); return len(e.requests) }
 func (e *lessonEngine) last() *enginev1.ChatRequest {
 	e.mu.Lock()
@@ -97,7 +124,11 @@ func TestAskTheTutorFromAPausedLessonSheetIntegration(t *testing.T) {
 	}
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
 	courseService := courses.New(courses.Options{Pool: db.Pool, Environment: "test", Financial: financial, Events: events})
-	tutor := chat.New(chat.Options{Pool: db.Pool, Engine: engine, Financial: financial, Profiles: courseService, Events: events})
+	slides := teachBackSlides{
+		{Regions: []player.Region{{ID: "rotation", Role: "explanation", Description: "Earth rotates on its axis."}}},
+		{Regions: []player.Region{{ID: "day", Role: "explanation", Description: "The side facing the Sun experiences daylight."}}},
+	}
+	tutor := chat.New(chat.Options{Pool: db.Pool, Engine: engine, Financial: financial, Profiles: courseService, Events: events, Slides: slides})
 	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, Tutor: tutor}, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()
 
@@ -315,6 +346,101 @@ func TestAskTheTutorFromAPausedLessonSheetIntegration(t *testing.T) {
 		r := fixture.last()
 		if strings.Contains(r.CurrentLesson.String(), "Ignore") || r.Messages[len(r.Messages)-1].Content != msg {
 			t.Fatalf("%v", r)
+		}
+	})
+	t.Run("assessment context reads the unanswered retry and base choices privately", func(t *testing.T) {
+		lessonID := lessonsA[0]
+		const retryID = "47303dbd-84a4-4863-a042-7c4d3a6d65c1"
+		const baseID = "4228bf51-21a7-4cba-adf0-87ac65aaccfb"
+		const baseAlias = "3be9d18a-b935-433b-89c3-075815b25c06"
+		const resolvedID = "6727c72f-6f70-49d7-9fa6-8c1cfcaa5f00"
+		exec(`INSERT INTO lesson_questions(id,lesson_stub_id,learner_id,topic_id,position,prompt,choices,answer_index,explanation)
+			VALUES ($1,$3,$4,'rotation',0,'What moves?','["planet","Axial Rotation"]',1,'A lesson fact'),
+			       ($2,$3,$4,'resolved',1,'Already answered?','["Previously Correct","other"]',0,'A lesson fact')`, baseID, resolvedID, lessonID, owner)
+		queue, err := json.Marshal([]map[string]any{
+			{"question_id": baseAlias, "source_id": baseID, "original_id": baseID},
+			{"question_id": retryID, "source_id": retryID, "original_id": baseID, "is_variant": true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var sessionID string
+		if err = db.Pool.QueryRow(ctx, `INSERT INTO lesson_test_sessions(lesson_stub_id,learner_id,question_queue,resolved_topics)
+			VALUES ($1,$2,$3,jsonb_build_array($4::text)) RETURNING id`, lessonID, owner, queue, resolvedID).Scan(&sessionID); err != nil {
+			t.Fatal(err)
+		}
+		exec(`INSERT INTO lesson_test_variant_snapshots(session_id,learner_id,lesson_stub_id,topic_id,question_id,variant_of,source,prompt,choices,answer_index,explanation)
+			VALUES ($1,$2,$3,'rotation',$4,$5,'pool','Which motion?','["Planetary Spin","orbit"]',0,'A lesson fact')`, sessionID, owner, lessonID, retryID, baseID)
+		ref := lessonRef(lessonID, 0)
+		ref["question_id"] = retryID
+		const msg = "What is the answer to this question?"
+		for i := range 3 {
+			code, q := quoteFor(tokenA, courseA, msg, ref)
+			if code != 200 || strings.Contains(fmt.Sprint(q), "Planetary Spin") {
+				t.Fatal(code, q)
+			}
+			code, raw := send(tokenA, courseA, q["id"].(string), fmt.Sprintf("hint-%d", i), msg, ref)
+			if code != 200 || !strings.Contains(raw, "Look at the second slide.") || strings.Contains(raw, "Planetary Spin") || strings.Contains(raw, "answer_guard_hit") {
+				t.Fatal(code, raw)
+			}
+			req := fixture.last()
+			got := req.GetGuardedQuestions()
+			if len(got) != 2 || got[0].GetQuestionId() != retryID || got[0].GetCorrectChoice() != "Planetary Spin" || got[1].GetQuestionId() != baseAlias || got[1].GetCorrectChoice() != "Axial Rotation" || int(req.GetSocraticTurn()) != i {
+				t.Fatalf("unexpected trusted context on turn %d: %v", i, req)
+			}
+		}
+		hits := events.named("tutor_answer_guard_hit")
+		if len(hits) != 3 || hits[0]["lesson_id"] != lessonID || strings.Contains(fmt.Sprint(hits), "Planetary Spin") {
+			t.Fatalf("unexpected analytics %v", hits)
+		}
+	})
+	t.Run("teach back persists one free session and links a missed point", func(t *testing.T) {
+		lessonID := lessonsA[1]
+		path := "/v1/courses/" + courseA + "/lessons/" + lessonID + "/teach-back"
+		exec(`UPDATE course_lesson_stubs SET status='current' WHERE id=$1`, lessonID)
+		if code, raw := call("POST", path, map[string]any{"turn": 0, "explanation": "Tell me the lesson answers."}, tokenA); code != 404 {
+			t.Fatal("teach back is unavailable before the lesson ends", code, raw)
+		}
+		exec(`UPDATE course_lesson_stubs SET status='done' WHERE id=$1`, lessonID)
+		for i := range 2 {
+			exec(`INSERT INTO lesson_slides(lesson_stub_id,learner_id,position,slide_id,html,duration_ms,narration,topic_ids)
+				VALUES ($1,$2,$3,$4,'<html></html>',1000,'Fixture narration',ARRAY[$4])`, lessonID, owner, i, fmt.Sprintf("topic-%d", i))
+		}
+		if code, raw := call("GET", path, nil, tokenA); code != 200 || asMap(raw)["turn"] != float64(0) {
+			t.Fatal(code, raw)
+		}
+		if code, _ := call("GET", path, nil, tokenB); code != 404 {
+			t.Fatalf("foreign lesson status %d", code)
+		}
+		jobs := count(`SELECT count(*) FROM credit_jobs WHERE learner_id=$1`, owner)
+		for turn := range 3 {
+			code, raw := call("POST", path, map[string]any{"turn": turn, "explanation": "Private explanation"}, tokenA)
+			if code != 200 || asMap(raw)["turn"] != float64(turn+1) {
+				t.Fatal(code, raw)
+			}
+			if turn < 2 && asMap(raw)["followUp"] != "Why does that happen?" {
+				t.Fatal(raw)
+			}
+		}
+		code, raw := call("GET", path, nil, tokenA)
+		if code != 200 || !strings.Contains(raw, `"missed":[{"text":"The side facing the Sun experiences daylight.","slideIndex":1}]`) || strings.Contains(raw, "Private explanation") {
+			t.Fatal(code, raw)
+		}
+		if code, replay := call("POST", path, map[string]any{"turn": 0, "explanation": "Start again"}, tokenA); code != 200 || replay != raw {
+			t.Fatal(code, replay)
+		}
+		fixture.mu.Lock()
+		requests := append([]*enginev1.TeachBackRequest(nil), fixture.teachBackRequests...)
+		fixture.mu.Unlock()
+		if len(requests) != 3 || len(requests[2].GetMessages()) != 5 {
+			t.Fatalf("unexpected Teach it back requests %v", requests)
+		}
+		if count(`SELECT count(*) FROM credit_jobs WHERE learner_id=$1`, owner) != jobs {
+			t.Fatal("Teach it back reserved Credits")
+		}
+		completed := events.named("teach_back_completed")
+		if len(completed) != 1 || completed[0]["lesson_id"] != lessonID || completed[0]["coverage"] != 0.5 || strings.Contains(fmt.Sprint(completed), "Private explanation") {
+			t.Fatalf("unexpected completion analytics %v", completed)
 		}
 	})
 }

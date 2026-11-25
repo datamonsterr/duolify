@@ -5,7 +5,11 @@ import type { WalletResponse } from "../credits/types";
 import type { ActionQuote } from "../pricing/quotes";
 
 /** A reference only: the API looks the lesson up itself and never trusts client-supplied lesson text. */
-export type LessonRef = { lesson_id: string; slide_index: number };
+export type LessonRef = {
+  lesson_id: string;
+  slide_index: number;
+  question_id?: string;
+};
 /** The part of a Slide a question is about: a rectangle (0..1 of the 16:9 stage) and the playback time. */
 export type RegionAsk = {
   rect: { x: number; y: number; w: number; h: number };

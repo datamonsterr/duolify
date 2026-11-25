@@ -162,10 +162,12 @@ struct Document<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     selected_region: &'a Option<RegionQuestion>,
     source_excerpts: &'a [Excerpt],
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    assessment_questions: &'a [guard::Question],
     messages: Vec<Message>,
 }
 
-fn document(ctx: &Context) -> Document<'_> {
+fn document<'a>(ctx: &'a Context, questions: &'a [guard::Question]) -> Document<'a> {
     let messages = ctx
         .messages
         .iter()
@@ -188,23 +190,17 @@ fn document(ctx: &Context) -> Document<'_> {
         current_lesson: &ctx.current_lesson,
         selected_region: &ctx.region,
         source_excerpts: &ctx.excerpts,
+        assessment_questions: questions,
         messages,
     }
 }
 
 pub fn data_document(ctx: &Context) -> serde_json::Value {
-    serde_json::to_value(document(ctx)).unwrap_or_default()
+    serde_json::to_value(document(ctx, &[])).unwrap_or_default()
 }
 
 pub fn prompt(ctx: &Context) -> String {
-    let data = neutralise(serde_json::to_string(&document(ctx)).unwrap_or_default());
-    let persona = ctx
-        .persona
-        .as_ref()
-        .and_then(|p| serde_json::to_string(p).ok())
-        .map(|j| format!("\n{PERSONA_OPEN}\n{}\n{PERSONA_CLOSE}", neutralise(j)))
-        .unwrap_or_default();
-    format!("{INSTRUCTIONS}\n{OPEN}\n{data}\n{CLOSE}{persona}\n{TRAILER}")
+    format!("{INSTRUCTIONS}\n{}", user_message(ctx, &[]))
 }
 
 /// Always-on instructions of the routed tutor prompt (ADR 0025): `INSTRUCTIONS` without the
@@ -242,14 +238,16 @@ pub fn skill_ids(ctx: &Context) -> Vec<String> {
     ids.into_iter().map(String::from).collect()
 }
 
-fn user_message(ctx: &Context) -> String {
-    let data = neutralise(serde_json::to_string(&document(ctx)).unwrap_or_default());
-    let persona = ctx
-        .persona
-        .as_ref()
+fn persona_block(persona: Option<&crate::characters::TutorPersona>) -> String {
+    persona
         .and_then(|p| serde_json::to_string(p).ok())
         .map(|j| format!("\n{PERSONA_OPEN}\n{}\n{PERSONA_CLOSE}", neutralise(j)))
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+fn user_message(ctx: &Context, questions: &[guard::Question]) -> String {
+    let data = neutralise(serde_json::to_string(&document(ctx, questions)).unwrap_or_default());
+    let persona = persona_block(ctx.persona.as_ref());
     format!("{OPEN}\n{data}\n{CLOSE}{persona}\n{TRAILER}")
 }
 
@@ -265,17 +263,27 @@ pub struct Plan {
 
 /// `plan` against an explicit library (tests, evals).
 pub fn plan_in(lib: &crate::skills::Library, ctx: &Context) -> Plan {
+    plan_with_policy(lib, ctx, &[], "")
+}
+
+fn plan_with_policy(
+    lib: &crate::skills::Library,
+    ctx: &Context,
+    questions: &[guard::Question],
+    policy: &str,
+) -> Plan {
+    let user = user_message(ctx, questions);
+    let monolithic = || Plan {
+        system: None,
+        user: format!("{INSTRUCTIONS}{policy}\n{user}"),
+        mode: "monolithic",
+        skills: 0,
+    };
     if lib.mode("tutor_chat") != crate::skills::PromptMode::Routed {
-        return Plan {
-            system: None,
-            user: prompt(ctx),
-            mode: "monolithic",
-            skills: 0,
-        };
+        return monolithic();
     }
     let ids = skill_ids(ctx);
-    let user = user_message(ctx);
-    match lib.assemble("tutor_chat", CORE, &ids, &user) {
+    match lib.assemble("tutor_chat", &format!("{CORE}{policy}"), &ids, &user) {
         Ok(p) => Plan {
             skills: lib.task("tutor_chat").map_or(0, |t| {
                 ids.iter().filter(|i| t.skills.contains_key(*i)).count() as u32
@@ -286,12 +294,7 @@ pub fn plan_in(lib: &crate::skills::Library, ctx: &Context) -> Plan {
         },
         // A bad bundled library stops the process at boot; a broken test library keeps the
         // learner's answer on the legacy prompt rather than failing the turn.
-        Err(_) => Plan {
-            system: None,
-            user: prompt(ctx),
-            mode: "monolithic",
-            skills: 0,
-        },
+        Err(_) => monolithic(),
     }
 }
 
@@ -313,7 +316,9 @@ pub fn split(prompt: &str) -> Option<(&str, &str, &str)> {
     ))
 }
 
+pub mod guard;
 pub mod stream;
+pub mod teach_back;
 
 #[cfg(test)]
 mod tests;

@@ -132,13 +132,18 @@ export function useTutor(
 ) {
   // The slide may change while the sheet is closed, never while the quote is being built.
   const lessonId = lesson?.lesson_id,
-    slideIndex = lesson?.slide_index;
+    slideIndex = lesson?.slide_index,
+    questionId = lesson?.question_id;
   const ref = useMemo<LessonRef | undefined>(
     () =>
       lessonId === undefined || slideIndex === undefined
         ? undefined
-        : { lesson_id: lessonId, slide_index: slideIndex },
-    [lessonId, slideIndex],
+        : {
+            lesson_id: lessonId,
+            slide_index: slideIndex,
+            ...(questionId ? { question_id: questionId } : {}),
+          },
+    [lessonId, slideIndex, questionId],
   );
   // A region is part of the quote: keep one stable object per rectangle.
   const regionKey = region

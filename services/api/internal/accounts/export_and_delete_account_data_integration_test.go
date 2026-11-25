@@ -94,6 +94,21 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = db.Pool.Exec(ctx, `WITH course AS (
+		INSERT INTO courses(learner_id,title) VALUES($1::uuid,'Tutor export') RETURNING id
+	), unit AS (
+		INSERT INTO course_units(learner_id,course_id,authored_id,position,title)
+		SELECT $1::uuid,id,'u',0,'Unit' FROM course RETURNING id
+	), lesson AS (
+		INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status)
+		SELECT $1::uuid,id,'l',0,'Lesson','Goal','locked' FROM unit RETURNING id
+	)
+	INSERT INTO lesson_teach_backs(learner_id,lesson_stub_id,turn,messages,response,processing_token,processing_until)
+	SELECT $1::uuid,id,1,'[{"role":"user","content":"Exported explanation"}]',
+		'{"turn":1,"followUp":"What changes?"}',gen_random_uuid(),now() + interval '30 seconds' FROM lesson`, learnerID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Every table with a direct learner reference must have an export/deletion classification.
 	_, err = db.Pool.Exec(ctx, `INSERT INTO credit_checkout_orders(request_id,learner_id,owner_reference,pricing_version,sku,amount_minor,currency,credits,billing_period,platform,return_to)
@@ -200,6 +215,11 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 	if err = json.Unmarshal(exportedTables["course_replan_proposals"], &replans); err != nil || len(replans) != 1 || replans[0]["state"] != "proposed" {
 		t.Fatalf("missing replan proposal export: %s %v", exportedTables["course_replan_proposals"], err)
 	}
+	var teachBacks []map[string]any
+	if err = json.Unmarshal(exportedTables["lesson_teach_backs"], &teachBacks); err != nil || len(teachBacks) != 1 ||
+		!strings.Contains(string(exportedTables["lesson_teach_backs"]), "Exported explanation") {
+		t.Fatalf("missing teach-back export: %s %v", exportedTables["lesson_teach_backs"], err)
+	}
 	for _, forbidden := range []string{"refresh_token", "code_hash", "state_hash", "nonce_hash", "token_hash", "private-subject"} {
 		if strings.Contains(export.Body.String(), forbidden) {
 			t.Fatalf("export exposed %q", forbidden)
@@ -262,6 +282,13 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 	var grantCount int
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_admin_grants WHERE account_id=$1::uuid", learnerID).Scan(&grantCount); err != nil || grantCount != 0 {
 		t.Fatalf("pricing_admin_grants not removed: count=%d err=%v", grantCount, err)
+	}
+	if strings.Contains(string(exportedTables["lesson_teach_backs"]), "processing_token") {
+		t.Fatal("teach-back export included the processing token")
+	}
+	var teachBackCount int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM lesson_teach_backs WHERE learner_id=$1::uuid", learnerID).Scan(&teachBackCount); err != nil || teachBackCount != 0 {
+		t.Fatalf("teach-back sessions remaining=%d err=%v", teachBackCount, err)
 	}
 	var tombstone int
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM account_deletion_tombstones WHERE learner_reference=$1", owner).Scan(&tombstone); err != nil || tombstone != 1 {

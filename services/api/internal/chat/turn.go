@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/datamonsterr/duolify/services/api/internal/sse"
 	"io"
 	"math"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/sse"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -69,6 +69,47 @@ func settlementUsage(q pricing.Quote, promptSize int, delivered string, reported
 		u.Estimated = true
 	}
 	return []*enginev1.Usage{u}
+}
+
+// tutorUsage keeps rejected provider attempts in operational spend and bills only a delivered
+// model reply. The numbered content frames distinguish guarded usage from older stream frames.
+func tutorUsage(q pricing.Quote, promptSize int, delivered string, reported *enginev1.Usage, rejected []*enginev1.Usage) []*enginev1.Usage {
+	usage := make([]*enginev1.Usage, 0, len(rejected)+1)
+	for _, attempt := range rejected {
+		if attempt.GetComponent() != "content" || attempt.GetAttempt() == 0 || int64(attempt.GetAttempt()) > q.Bounds["max_attempts"] {
+			continue
+		}
+		u := settlementUsage(q, promptSize, "", attempt)[0]
+		u.Attempt, u.Delivered, u.ErrorCode = attempt.GetAttempt(), false, attempt.GetErrorCode()
+		usage = append(usage, u)
+	}
+	if reported.GetComponent() == "content" && reported.GetAttempt() > 0 {
+		u := settlementUsage(q, promptSize, delivered, reported)[0]
+		u.Attempt, u.Delivered, u.ErrorCode = reported.GetAttempt(), reported.GetDelivered() && delivered != "", reported.GetErrorCode()
+		return append(usage, u)
+	}
+	if delivered == "" {
+		return usage
+	}
+	u := settlementUsage(q, promptSize, delivered, reported)[0]
+	if len(usage) > 0 {
+		u.Attempt = usage[len(usage)-1].Attempt + 1
+		if int64(u.Attempt) > q.Bounds["max_attempts"] {
+			return usage
+		}
+	}
+	return append(usage, u)
+}
+
+func boundedTutorUsage(q pricing.Quote, usage []*enginev1.Usage) []*enginev1.Usage {
+	bounded := make([]*enginev1.Usage, 0, len(usage))
+	for i, u := range usage {
+		bounded = append(bounded, &enginev1.Usage{
+			Provider: q.Rate.Provider, Model: q.Rate.Model, Component: "content", Attempt: u32(int64(i + 1)),
+			Delivered: u.Delivered, UsageUnavailable: true, ErrorCode: u.ErrorCode,
+		})
+	}
+	return bounded
 }
 
 // u32 clamps a quote bound into the protobuf token range.
@@ -251,6 +292,13 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	if ground != nil {
 		req.RegionQuestion = ground.Question
 	}
+	assessment, err := s.assessment(ctx, owner, course, in.Lesson)
+	if err != nil {
+		s.opts.Logger.Error("tutor assessment context failed", "error", err)
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	req.GuardedQuestions = assessment.questions
 	pin, err := s.pinPersona(ctx, owner, course, turn, in)
 	if err != nil {
 		if errors.Is(err, characters.ErrNotFound) {
@@ -323,6 +371,12 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		return
 	}
 	claimed = true
+	if req.SocraticTurn, err = s.claimHintStage(ctx, owner, turn, assessment); err != nil {
+		abort()
+		s.opts.Logger.Error("tutor hint stage claim failed", "error", err)
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
 	s.emitPersona(ctx, owner, pin)
 	if ground != nil {
 		props := ground.emitted()
@@ -359,6 +413,8 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	var reply strings.Builder
 	appendLateSafeResponse := func(*engine.BlockedError) {}
 	var reported *enginev1.Usage
+	var rejected []*enginev1.Usage
+	guardHit := false
 	var streamErr, typedErr error
 	streaming := false
 	if err != nil {
@@ -449,6 +505,15 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 				writeEvent(w, "delta", map[string]any{"text": e.Delta})
 			case *enginev1.ChatEvent_Usage:
 				reported = e.Usage
+			case *enginev1.ChatEvent_Attempt:
+				if len(req.GetGuardedQuestions()) > 0 && int64(len(rejected)) < q.Bounds["max_attempts"] {
+					rejected = append(rejected, e.Attempt)
+				}
+			case *enginev1.ChatEvent_AnswerGuardHit:
+				if e.AnswerGuardHit && assessment.lessonID != "" && !guardHit {
+					guardHit = true
+					s.emit(context.WithoutCancel(ctx), owner, "tutor_answer_guard_hit", map[string]any{"lesson_id": assessment.lessonID})
+				}
 			case *enginev1.ChatEvent_ErrorCode:
 				typedErr = &streamFailure{Code: e.ErrorCode, Retryable: true}
 			case *enginev1.ChatEvent_StreamError:
@@ -471,6 +536,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	}
 	latency := time.Since(started).Milliseconds()
 	finished := classifyEnd(streamErr, context.Cause(streamCtx), ctx.Err())
+	usage := tutorUsage(q, promptBytes(req), reply.String(), reported, rejected)
 	failure := func(code string, interrupted, retryable bool) {
 		props := map[string]any{"course_id": course, "class": in.Class, "error_code": code, "interrupted": interrupted, "retryable": retryable, "latency_ms": latency}
 		s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_failed", props)
@@ -485,7 +551,16 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	}
 	if reply.Len() == 0 {
 		// Nothing delivered: no message, full release.
-		abort()
+		if len(usage) == 0 {
+			abort()
+		} else {
+			finish, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			if _, err := s.opts.Financial.Settle(finish, owner, job.ID, usage); err != nil {
+				s.opts.Logger.Error("tutor attempt settlement failed", "error", err)
+				abort()
+			}
+			cancel()
+		}
 		if finished.State == "completed" {
 			finished = end{State: "interrupted", Reason: "engine_error", Retryable: true}
 		}
@@ -516,9 +591,9 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	// A reply cut off by a stop, a disconnect or an error is stored once as the delivered prefix.
 	interrupted := finished.State != "completed"
 	text := reply.String()
-	usage := settlementUsage(q, promptBytes(req), text, reported)
+	lastUsage := usage[len(usage)-1]
 	if interrupted {
-		usage[0].ErrorCode = finished.Reason
+		lastUsage.ErrorCode = finished.Reason
 	}
 	assistantID, userID := uuid.NewString(), uuid.NewString()
 	msgStatus := map[string]string{"completed": "complete", "stopped": "stopped", "interrupted": "interrupted"}[finished.State]
@@ -535,7 +610,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		if _, e := tx.Exec(fctx, `INSERT INTO tutor_messages(id,thread_id,learner_id,role,content,status,`+anchorColumns+`) VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5,`+anchorValues6+`)`, append([]any{assistantID, thread, owner, text, msgStatus}, ground.anchorArgs()...)...); e != nil {
 			return e
 		}
-		tag, e := tx.Exec(fctx, `UPDATE tutor_turns SET state=$2,thread_id=$3::uuid,user_message_id=$4::uuid,assistant_message_id=$5::uuid,end_reason=NULLIF($6,''),job_id=$7::uuid,usage_estimated=$8 WHERE id=$1::uuid AND state='pending'`, turn, finished.State, thread, userID, assistantID, finished.Reason, job.ID, usage[0].Estimated)
+		tag, e := tx.Exec(fctx, `UPDATE tutor_turns SET state=$2,thread_id=$3::uuid,user_message_id=$4::uuid,assistant_message_id=$5::uuid,end_reason=NULLIF($6,''),job_id=$7::uuid,usage_estimated=$8 WHERE id=$1::uuid AND state='pending'`, turn, finished.State, thread, userID, assistantID, finished.Reason, job.ID, lastUsage.Estimated)
 		if e != nil {
 			return e
 		}
@@ -549,8 +624,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	_, err = s.opts.Financial.SettleWith(finish, owner, job.ID, usage, commit)
 	if errors.Is(err, credits.ErrUsage) {
 		// The Engine's report fell outside the quote: the reply was delivered, so settle at the quote ceiling.
-		usage[0].UsageUnavailable = true
-		_, err = s.opts.Financial.SettleWith(finish, owner, job.ID, usage, commit)
+		_, err = s.opts.Financial.SettleWith(finish, owner, job.ID, boundedTutorUsage(q, usage), commit)
 	}
 	if err != nil {
 		s.opts.Logger.Error("tutor settlement failed", "error", err)
@@ -577,8 +651,8 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		writeEvent(w, "error", map[string]any{"code": code, "interrupted": true, "stopped": finished.State == "stopped", "retryable": finished.Retryable, "message_id": assistantID, "thread_id": thread})
 		return
 	}
-	s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_completed", map[string]any{"course_id": course, "class": in.Class, "model": model, "latency_ms": latency, "input_tokens": usage[0].InputTokens, "output_tokens": usage[0].OutputTokens,
-		"envelope": in.Class, "cache_class": cacheClass(usage[0]), "cache_read_tokens": usage[0].CacheReadTokens, "cache_write_tokens": usage[0].CacheWriteTokens,
+	s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_completed", map[string]any{"course_id": course, "class": in.Class, "model": model, "latency_ms": latency, "input_tokens": lastUsage.InputTokens, "output_tokens": lastUsage.OutputTokens,
+		"envelope": in.Class, "cache_class": cacheClass(lastUsage), "cache_read_tokens": lastUsage.CacheReadTokens, "cache_write_tokens": lastUsage.CacheWriteTokens,
 		"summary_count": summaries, "excerpt_count": len(req.Excerpts), "context_tokens": estimateTokens(promptBytes(req))})
 	writeEvent(w, "done", map[string]any{"message_id": assistantID, "thread_id": thread, "replayed": false})
 }

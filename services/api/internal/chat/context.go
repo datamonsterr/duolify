@@ -11,7 +11,14 @@ import (
 // larger than its protobuf encoding, so the proto size is inflated before budgeting.
 const instructionBytes = 1500
 
-func promptBytes(req *enginev1.ChatRequest) int { return proto.Size(req)*3/2 + instructionBytes }
+func promptBytes(req *enginev1.ChatRequest) int {
+	size := proto.Size(req)*3/2 + instructionBytes
+	if len(req.GetGuardedQuestions()) != 0 {
+		// Allow for the fixed ladder instructions as well as the private assessment data.
+		size += 512
+	}
+	return size
+}
 
 // verdict says whether the mandatory prompt parts fit a bound.
 type verdict int

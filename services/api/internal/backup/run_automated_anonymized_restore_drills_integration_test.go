@@ -4,6 +4,7 @@ package backup_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,14 @@ func TestAnonymizerRemovesSeededPIIAndRegistryClassifiesEveryTextColumn(t *testi
 		return p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE display_name LIKE 'Synthetic Learner%'").Scan(&before)
 	}
 	options.Inspect = func(ctx context.Context, p *pgxpool.Pool) error {
+		var privateTeachBack int
+		if err := p.QueryRow(ctx, `SELECT count(*) FROM lesson_teach_backs
+WHERE messages <> '[]'::jsonb OR response ? 'followUp'`).Scan(&privateTeachBack); err != nil {
+			return err
+		}
+		if privateTeachBack != 0 {
+			return errors.New("anonymized restore retained private teach-back content")
+		}
 		if err := p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE birth_date IS NOT NULL").Scan(&birthDatesAfter); err != nil {
 			return err
 		}

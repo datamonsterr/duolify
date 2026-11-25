@@ -200,8 +200,16 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../chat/mod.rs"),
     ),
     (
+        "engine-core/src/chat/guard.rs",
+        include_str!("../chat/guard.rs"),
+    ),
+    (
         "engine-core/src/chat/stream.rs",
         include_str!("../chat/stream.rs"),
+    ),
+    (
+        "engine-core/src/chat/teach_back.rs",
+        include_str!("../chat/teach_back.rs"),
     ),
     (
         "engine-core/src/courses/mod.rs",

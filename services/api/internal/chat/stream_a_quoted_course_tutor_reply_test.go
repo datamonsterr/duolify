@@ -58,6 +58,23 @@ func TestSettlementUsageNormalisesCompleteAndInterruptedReplies(t *testing.T) {
 	}
 }
 
+func TestGuardedUsageKeepsProviderSpendWithoutChargingForTemplate(t *testing.T) {
+	q := testQuote()
+	first := &enginev1.Usage{Component: "content", Attempt: 1, Provider: q.Rate.Provider, Model: q.Rate.Model, InputTokens: 450, OutputTokens: 26}
+	final := &enginev1.Usage{Component: "content", Attempt: 2, Provider: q.Rate.Provider, Model: q.Rate.Model, InputTokens: 460, OutputTokens: 23}
+	usage := tutorUsage(q, 4000, "Try comparing the forces.", final, []*enginev1.Usage{first})
+	res, err := credits.CalculateSettlement(q, usage)
+	if err != nil || len(usage) != 2 || res.ContentSpent != 0 || res.CostNanos != 1_155_000 {
+		t.Fatalf("fixed hint settlement %+v, %v, usage %v", res, err, usage)
+	}
+	final.Delivered = true
+	usage = tutorUsage(q, 4000, "Try comparing the forces.", final, []*enginev1.Usage{first})
+	res, err = credits.CalculateSettlement(q, usage)
+	if err != nil || res.ContentSpent != 5 || res.CostNanos != 1_155_000 {
+		t.Fatalf("regeneration settlement %+v, %v, usage %v", res, err, usage)
+	}
+}
+
 func TestSSEFramingEscapesNewlinesInData(t *testing.T) {
 	rec := httptest.NewRecorder()
 	writeEvent(rec, "delta", map[string]any{"text": "line1\nline2"})

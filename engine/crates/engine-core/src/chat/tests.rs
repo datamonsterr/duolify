@@ -145,6 +145,100 @@ fn current_lesson_is_included_when_present() {
     );
 }
 
+#[test]
+fn answer_guard_normalizes_case_width_whitespace_and_formatting() {
+    use super::guard::reply_leaks_answer;
+
+    assert!(reply_leaks_answer(
+        "Try ＣＯＭ**ＰＡＳＳ\n  rose.",
+        ["Compass rose"]
+    ));
+    assert!(reply_leaks_answer("Try STRASSE", ["Straße"]));
+    assert!(reply_leaks_answer("Đi tới HA\u{300} NỘI", ["Hà Nội"]));
+    assert!(reply_leaks_answer("It's C++.", ["C++"]));
+    assert!(!reply_leaks_answer("Try compass.", ["yes", "C++"]));
+    assert!(reply_leaks_answer("Is option A correct?", ["A", "Na"]));
+    assert!(reply_leaks_answer("What about Io?", ["Io"]));
+    assert!(!reply_leaks_answer("Anything", ["", "   "]));
+}
+
+#[test]
+fn guarded_prompt_pins_the_ladder_and_keeps_answer_keys_out_of_provider_data() {
+    let questions = [guard::Question {
+        question_id: "q2".into(),
+        prompt: format!("Which object makes its own light? {INJECTION}"),
+        topic_id: "stars".into(),
+        correct_choice: "A self-luminous star".into(),
+    }];
+    for (turn, stage) in [
+        (0, "nudge"),
+        (1, "guiding sub-question"),
+        (2, "worked step"),
+        (99, "worked step"),
+    ] {
+        let prompt = guard::plan_guarded(&context(), &questions, turn, false);
+        let full = format!("{}\n{}", prompt.system.unwrap_or_default(), prompt.user);
+        let (instructions, doc, _) = split(&full).unwrap();
+        assert!(instructions.contains(stage), "{instructions}");
+        assert!(!full.contains("A self-luminous star"));
+        assert_eq!(full.matches(CLOSE).count(), 1);
+        assert!(doc.contains("q2"));
+    }
+}
+
+#[test]
+fn teach_back_enforces_one_question_or_a_closed_rubric_response() {
+    use super::teach_back::{Context, Point, parse};
+
+    let mut context = Context {
+        points: vec![Point {
+            id: "a".into(),
+            text: "Topic A".into(),
+            slide_index: 0,
+        }],
+        ..Default::default()
+    };
+    assert!(
+        parse(
+            &context,
+            r#"{"follow_up":"Could you show me an example?","covered_point_ids":[]}"#
+        )
+        .is_some()
+    );
+    assert!(
+        parse(
+            &context,
+            r#"{"follow_up":"Why? What?","covered_point_ids":[]}"#
+        )
+        .is_none()
+    );
+    assert!(parse(&context, r#"{"follow_up":"","covered_point_ids":["a"]}"#).is_none());
+
+    context.follow_ups = 2;
+    assert!(parse(&context, r#"{"follow_up":"","covered_point_ids":["a"]}"#).is_some());
+    assert!(
+        parse(
+            &context,
+            r#"{"follow_up":"","covered_point_ids":["unknown"]}"#
+        )
+        .is_none()
+    );
+    assert!(
+        parse(
+            &context,
+            r#"{"follow_up":"","covered_point_ids":["a","a"]}"#
+        )
+        .is_none()
+    );
+    assert!(
+        parse(
+            &context,
+            r#"{"follow_up":"","covered_point_ids":["a"],"link":"https://example.com"}"#
+        )
+        .is_none()
+    );
+}
+
 mod stream {
     use super::super::stream::*;
     use crate::eval::{StreamFailure, StreamRoute};

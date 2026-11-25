@@ -1,6 +1,6 @@
 use engine_core::{Completion, ProviderRouter};
 use engine_proto::{self as pb, engine_service_server::EngineService};
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use std::{pin::Pin, sync::Arc};
 use tonic::{Request, Response, Status};
 use tracing::Instrument;
@@ -303,6 +303,21 @@ fn tutor_context(req: &pb::ChatRequest) -> engine_core::chat::Context {
                 content: m.content.clone(),
             })
             .collect(),
+    }
+}
+
+fn tutor_limits(bounds: &pb::UsageLimits) -> engine_core::credits::Limits {
+    engine_core::credits::Limits {
+        input_tokens: bounds.input_tokens,
+        output_tokens: bounds.output_tokens,
+        timeout_ms: bounds.timeout_ms,
+        max_attempts: bounds.max_attempts,
+        max_cost_nanos: bounds.max_cost_nanos,
+        input_nanos: bounds.input_nanos,
+        output_nanos: bounds.output_nanos,
+        cache_write_nanos: bounds.cache_write_nanos,
+        cache_read_nanos: bounds.cache_read_nanos,
+        deadline_unix_ms: bounds.deadline_unix_ms,
     }
 }
 fn content(c: &Completion) -> Result<serde_json::Value, Status> {
@@ -1704,6 +1719,8 @@ impl EngineService for Service {
         &self,
         request: Request<pb::ChatRequest>,
     ) -> Result<Response<Self::ChatStream>, Status> {
+        use engine_core::chat::{self, guard, stream::Part};
+
         let req = request.into_inner();
         self.live_model("Chat", "tutor_chat")?;
         let first_to = req
@@ -1720,18 +1737,7 @@ impl EngineService for Service {
             .filter(|&ms| ms > 0)
             .map(|ms| std::time::Duration::from_millis(u64::from(ms)))
             .unwrap_or(std::time::Duration::from_secs(5));
-        let limits = req.limits.as_ref().map(|b| engine_core::credits::Limits {
-            input_tokens: b.input_tokens,
-            output_tokens: b.output_tokens,
-            timeout_ms: b.timeout_ms,
-            max_attempts: b.max_attempts,
-            max_cost_nanos: b.max_cost_nanos,
-            input_nanos: b.input_nanos,
-            output_nanos: b.output_nanos,
-            cache_write_nanos: b.cache_write_nanos,
-            cache_read_nanos: b.cache_read_nanos,
-            deadline_unix_ms: b.deadline_unix_ms,
-        });
+        let limits = req.limits.as_ref().map(tutor_limits);
         if let Some(b) = &req.limits
             && let Some(model) = self.router.models.tasks.get("chat")
             && ((!b.provider.is_empty() && b.provider != self.router.primary.name())
@@ -1744,32 +1750,61 @@ impl EngineService for Service {
                 "quote route differs from evaluated route",
             ));
         }
-        let plan = engine_core::chat::plan(&tutor_context(&req));
-        let input = plan.user.clone();
-        let sent_len = input.len() + plan.system.as_ref().map_or(0, String::len);
         let span = tracing::Span::current();
-        let (stream, route) = engine_core::eval::stream_bounded_system(
-            &self.router,
-            "chat",
-            plan.system.clone(),
-            &input,
-            limits.as_ref(),
-            first_to,
-            idle_to,
-        )
-        .await
-        .map_err(internal)?;
-        let bounds = limits.as_ref().map(|l| engine_core::chat::stream::Bounds {
-            input_tokens: l.input_tokens,
-            output_tokens: l.output_tokens,
-        });
-        let parts = engine_core::chat::stream::reconcile(stream, route, sent_len, bounds);
+        let ctx = tutor_context(&req);
+        let parts: RpcStream<Part> = if req.guarded_questions.is_empty() {
+            let plan = chat::plan(&ctx);
+            let sent_len = plan.user.len() + plan.system.as_ref().map_or(0, String::len);
+            let (stream, route) = engine_core::eval::stream_bounded_system(
+                &self.router,
+                "chat",
+                plan.system,
+                &plan.user,
+                limits.as_ref(),
+                first_to,
+                idle_to,
+            )
+            .await
+            .map_err(internal)?;
+            let bounds = limits.as_ref().map(|l| chat::stream::Bounds {
+                input_tokens: l.input_tokens,
+                output_tokens: l.output_tokens,
+            });
+            Box::pin(chat::stream::reconcile(stream, route, sent_len, bounds).map(Ok))
+        } else {
+            let limits = limits.ok_or_else(|| Status::invalid_argument("missing chat quote"))?;
+            let questions: Vec<_> = req
+                .guarded_questions
+                .into_iter()
+                .map(|q| guard::Question {
+                    question_id: q.question_id,
+                    correct_choice: q.correct_choice,
+                    prompt: q.prompt,
+                    topic_id: q.topic_id,
+                })
+                .collect();
+            let router = self.router.clone();
+            let turn = req.socratic_turn;
+            let timeouts = guard::Timeouts {
+                first_token: first_to,
+                idle: idle_to,
+            };
+            Box::pin(
+                futures::stream::once(async move {
+                    guard::run(&router, &ctx, &questions, turn, &limits, timeouts)
+                        .await
+                        .map_err(internal)
+                })
+                .map_ok(|frames| futures::stream::iter(frames.into_iter().map(Ok)))
+                .try_flatten(),
+            )
+        };
         // Enter the request span while polling the provider as well as mapping
         // its output; a map closure alone runs after provider work has finished.
         let map_span = span.clone();
         let finished = CancelLog::new(span.clone());
         let stream = futures::stream::unfold(
-            (Box::pin(parts), span, finished),
+            (parts, span, finished),
             |(mut parts, span, mut finished)| async move {
                 let next = parts.next().instrument(span.clone()).await;
                 if next.is_none() {
@@ -1779,10 +1814,9 @@ impl EngineService for Service {
             },
         )
         .map(move |part| {
-            use engine_core::chat::stream::Part;
             map_span.in_scope(|| {
                 Ok(pb::ChatEvent {
-                    event: Some(match part {
+                    event: Some(match part? {
                         Part::Delta(delta) => pb::chat_event::Event::Delta(delta),
                         Part::Usage {
                             completion,
@@ -1790,6 +1824,20 @@ impl EngineService for Service {
                         } => pb::chat_event::Event::Usage(
                             usage_estimated(&completion, estimated).expect("usage"),
                         ),
+                        Part::GuardedUsage {
+                            attempt,
+                            estimated,
+                            terminal,
+                        } => {
+                            let mut usage = attempt_usage(&attempt);
+                            usage.estimated = estimated;
+                            if terminal {
+                                pb::chat_event::Event::Usage(usage)
+                            } else {
+                                pb::chat_event::Event::Attempt(usage)
+                            }
+                        }
+                        Part::AnswerGuardHit => pb::chat_event::Event::AnswerGuardHit(true),
                         Part::Error(failure) => {
                             pb::chat_event::Event::StreamError(pb::ChatStreamError {
                                 code: failure.code.into(),
@@ -1801,6 +1849,59 @@ impl EngineService for Service {
             })
         });
         Ok(Response::new(Box::pin(stream)))
+    }
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
+    async fn teach_back(
+        &self,
+        request: Request<pb::TeachBackRequest>,
+    ) -> Result<Response<pb::TeachBackResponse>, Status> {
+        use engine_core::chat::{Message, teach_back};
+
+        let req = request.into_inner();
+        let limits = req
+            .limits
+            .as_ref()
+            .map(tutor_limits)
+            .ok_or_else(|| Status::invalid_argument("missing platform limits"))?;
+        let ctx = teach_back::Context {
+            lesson_title: req.lesson_title,
+            points: req
+                .points
+                .into_iter()
+                .map(|point| teach_back::Point {
+                    id: point.id,
+                    text: point.text,
+                    slide_index: point.slide_index,
+                })
+                .collect(),
+            messages: req
+                .messages
+                .into_iter()
+                .map(|message| Message {
+                    role: message.role,
+                    content: message.content,
+                })
+                .collect(),
+            locale: req
+                .learner
+                .map_or_else(String::new, |learner| learner.locale),
+            persona: engine_core::characters::tutor_persona(&req.tutor_persona_json),
+            follow_ups: req.follow_ups,
+        };
+        let outcome = if self.live_model("TeachBack", "tutor_chat").is_ok() {
+            teach_back::run(&self.router, &ctx, &limits)
+                .await
+                .unwrap_or_else(|_| teach_back::fallback())
+        } else {
+            teach_back::fallback()
+        };
+        Ok(Response::new(pb::TeachBackResponse {
+            follow_up: outcome.answer.follow_up,
+            covered_point_ids: outcome.answer.covered_point_ids,
+            self_check: outcome.self_check,
+            attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+            complete: outcome.complete,
+        }))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn enrich_note(

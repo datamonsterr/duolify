@@ -99,7 +99,7 @@ func allowlisted(event string) bool {
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
 		"duolify_integration_check",
-		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
+		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "tutor_answer_guard_hit", "teach_back_completed", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
@@ -718,6 +718,13 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "tutor_reply_stopped":
 		ids("course_id", "class", "reason")
 		numeric("latency_ms", "delivered_chars")
+	case "tutor_answer_guard_hit":
+		ids("lesson_id")
+	case "teach_back_completed":
+		ids("lesson_id")
+		if coverage, ok := input["coverage"].(float64); ok && coverage >= 0 && coverage <= 1 {
+			out["coverage"] = coverage
+		}
 	case "analytics_opt_out_changed":
 		boolean("enabled")
 	case "learner_profile_updated":

@@ -125,6 +125,8 @@ var piiRules = []piiRule{
 	{"quick_notes", "slide_title", redacted},
 	{"slide_narrations", "narration_text", redacted},
 	{"tutor_messages", "content", redacted},
+	{"lesson_teach_backs", "messages", emptyArr},
+	{"lesson_teach_backs", "response", `jsonb_build_object('turn',turn)`},
 }
 
 // purgedTables hold credentials, one-time secrets or raw provider payloads.

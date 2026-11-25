@@ -26,6 +26,13 @@ pub enum Part {
         completion: Completion,
         estimated: bool,
     },
+    /// Guarded replies can consume two quoted attempts and only one can deliver model content.
+    GuardedUsage {
+        attempt: crate::credits::Attempt,
+        estimated: bool,
+        terminal: bool,
+    },
+    AnswerGuardHit,
     Error(Failure),
 }
 
