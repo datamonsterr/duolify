@@ -62,7 +62,7 @@ for (const vp of VIEWPORTS) {
       const slide = await page.getByTestId("slide").boundingBox();
       expect(box?.width).toBe(48);
       expect(box!.y + box!.height).toBeLessThanOrEqual(slide!.y);
-      await page.getByRole("button", { name: "Tinko is celebrating" }).click();
+      await page.getByRole("button", { name: "Buo is celebrating" }).click();
       await expect(page.locator(".m-companion svg")).toHaveAttribute(
         "data-state",
         "celebrate",
@@ -70,7 +70,7 @@ for (const vp of VIEWPORTS) {
       await save(page, info, "player-framed");
       await page.goto("/mascot.html?scene=player&immersive=1");
       await expect(page.locator(".m-companion")).toHaveCount(0);
-      await page.getByRole("button", { name: "Tinko is talking" }).click();
+      await page.getByRole("button", { name: "Buo is talking" }).click();
       await expect(page.locator(".m-companion svg")).toHaveAttribute(
         "data-state",
         "talking",
@@ -83,10 +83,10 @@ for (const vp of VIEWPORTS) {
     }, info) => {
       await page.goto("/mascot.html?scene=empty");
       await expect(
-        page.getByRole("img", { name: "Tinko is unsure" }),
+        page.getByRole("img", { name: "Buo is unsure" }),
       ).toBeVisible();
       await expect(
-        page.getByRole("img", { name: "Tinko is asleep" }),
+        page.getByRole("img", { name: "Buo is asleep" }),
       ).toBeVisible();
       await expect(page.getByText("You're offline")).toBeVisible();
       await save(page, info, "empty-error-offline");

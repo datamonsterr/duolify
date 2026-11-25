@@ -15,7 +15,7 @@ const EXPRESSION: Partial<Record<MascotState, Expression>> = {
 
 /**
  * One of the Learner's own Characters as the guide. Persona, bio and backstory never reach this
- * slot. A missing, deleted or invalid Character shows `fallback` (built-in Tinko).
+ * slot. A missing, deleted or invalid Character shows `fallback` (built-in Buo).
  */
 export default function CharacterGuide({
   characterId,

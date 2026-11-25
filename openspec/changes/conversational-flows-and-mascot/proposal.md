@@ -5,7 +5,7 @@ Every setup, creation and settings task in the client is still a form, with chat
 ## What Changes
 
 - New `guided-chat` capability: a deterministic **guided chat** pattern (declarative script, widget set, editable answers, resume, offline), a free-text-in-between router (answer / question / FAQ / command) and the retirement of form-fill screens, with an inventory of every current form mapped to a script or an explicit "stays" decision.
-- New `mascot` capability: an original green robot guide (working name **Tinko**), eight states with triggers, lightweight SVG/CSS animation, default placement in chat, onboarding, the framed lesson player, empty states, celebrations and errors, and Learner customisation (recolour, accessories, or replace with one of their own Characters) over a part schema shared with `custom-characters`.
+- New `mascot` capability: an original green robot guide (working name **Buo**), eight states with triggers, lightweight SVG/CSS animation, default placement in chat, onboarding, the framed lesson player, empty states, celebrations and errors, and Learner customisation (recolour, accessories, or replace with one of their own Characters) over a part schema shared with `custom-characters`.
 - Replace AI-driven setup chat and course brief chat questions by scripts (zero AI cost). AI remains only for free-text questions (quoted) and outline change proposals (already quoted).
 - Add per-Learner server-side guided-chat drafts (retained 30 days) and a mascot preference stored in Learner settings.
 - Mascot drawings and an animation demo are committed under `docs/design/mascot/`; `docs/design/brand.md` is amended (it currently says "avoid mascots").

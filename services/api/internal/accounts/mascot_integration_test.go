@@ -133,7 +133,7 @@ func TestMascotSettingsPersistFallbackExportAndErasure(t *testing.T) {
 		t.Fatal(err)
 	}
 	if m := mascotOf(); m["mode"] != "default" || m["character_id"] != nil || len(m["accessories"].([]any)) != 1 {
-		t.Fatalf("deleted character must fall back to default Tinko: %v", m)
+		t.Fatalf("deleted character must fall back to default Buo: %v", m)
 	}
 	if _, err = db.Pool.Exec(ctx, "UPDATE auth_sessions SET reauthenticated_at=now()"); err != nil {
 		t.Fatal(err)

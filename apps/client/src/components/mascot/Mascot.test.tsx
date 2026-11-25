@@ -40,7 +40,7 @@ describe("Mascot", () => {
     expect(svg(container)).toHaveAttribute("aria-hidden", "true");
     rerender(<Mascot state="thinking" labelled />);
     expect(
-      screen.getByRole("img", { name: "Tinko is thinking" }),
+      screen.getByRole("img", { name: "Buo is thinking" }),
     ).toBeInTheDocument();
   });
   it("renders each state and size, avatar is decorative", async () => {
