@@ -1,7 +1,8 @@
 # Prompt skills for course_preview (ADR 0025, group 3b). All rule-routed from the brief (no model
-# call, no router cost). `prompt_mode` stays "monolithic" until the task's rollout PR.
+# call, no router cost). `prompt_mode` was flipped to "routed" on 2026-11-25 after the live A/B
+# (docs/prompt-routing-rollout.md); set it back to "monolithic" to roll back.
 task = "course_preview"
-prompt_mode = "monolithic"
+prompt_mode = "routed"
 
 [routing]
 max_skills = 3
